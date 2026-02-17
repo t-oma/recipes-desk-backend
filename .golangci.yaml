@@ -1,0 +1,342 @@
+version: "2"
+run:
+  timeout: 5m
+  # Depends on your hardware, my laptop can survive 8 threads.
+  concurrency: 4
+
+  # Fail if the error was met.
+  issues-exit-code: 1
+
+  # This is very important, bugs in tests are not acceptable either.
+  tests: true
+
+linters:
+  enable:
+    # Check for pass []any as any in variadic func(...any).
+    # Rare case but saved me from debugging a few times.
+    - asasalint
+
+    # Symbol `∆` instead of `delta` looks cool but no thanks.
+    - asciicheck
+
+    # Checks for dangerous unicode character sequences.
+    # Super rare but why not to be a bit paranoid?
+    - bidichk
+
+    # Checks whether HTTP response body is closed successfully.
+    - bodyclose
+
+    # Check whether the function uses a non-inherited context.
+    - contextcheck
+
+    # Check for two durations multiplied together.
+    - durationcheck
+
+    # Forces to not skip error check.
+    - errcheck
+
+    # Checks `Err-` prefix for var and `-Error` suffix for error type.
+    - errname
+
+    # Finds code that will cause problems with the error wrapping scheme introduced in Go 1.13
+    - errorlint
+
+    # detects places where loop variables are copied (Go 1.22+)
+    - copyloopvar
+
+    # Forces to put `.` at the end of the comment. Code is poetry.
+    - godot
+
+    - gocritic
+
+    # Official Go tool. Must have.
+    - govet
+
+    # Detects when assignments to existing variables are not used
+    - ineffassign
+
+    # Both require a bit more explicit returns.
+    - nilerr
+    - nilnil
+
+    # reports that it checks for err != nil, but it returns a different nil value error (powered by nilness and nilerr)
+    - nilnesserr
+
+    # Finds sending HTTP request without context.Context.
+    - noctx
+
+    # Forces comment why another check is disabled.
+    # Better not to have //nolint: at all ;)
+    - nolintlint
+
+    # Finds slices that could potentially be pre-allocated.
+    # Small performance win + cleaner code.
+    - prealloc
+
+    # Finds shadowing of Go's predeclared identifiers.
+    - predeclared
+
+    # Checks that package variables are not reassigned.
+    # Super rare case but can catch bad things (like `io.EOF = nil`)
+    - reassign
+
+    - revive
+
+    # Somewhat similar to `bodyclose` but for `database/sql` package.
+    - rowserrcheck
+    - sqlclosecheck
+
+    - staticcheck
+
+    # Check struct tags.
+    - tagliatelle
+
+    # Test-related checks. All of them are good.
+    - testableexamples # checks if examples are testable (have an expected output)
+    - thelper
+    - tparallel
+    - testpackage # makes you use a separate _test package
+    - testifylint # checks usage of github.com/stretchr/testify
+
+    # Remove unnecessary type conversions, make code cleaner
+    - unconvert
+
+    # Might be noisy but better to know what is unused
+    - unparam
+
+    # Must have. Finds unused declarations.
+    - unused
+
+    # Detect the possibility to use variables/constants from stdlib.
+    - usestdlibvars
+
+    # Finds wasted assignment statements.
+    - wastedassign
+
+    # Checks embedded types in structs
+    - embeddedstructfieldcheck
+
+    # Detects leading and trailing whitespace
+    - whitespace
+
+    # Checks for receiver type consistency
+    - recvcheck
+
+    # Checks that fmt.Sprintf can be replaced with a faster alternative
+    - perfsprint
+
+    # Checks the order of functions, methods, and constructors
+    - funcorder
+
+    - gocheckcompilerdirectives # validates go compiler directive comments (//go:)
+    - gochecknoglobals # checks that no global variables exist
+    - gochecknoinits # checks that no init functions are present in Go code
+    - gochecksumtype # checks exhaustiveness on Go "sum types"
+
+    - cyclop
+    - gosec
+    - exhaustruct
+  settings:
+    gosec:
+      includes:
+        - G102
+        - G106
+        - G108
+        - G109
+        - G111
+        - G112
+        - G201
+        - G203
+
+    perfsprint:
+      int-conversion: true
+      err-error: true
+      errorf: true
+      sprintf1: true
+      strconcat: true
+
+    testifylint:
+      enable-all: true
+
+    errcheck:
+      # Report `a := b.(MyStruct)` when `a, ok := ...` should be.
+      check-type-assertions: true # Default: false
+      # Report skipped checks:`num, _ := strconv.Atoi(numStr)`.
+      check-blank: true # Default: false
+      # Function to skip.
+      exclude-functions:
+        - io/ioutil.ReadFile
+        - io.Copy(*bytes.Buffer)
+        - io.Copy(os.Stdout)
+
+    embeddedstructfieldcheck:
+      # Checks that sync.Mutex and sync.RWMutex are not used as embedded fields.
+      # Default: false
+      forbid-mutex: true
+
+    exhaustruct:
+      exclude:
+        # std libs
+        - ^net/http.Client$
+        - ^net/http.Cookie$
+        - ^net/http.Request$
+        - ^net/http.Response$
+        - ^net/http.Server$
+        - ^net/http.Transport$
+        - ^net/url.URL$
+        - ^os/exec.Cmd$
+        - ^reflect.StructField$
+        # public libs
+        - ^github.com/Shopify/sarama.Config$
+        - ^github.com/Shopify/sarama.ProducerMessage$
+        - ^github.com/mitchellh/mapstructure.DecoderConfig$
+        - ^github.com/prometheus/client_golang/.+Opts$
+        - ^github.com/spf13/cobra.Command$
+        - ^github.com/spf13/cobra.CompletionOptions$
+        - ^github.com/stretchr/testify/mock.Mock$
+        - ^github.com/testcontainers/testcontainers-go.+Request$
+        - ^github.com/testcontainers/testcontainers-go.FromDockerfile$
+        - ^golang.org/x/tools/go/analysis.Analyzer$
+        - ^google.golang.org/protobuf/.+Options$
+        - ^gopkg.in/yaml.v3.Node$
+      # Allows empty structures in return statements.
+      # Default: false
+      allow-empty-returns: true
+
+    tagliatelle:
+      case:
+        rules:
+          json: camel
+          yaml: camel
+          xml: camel
+          bson: camel
+          avro: snake
+          mapstructure: kebab
+
+    gochecksumtype:
+      # Presence of `default` case in switch statements satisfies exhaustiveness, if all members are not listed.
+      # Default: true
+      default-signifies-exhaustive: false
+
+    gocognit:
+      # Minimal code complexity to report.
+      # Default: 30 (but we recommend 10-20)
+      min-complexity: 20
+
+    godoclint:
+      # List of rules to enable in addition to the default set.
+      # Default: empty
+      enable:
+        # Assert no unused link in godocs.
+        # https://github.com/godoc-lint/godoc-lint?tab=readme-ov-file#no-unused-link
+        - no-unused-link
+        # Require proper doc links to standard library declarations where applicable.
+        # https://github.com/godoc-lint/godoc-lint?tab=readme-ov-file#require-stdlib-doclink
+        - require-stdlib-doclink
+
+    govet:
+      # Enable all analyzers.
+      # Default: false
+      enable-all: true
+      # Disable analyzers by name.
+      # Run `GL_DEBUG=govet golangci-lint run --enable=govet` to see default, all available analyzers, and enabled analyzers.
+      # Default: []
+      disable:
+        - fieldalignment # too strict
+      # Settings per analyzer.
+      settings:
+        shadow:
+          # Whether to be strict about shadowing; can be noisy.
+          # Default: false
+          strict: true
+
+    nolintlint:
+      # Exclude following linters from requiring an explanation.
+      # Default: []
+      allow-no-explanation: [funlen, gocognit, golines]
+      # Enable to require an explanation of nonzero length after each nolint directive.
+      # Default: false
+      require-explanation: true
+      # Enable to require nolint directives to mention the specific linter being suppressed.
+      # Default: false
+      require-specific: true
+
+  exclusions:
+    # Log a warning if an exclusion rule is unused.
+    # Default: false
+    warn-unused: true
+    # Predefined exclusion rules.
+    # Default: []
+    presets:
+      - std-error-handling
+      - common-false-positives
+    # Excluding configuration per-path, per-linter, per-text and per-source.
+    rules:
+      - source: "TODO"
+        linters: [godot]
+      - text: "should have a package comment"
+        linters: [revive]
+      - text: 'exported \S+ \S+ should have comment( \(or a comment on this block\))? or be unexported'
+        linters: [revive]
+      - text: 'package comment should be of the form ".+"'
+        source: "// ?(nolint|TODO)"
+        linters: [revive]
+      - text: 'comment on exported \S+ \S+ should be of the form ".+"'
+        source: "// ?(nolint|TODO)"
+        linters: [revive, staticcheck]
+      - path: '_test\.go'
+        linters:
+          - bodyclose
+          - dupl
+          - errcheck
+          - funlen
+          - goconst
+          - gosec
+          - noctx
+          - wrapcheck
+
+formatters:
+  enable:
+    - gci
+    - gofumpt
+    - goimports
+    - golines
+  settings:
+    # gofmt:
+    #   rewrite-rules:
+    #     - pattern: "interface{}"
+    #       replacement: "any"
+    gci:
+      # Section configuration to compare against.
+      # Section names are case-insensitive and may contain parameters in ().
+      # The default order of sections is `standard > default > custom > blank > dot > alias > localmodule`.
+      # If `custom-order` is `true`, it follows the order of `sections` option.
+      # Default: ["standard", "default"]
+      sections:
+        - standard # Standard section: captures all standard packages.
+        - default # Default section: contains all imports that could not be matched to another section type.
+        # - prefix(github.com/org/project) # Custom section: groups all imports with the specified Prefix.
+        - blank # Blank section: contains all blank imports. This section is not present unless explicitly enabled.
+        - dot # Dot section: contains all dot imports. This section is not present unless explicitly enabled.
+        - alias # Alias section: contains all alias imports. This section is not present unless explicitly enabled.
+        - localmodule # Local module section: contains all local packages. This section is not present unless explicitly enabled.
+      # Checks that no inline comments are present.
+      # Default: false
+      no-inline-comments: true
+      # Checks that no prefix comments (comment lines above an import) are present.
+      # Default: false
+      no-prefix-comments: true
+      # Enable custom order of sections.
+      # If `true`, make the section order the same as the order of `sections`.
+      # Default: false
+      custom-order: true
+      # Drops lexical ordering for custom sections.
+      # Default: false
+      no-lex-order: true
+
+    gofumpt:
+      module-path: modular-app
+
+    goimports:
+      local-prefixes:
+        - modular-app
