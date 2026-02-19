@@ -18,7 +18,7 @@ type MongoDB struct {
 	Database *mongo.Database
 }
 
-func New(cfg config.MongoDBConfig, log *zerolog.Logger) (*MongoDB, error) {
+func New(cfg *config.MongoDB, log *zerolog.Logger) (*MongoDB, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 
