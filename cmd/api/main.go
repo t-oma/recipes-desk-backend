@@ -9,6 +9,7 @@ import (
 	"recipes-desk/internal/config"
 	"recipes-desk/internal/infra/database"
 	"recipes-desk/internal/infra/logger"
+	"recipes-desk/internal/modules/recipes"
 	"recipes-desk/internal/server"
 )
 
@@ -56,8 +57,20 @@ func main() {
 		}
 	}()
 
+	// Setup router and register modules
+	router := server.NewRouter()
+	api := router.Group("/api/v1")
+
+	// Create public and protected route groups
+	public := api.Group("")
+	protected := api.Group("")
+
+	// Initialize and register recipes module
+	recipesModule := recipes.NewModule(db.Database, log)
+	recipesModule.RegisterRoutes(public, protected)
+
 	ctx, cancel := context.WithTimeout(ctx, 3*time.Second)
 	defer cancel()
 
-	server.New(server.NewRouter(), cfg, log).Start(ctx)
+	server.New(router, cfg, log).Start(ctx)
 }
