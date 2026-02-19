@@ -60,9 +60,11 @@ func (s *server) Start(ctx context.Context) {
 	}()
 
 	s.log.Info().Str("address", s.srv.Addr).Msg("Server started")
+
+	s.waitSignal(ctx)
 }
 
-func (s *server) Wait(ctx context.Context) {
+func (s *server) waitSignal(ctx context.Context) {
 	// Wait for interrupt signal
 	quit := make(chan os.Signal, 1)
 	signal.Notify(quit, syscall.SIGINT, syscall.SIGTERM)
