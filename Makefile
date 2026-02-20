@@ -1,46 +1,121 @@
-.PHONY: build run test clean docker-up docker-down docker-logs install swag
+.PHONY: build run \ 
+		test test-unit \ 
+		test-integration test-integration-recipes test-integration-all test-all \ 
+		coverage coverage-integration coverage-all \
+        clean \ 
+		docker-up docker-down docker-logs \ 
+		install \ 
+		swag lint
 
-# Build application
+# =============================================================================
+# BUILD
+# =============================================================================
+
+# Build application binary
 build:
 	go build -o bin/api cmd/api/main.go
 
-# Run application locally
+# Run application locally with hot reload
 run:
 	go run cmd/api/main.go
 
-# Run tests
+# =============================================================================
+# UNIT TESTS (fast, no Docker required)
+# =============================================================================
+
+# Run all unit tests (excludes integration tests)
 test:
 	go test -v ./...
 
-# Run tests with coverage
-test-coverage:
-	go test -v -coverprofile=coverage.out ./...
-	go tool cover -html=coverage.out -o coverage.html
+# Alias for test (explicit)
+test-unit:
+	go test -v ./...
 
-# Clean build artifacts
+# =============================================================================
+# INTEGRATION TESTS (slow, requires Docker)
+# =============================================================================
+
+# Run ALL integration tests in the project
+test-integration:
+	go test -v -tags=integration -run '^TestIntegration_' ./...
+
+# Run integration tests for recipes module only
+test-integration-recipes:
+	go test -v -tags=integration -run '^TestIntegration_' ./internal/modules/recipes/...
+
+# Run integration tests for repository layer only (fastest)
+test-integration-repository:
+	go test -v -tags=integration -run '^TestIntegration_' ./internal/modules/recipes/repository/...
+
+# =============================================================================
+# ALL TESTS (unit + integration)
+# =============================================================================
+
+# Run all tests (unit + integration)
+test-all: test test-integration
+
+# =============================================================================
+# COVERAGE
+# =============================================================================
+
+# Coverage for unit tests only
+coverage:
+	go test -coverprofile=coverage.out ./...
+	go tool cover -html=coverage.out -o coverage.html
+	@echo "Coverage report generated: coverage.html"
+
+# Coverage for integration tests only
+coverage-integration:
+	go test -tags=integration -run '^TestIntegration_' -coverprofile=coverage.out ./...
+	go tool cover -html=coverage.out -o coverage.html
+	@echo "Integration coverage report generated: coverage.html"
+
+coverage-recipes:
+	go test -tags=integration -run '^TestIntegration_' -coverprofile=coverage.out ./internal/modules/recipes/...
+	go tool cover -html=coverage.out -o coverage.html
+	@echo "Recipes coverage report generated: coverage.html"
+
+# Coverage for all tests
+coverage-all:
+	go test -tags=integration -coverprofile=coverage.out ./...
+	go tool cover -html=coverage.out -o coverage.html
+	@echo "Full coverage report generated: coverage.html"
+
+# =============================================================================
+# CLEANUP
+# =============================================================================
+
 clean:
 	rm -rf bin/
 	rm -f coverage.out coverage.html
 
-# Install dependencies
+# =============================================================================
+# DEPENDENCIES
+# =============================================================================
+
 install:
 	go mod download
 	go mod tidy
 
-# Install development tools
 install-tools:
 	go install github.com/swaggo/swag/cmd/swag@latest
 	go install github.com/golangci/golangci-lint/cmd/golangci-lint@latest
 
-# Lint code
+# =============================================================================
+# CODE QUALITY
+# =============================================================================
+
 lint:
 	golangci-lint run
 
-# Generate swagger docs
+# Generate swagger documentation
 swag:
 	swag init -g cmd/api/main.go -o docs/swagger
 
-# Docker commands
+# =============================================================================
+# DOCKER
+# =============================================================================
+
 docker-up:
 	docker compose up -d
 
@@ -56,8 +131,12 @@ docker-build:
 docker-clean:
 	docker compose down -v --remove-orphans
 
-# Full development setup
+# =============================================================================
+# SETUP
+# =============================================================================
+
 setup: install install-tools docker-up
-	@echo "Setup complete! API will be available at http://localhost:8080"
+	@echo "✅ Setup complete!"
+	@echo "API will be available at http://localhost:8080"
 	@echo "MongoDB available at localhost:27017"
 	@echo "Mongo Express available at http://localhost:8081"
