@@ -335,8 +335,8 @@ formatters:
       no-lex-order: true
 
     gofumpt:
-      module-path: modular-app
+      module-path: recipes-desk
 
     goimports:
       local-prefixes:
-        - modular-app
+        - recipes-desk
