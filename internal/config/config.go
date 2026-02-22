@@ -1,7 +1,7 @@
 package config
 
 import (
-	"log"
+	"log/slog"
 	"time"
 
 	"github.com/spf13/viper"
@@ -43,7 +43,7 @@ func Load() (*Config, error) {
 	v.AddConfigPath(".")
 	v.SetConfigFile(".env")
 	if err := v.ReadInConfig(); err != nil {
-		log.Printf("Warning: .env file not found, using environment variables only")
+		slog.Warn("Warning: .env file not found, using environment variables only")
 	}
 
 	v.AddConfigPath("./configs/")

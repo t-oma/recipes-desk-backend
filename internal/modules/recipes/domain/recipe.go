@@ -8,16 +8,16 @@ import (
 
 // Recipe represents a cooking recipe.
 type Recipe struct {
-	ID          primitive.ObjectID `bson:"_id,omitempty" json:"id"`
+	ID          primitive.ObjectID `bson:"_id,omitempty" json:"id"` //nolint:tagliatelle // mongoDB id
 	Title       string             `bson:"title"         json:"title"`
 	Description string             `bson:"description"   json:"description"`
 	Ingredients []Ingredient       `bson:"ingredients"   json:"ingredients"`
 	Steps       []Step             `bson:"steps"         json:"steps"`
-	CookingTime int                `bson:"cooking_time"  json:"cooking_time"`
+	CookingTime int                `bson:"cookingTime"   json:"cookingTime"`
 	Portions    int                `bson:"portions"      json:"portions"`
 	Tags        []string           `bson:"tags"          json:"tags"`
-	CreatedAt   time.Time          `bson:"created_at"    json:"created_at"`
-	UpdatedAt   time.Time          `bson:"updated_at"    json:"updated_at"`
+	CreatedAt   time.Time          `bson:"createdAt"     json:"createdAt"`
+	UpdatedAt   time.Time          `bson:"updatedAt"     json:"updatedAt"`
 }
 
 // Ingredient represents a recipe ingredient.

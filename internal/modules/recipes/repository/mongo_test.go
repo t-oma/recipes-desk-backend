@@ -62,7 +62,7 @@ func TestMongoRepository_RecipePreparation(t *testing.T) {
 	}{
 		{
 			name: "recipe with zero ID gets new ID and timestamps",
-			recipe: &domain.Recipe{
+			recipe: &domain.Recipe{ //nolint:exhaustruct // test struct
 				Title:       "Test Recipe",
 				Description: "This is a valid description",
 				Ingredients: []domain.Ingredient{{Name: "Test", Amount: 1, Unit: "g"}},
@@ -76,7 +76,7 @@ func TestMongoRepository_RecipePreparation(t *testing.T) {
 		},
 		{
 			name: "recipe with existing ID preserves ID but gets new timestamps",
-			recipe: &domain.Recipe{
+			recipe: &domain.Recipe{ //nolint:exhaustruct // test struct
 				ID:          primitive.NewObjectID(),
 				Title:       "Test Recipe",
 				Description: "This is a valid description",
@@ -132,7 +132,12 @@ func TestMongoRepository_BSONFilterCreation(t *testing.T) {
 
 	t.Run("update filter", func(t *testing.T) {
 		filter := primitive.M{"_id": recipeID}
-		update := primitive.M{"$set": domain.Recipe{ID: recipeID, Title: "Updated"}}
+		update := primitive.M{
+			"$set": domain.Recipe{ //nolint:exhaustruct // test struct
+				ID:    recipeID,
+				Title: "Updated",
+			},
+		}
 		assert.NotNil(t, filter)
 		assert.NotNil(t, update)
 	})

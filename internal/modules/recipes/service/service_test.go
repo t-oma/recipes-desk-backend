@@ -73,7 +73,7 @@ func TestService_Create(t *testing.T) {
 	}{
 		{
 			name: "success",
-			recipe: &domain.Recipe{
+			recipe: &domain.Recipe{ //nolint:exhaustruct // test struct
 				Title:       "Test Recipe",
 				Description: "This is a valid description",
 				Ingredients: []domain.Ingredient{{Name: "Test", Amount: 1, Unit: "g"}},
@@ -91,7 +91,7 @@ func TestService_Create(t *testing.T) {
 		},
 		{
 			name: "validation error - empty title",
-			recipe: &domain.Recipe{
+			recipe: &domain.Recipe{ //nolint:exhaustruct // test struct
 				Title:       "",
 				Description: "Valid description",
 				Ingredients: []domain.Ingredient{{Name: "Test", Amount: 1, Unit: "g"}},
@@ -108,7 +108,7 @@ func TestService_Create(t *testing.T) {
 		},
 		{
 			name: "repository error",
-			recipe: &domain.Recipe{
+			recipe: &domain.Recipe{ //nolint:exhaustruct // test struct
 				Title:       "Test Recipe",
 				Description: "This is a valid description",
 				Ingredients: []domain.Ingredient{{Name: "Test", Amount: 1, Unit: "g"}},
@@ -137,11 +137,11 @@ func TestService_Create(t *testing.T) {
 			created, err := svc.Create(context.Background(), tt.recipe)
 
 			if tt.wantErr != nil {
-				assert.Error(t, err)
+				require.Error(t, err)
 				assert.Contains(t, err.Error(), tt.wantErr.Error())
 				assert.Nil(t, created)
 			} else {
-				assert.NoError(t, err)
+				require.NoError(t, err)
 				assert.NotNil(t, created)
 			}
 
@@ -166,7 +166,13 @@ func TestService_GetByID(t *testing.T) {
 			id:   recipeID.Hex(),
 			mockSetup: func(m *mockRepository) {
 				m.On("FindByID", mock.Anything, recipeID.Hex()).
-					Return(&domain.Recipe{ID: recipeID, Title: "Test"}, nil)
+					Return(
+						&domain.Recipe{ //nolint:exhaustruct // test struct
+							ID:    recipeID,
+							Title: "Test",
+						},
+						nil,
+					)
 			},
 			wantErr:    nil,
 			wantRecipe: true,
@@ -202,13 +208,13 @@ func TestService_GetByID(t *testing.T) {
 			recipe, err := svc.GetByID(context.Background(), tt.id)
 
 			if tt.wantErr != nil {
-				assert.Error(t, err)
+				require.Error(t, err)
 				if errors.Is(tt.wantErr, domain.ErrNotFound) {
 					assert.ErrorIs(t, err, domain.ErrNotFound)
 				}
 				assert.Nil(t, recipe)
 			} else {
-				assert.NoError(t, err)
+				require.NoError(t, err)
 				assert.NotNil(t, recipe)
 				if tt.wantRecipe {
 					assert.Equal(t, recipeID, recipe.ID)
@@ -234,8 +240,8 @@ func TestService_GetAll(t *testing.T) {
 			mockSetup: func(m *mockRepository) {
 				m.On("FindAll", mock.Anything).
 					Return([]domain.Recipe{
-						{Title: "Recipe 1"},
-						{Title: "Recipe 2"},
+						{Title: "Recipe 1"}, //nolint:exhaustruct // test struct
+						{Title: "Recipe 2"}, //nolint:exhaustruct // test struct
 					}, nil)
 			},
 			wantErr:   nil,
@@ -270,10 +276,10 @@ func TestService_GetAll(t *testing.T) {
 			recipes, err := svc.GetAll(context.Background())
 
 			if tt.wantErr != nil {
-				assert.Error(t, err)
+				require.Error(t, err)
 				assert.Nil(t, recipes)
 			} else {
-				assert.NoError(t, err)
+				require.NoError(t, err)
 				assert.Len(t, recipes, tt.wantCount)
 			}
 
@@ -298,8 +304,8 @@ func TestService_Search(t *testing.T) {
 			mockSetup: func(m *mockRepository) {
 				m.On("Search", mock.Anything, "pasta").
 					Return([]domain.Recipe{
-						{Title: "Pasta Carbonara"},
-						{Title: "Pasta Bolognese"},
+						{Title: "Pasta Carbonara"}, //nolint:exhaustruct // test struct
+						{Title: "Pasta Bolognese"}, //nolint:exhaustruct // test struct
 					}, nil)
 			},
 			wantErr:   nil,
@@ -311,9 +317,9 @@ func TestService_Search(t *testing.T) {
 			mockSetup: func(m *mockRepository) {
 				m.On("FindAll", mock.Anything).
 					Return([]domain.Recipe{
-						{Title: "Recipe 1"},
-						{Title: "Recipe 2"},
-						{Title: "Recipe 3"},
+						{Title: "Recipe 1"}, //nolint:exhaustruct // test struct
+						{Title: "Recipe 2"}, //nolint:exhaustruct // test struct
+						{Title: "Recipe 3"}, //nolint:exhaustruct // test struct
 					}, nil)
 			},
 			wantErr:   nil,
@@ -340,10 +346,10 @@ func TestService_Search(t *testing.T) {
 			recipes, err := svc.Search(context.Background(), tt.query)
 
 			if tt.wantErr != nil {
-				assert.Error(t, err)
+				require.Error(t, err)
 				assert.Nil(t, recipes)
 			} else {
-				assert.NoError(t, err)
+				require.NoError(t, err)
 				assert.Len(t, recipes, tt.wantCount)
 			}
 
@@ -366,7 +372,7 @@ func TestService_Update(t *testing.T) {
 		{
 			name: "success",
 			id:   recipeID.Hex(),
-			recipe: &domain.Recipe{
+			recipe: &domain.Recipe{ //nolint:exhaustruct // test struct
 				Title:       "Updated Recipe",
 				Description: "This is a valid description",
 				Ingredients: []domain.Ingredient{{Name: "Test", Amount: 1, Unit: "g"}},
@@ -377,7 +383,13 @@ func TestService_Update(t *testing.T) {
 			},
 			mockSetup: func(m *mockRepository) {
 				m.On("FindByID", mock.Anything, recipeID.Hex()).
-					Return(&domain.Recipe{ID: recipeID, Title: "Old"}, nil)
+					Return(
+						&domain.Recipe{ //nolint:exhaustruct // test struct
+							ID:    recipeID,
+							Title: "Old",
+						},
+						nil,
+					)
 				m.On("Update", mock.Anything, mock.AnythingOfType("*domain.Recipe")).
 					Return(nil)
 			},
@@ -386,7 +398,7 @@ func TestService_Update(t *testing.T) {
 		{
 			name: "not found",
 			id:   recipeID.Hex(),
-			recipe: &domain.Recipe{
+			recipe: &domain.Recipe{ //nolint:exhaustruct // test struct
 				Title:       "Updated Recipe",
 				Description: "This is a valid description",
 				Ingredients: []domain.Ingredient{{Name: "Test", Amount: 1, Unit: "g"}},
@@ -404,7 +416,7 @@ func TestService_Update(t *testing.T) {
 		{
 			name: "validation error",
 			id:   recipeID.Hex(),
-			recipe: &domain.Recipe{
+			recipe: &domain.Recipe{ //nolint:exhaustruct // test struct
 				Title:       "", // Invalid - empty title
 				Description: "Valid description",
 				Ingredients: []domain.Ingredient{{Name: "Test", Amount: 1, Unit: "g"}},
@@ -416,14 +428,20 @@ func TestService_Update(t *testing.T) {
 			mockSetup: func(m *mockRepository) {
 				// FindByID is called first
 				m.On("FindByID", mock.Anything, recipeID.Hex()).
-					Return(&domain.Recipe{ID: recipeID, Title: "Old"}, nil)
+					Return(
+						&domain.Recipe{ //nolint:exhaustruct // test struct
+							ID:    recipeID,
+							Title: "Old",
+						},
+						nil,
+					)
 			},
 			wantErr: domain.ErrEmptyTitle,
 		},
 		{
 			name: "repository update error",
 			id:   recipeID.Hex(),
-			recipe: &domain.Recipe{
+			recipe: &domain.Recipe{ //nolint:exhaustruct // test struct
 				Title:       "Updated Recipe",
 				Description: "This is a valid description",
 				Ingredients: []domain.Ingredient{{Name: "Test", Amount: 1, Unit: "g"}},
@@ -434,7 +452,13 @@ func TestService_Update(t *testing.T) {
 			},
 			mockSetup: func(m *mockRepository) {
 				m.On("FindByID", mock.Anything, recipeID.Hex()).
-					Return(&domain.Recipe{ID: recipeID, Title: "Old"}, nil)
+					Return(
+						&domain.Recipe{ //nolint:exhaustruct // test struct
+							ID:    recipeID,
+							Title: "Old",
+						},
+						nil,
+					)
 				m.On("Update", mock.Anything, mock.AnythingOfType("*domain.Recipe")).
 					Return(errors.New("update failed"))
 			},
@@ -454,7 +478,7 @@ func TestService_Update(t *testing.T) {
 				require.Error(t, err)
 				if errors.Is(tt.wantErr, domain.ErrNotFound) ||
 					errors.Is(tt.wantErr, domain.ErrValidation) {
-					assert.ErrorIs(t, err, tt.wantErr)
+					require.ErrorIs(t, err, tt.wantErr)
 				}
 				assert.Nil(t, updated)
 			} else {
@@ -483,7 +507,12 @@ func TestService_Delete(t *testing.T) {
 			id:   recipeID.Hex(),
 			mockSetup: func(m *mockRepository) {
 				m.On("FindByID", mock.Anything, recipeID.Hex()).
-					Return(&domain.Recipe{ID: recipeID, Title: "Test"}, nil)
+					Return(
+						&domain.Recipe{ //nolint:exhaustruct // test struct
+							ID:    recipeID,
+							Title: "Test",
+						},
+						nil)
 				m.On("Delete", mock.Anything, recipeID.Hex()).
 					Return(nil)
 			},
@@ -503,7 +532,13 @@ func TestService_Delete(t *testing.T) {
 			id:   recipeID.Hex(),
 			mockSetup: func(m *mockRepository) {
 				m.On("FindByID", mock.Anything, recipeID.Hex()).
-					Return(&domain.Recipe{ID: recipeID, Title: "Test"}, nil)
+					Return(
+						&domain.Recipe{ //nolint:exhaustruct // test struct
+							ID:    recipeID,
+							Title: "Test",
+						},
+						nil,
+					)
 				m.On("Delete", mock.Anything, recipeID.Hex()).
 					Return(errors.New("delete error"))
 			},
@@ -520,12 +555,12 @@ func TestService_Delete(t *testing.T) {
 			err := svc.Delete(context.Background(), tt.id)
 
 			if tt.wantErr != nil {
-				assert.Error(t, err)
+				require.Error(t, err)
 				if errors.Is(tt.wantErr, domain.ErrNotFound) {
 					assert.ErrorIs(t, err, domain.ErrNotFound)
 				}
 			} else {
-				assert.NoError(t, err)
+				require.NoError(t, err)
 			}
 
 			mockRepo.AssertExpectations(t)

@@ -10,7 +10,7 @@ import (
 	"recipes-desk/internal/modules/recipes/service"
 )
 
-// Module represents the recipes module
+// Module represents the recipes module.
 type Module struct {
 	handler *handler.Handler
 }
@@ -26,7 +26,7 @@ func NewModule(db *mongo.Database, log *zerolog.Logger) *Module {
 	}
 }
 
-// RegisterRoutes registers all recipe routes
+// RegisterRoutes registers all recipe routes.
 func (m *Module) RegisterRoutes(public, protected *gin.RouterGroup) {
 	// Public routes
 	public.GET("/recipes", m.handler.List)

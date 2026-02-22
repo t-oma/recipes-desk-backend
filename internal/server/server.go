@@ -15,7 +15,7 @@ import (
 	"recipes-desk/internal/config"
 )
 
-type server struct {
+type Server struct {
 	log          *zerolog.Logger
 	srv          *http.Server
 	isProduction bool
@@ -33,8 +33,8 @@ func NewRouter() *gin.Engine {
 	return router
 }
 
-func New(handler http.Handler, cfg *config.Config, logger *zerolog.Logger) *server {
-	return &server{
+func New(handler http.Handler, cfg *config.Config, logger *zerolog.Logger) *Server {
+	return &Server{
 		log: logger,
 		srv: &http.Server{
 			Addr:         ":" + cfg.Server.Port,
@@ -46,7 +46,7 @@ func New(handler http.Handler, cfg *config.Config, logger *zerolog.Logger) *serv
 	}
 }
 
-func (s *server) Start(ctx context.Context) {
+func (s *Server) Start(ctx context.Context) {
 	// Set Gin mode
 	if s.isProduction {
 		gin.SetMode(gin.ReleaseMode)
@@ -54,7 +54,8 @@ func (s *server) Start(ctx context.Context) {
 
 	// Graceful shutdown
 	go func() {
-		if err := s.srv.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
+		err := s.srv.ListenAndServe()
+		if err != nil && !errors.Is(err, http.ErrServerClosed) {
 			s.log.Fatal().Err(err).Msg("Failed to start server")
 		}
 	}()
@@ -64,7 +65,7 @@ func (s *server) Start(ctx context.Context) {
 	s.waitSignal(ctx)
 }
 
-func (s *server) waitSignal(ctx context.Context) {
+func (s *Server) waitSignal(ctx context.Context) {
 	// Wait for interrupt signal
 	quit := make(chan os.Signal, 1)
 	signal.Notify(quit, syscall.SIGINT, syscall.SIGTERM)

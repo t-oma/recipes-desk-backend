@@ -5,6 +5,7 @@ import (
 	"time"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 	"go.mongodb.org/mongo-driver/bson/primitive"
 
 	"recipes-desk/internal/modules/recipes/domain"
@@ -18,7 +19,7 @@ func TestRecipe_Validate(t *testing.T) {
 	}{
 		{
 			name: "valid recipe",
-			recipe: domain.Recipe{
+			recipe: domain.Recipe{ //nolint:exhaustruct // test struct
 				Title:       "Pasta Carbonara",
 				Description: "Classic Italian pasta dish with eggs and cheese",
 				Ingredients: []domain.Ingredient{
@@ -37,7 +38,7 @@ func TestRecipe_Validate(t *testing.T) {
 		},
 		{
 			name: "empty title",
-			recipe: domain.Recipe{
+			recipe: domain.Recipe{ //nolint:exhaustruct // test struct
 				Title:       "",
 				Description: "Some description",
 				Ingredients: []domain.Ingredient{{Name: "Test", Amount: 1, Unit: "g"}},
@@ -50,7 +51,7 @@ func TestRecipe_Validate(t *testing.T) {
 		},
 		{
 			name: "title too short",
-			recipe: domain.Recipe{
+			recipe: domain.Recipe{ //nolint:exhaustruct // test struct
 				Title:       "Ab",
 				Description: "Some description",
 				Ingredients: []domain.Ingredient{{Name: "Test", Amount: 1, Unit: "g"}},
@@ -63,7 +64,7 @@ func TestRecipe_Validate(t *testing.T) {
 		},
 		{
 			name: "title too long",
-			recipe: domain.Recipe{
+			recipe: domain.Recipe{ //nolint:exhaustruct // test struct
 				Title:       string(make([]byte, 201)), // 201 characters
 				Description: "Some description",
 				Ingredients: []domain.Ingredient{{Name: "Test", Amount: 1, Unit: "g"}},
@@ -76,7 +77,7 @@ func TestRecipe_Validate(t *testing.T) {
 		},
 		{
 			name: "empty description",
-			recipe: domain.Recipe{
+			recipe: domain.Recipe{ //nolint:exhaustruct // test struct
 				Title:       "Valid Title",
 				Description: "",
 				Ingredients: []domain.Ingredient{{Name: "Test", Amount: 1, Unit: "g"}},
@@ -89,7 +90,7 @@ func TestRecipe_Validate(t *testing.T) {
 		},
 		{
 			name: "description too short",
-			recipe: domain.Recipe{
+			recipe: domain.Recipe{ //nolint:exhaustruct // test struct
 				Title:       "Valid Title",
 				Description: "Short",
 				Ingredients: []domain.Ingredient{{Name: "Test", Amount: 1, Unit: "g"}},
@@ -102,7 +103,7 @@ func TestRecipe_Validate(t *testing.T) {
 		},
 		{
 			name: "no ingredients",
-			recipe: domain.Recipe{
+			recipe: domain.Recipe{ //nolint:exhaustruct // test struct
 				Title:       "Valid Title",
 				Description: "This is a valid description that is long enough",
 				Ingredients: []domain.Ingredient{},
@@ -115,7 +116,7 @@ func TestRecipe_Validate(t *testing.T) {
 		},
 		{
 			name: "no steps",
-			recipe: domain.Recipe{
+			recipe: domain.Recipe{ //nolint:exhaustruct // test struct
 				Title:       "Valid Title",
 				Description: "This is a valid description that is long enough",
 				Ingredients: []domain.Ingredient{{Name: "Test", Amount: 1, Unit: "g"}},
@@ -128,7 +129,7 @@ func TestRecipe_Validate(t *testing.T) {
 		},
 		{
 			name: "invalid cooking time - zero",
-			recipe: domain.Recipe{
+			recipe: domain.Recipe{ //nolint:exhaustruct // test struct
 				Title:       "Valid Title",
 				Description: "This is a valid description that is long enough",
 				Ingredients: []domain.Ingredient{{Name: "Test", Amount: 1, Unit: "g"}},
@@ -141,7 +142,7 @@ func TestRecipe_Validate(t *testing.T) {
 		},
 		{
 			name: "invalid cooking time - negative",
-			recipe: domain.Recipe{
+			recipe: domain.Recipe{ //nolint:exhaustruct // test struct
 				Title:       "Valid Title",
 				Description: "This is a valid description that is long enough",
 				Ingredients: []domain.Ingredient{{Name: "Test", Amount: 1, Unit: "g"}},
@@ -154,7 +155,7 @@ func TestRecipe_Validate(t *testing.T) {
 		},
 		{
 			name: "invalid portions - zero",
-			recipe: domain.Recipe{
+			recipe: domain.Recipe{ //nolint:exhaustruct // test struct
 				Title:       "Valid Title",
 				Description: "This is a valid description that is long enough",
 				Ingredients: []domain.Ingredient{{Name: "Test", Amount: 1, Unit: "g"}},
@@ -167,7 +168,7 @@ func TestRecipe_Validate(t *testing.T) {
 		},
 		{
 			name: "invalid portions - too many",
-			recipe: domain.Recipe{
+			recipe: domain.Recipe{ //nolint:exhaustruct // test struct
 				Title:       "Valid Title",
 				Description: "This is a valid description that is long enough",
 				Ingredients: []domain.Ingredient{{Name: "Test", Amount: 1, Unit: "g"}},
@@ -180,7 +181,7 @@ func TestRecipe_Validate(t *testing.T) {
 		},
 		{
 			name: "no tags",
-			recipe: domain.Recipe{
+			recipe: domain.Recipe{ //nolint:exhaustruct // test struct
 				Title:       "Valid Title",
 				Description: "This is a valid description that is long enough",
 				Ingredients: []domain.Ingredient{{Name: "Test", Amount: 1, Unit: "g"}},
@@ -193,7 +194,7 @@ func TestRecipe_Validate(t *testing.T) {
 		},
 		{
 			name: "valid recipe - boundary values",
-			recipe: domain.Recipe{
+			recipe: domain.Recipe{ //nolint:exhaustruct // test struct
 				Title:       "ABC",        // minimum 3 chars
 				Description: "1234567890", // minimum 10 chars
 				Ingredients: []domain.Ingredient{{Name: "Test", Amount: 1, Unit: "g"}},
@@ -210,9 +211,9 @@ func TestRecipe_Validate(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			err := tt.recipe.Validate()
 			if tt.wantErr != nil {
-				assert.ErrorIs(t, err, tt.wantErr)
+				require.ErrorIs(t, err, tt.wantErr)
 			} else {
-				assert.NoError(t, err)
+				require.NoError(t, err)
 			}
 		})
 	}
@@ -227,7 +228,7 @@ func TestRecipe_SetTimestamps(t *testing.T) {
 	}{
 		{
 			name: "new recipe - sets both timestamps",
-			recipe: domain.Recipe{
+			recipe: domain.Recipe{ //nolint:exhaustruct // test struct
 				ID: primitive.NewObjectID(),
 			},
 			wantCreatedAt: true,
@@ -235,7 +236,7 @@ func TestRecipe_SetTimestamps(t *testing.T) {
 		},
 		{
 			name: "existing recipe - updates only updatedAt",
-			recipe: domain.Recipe{
+			recipe: domain.Recipe{ //nolint:exhaustruct // test struct
 				ID:        primitive.NewObjectID(),
 				CreatedAt: time.Now().Add(-time.Hour),
 			},
@@ -244,7 +245,7 @@ func TestRecipe_SetTimestamps(t *testing.T) {
 		},
 		{
 			name: "recipe with zero values - sets both",
-			recipe: domain.Recipe{
+			recipe: domain.Recipe{ //nolint:exhaustruct // test struct
 				ID:        primitive.NilObjectID,
 				CreatedAt: time.Time{},
 				UpdatedAt: time.Time{},
@@ -287,7 +288,7 @@ func TestRecipe_SetTimestamps_PreservesCreatedAt(t *testing.T) {
 	// Specific test for the preservation of CreatedAt
 	originalTime := time.Date(2023, 1, 1, 12, 0, 0, 0, time.UTC)
 
-	recipe := domain.Recipe{
+	recipe := domain.Recipe{ //nolint:exhaustruct // test struct
 		ID:        primitive.NewObjectID(),
 		CreatedAt: originalTime,
 		UpdatedAt: originalTime,
@@ -307,7 +308,7 @@ func TestRecipe_SetTimestamps_PreservesCreatedAt(t *testing.T) {
 
 func TestRecipe_Validate_WrappedErrors(t *testing.T) {
 	// Test that validation errors are properly wrapped with ErrValidation
-	recipe := domain.Recipe{
+	recipe := domain.Recipe{ //nolint:exhaustruct // test struct
 		Title:       "",
 		Description: "Short",
 	}
@@ -315,7 +316,7 @@ func TestRecipe_Validate_WrappedErrors(t *testing.T) {
 	err := recipe.Validate()
 
 	// Check that we get the specific error
-	assert.ErrorIs(t, err, domain.ErrEmptyTitle)
+	require.ErrorIs(t, err, domain.ErrEmptyTitle)
 
 	// Check that the error message contains validation info
 	assert.Contains(t, err.Error(), "validation error")

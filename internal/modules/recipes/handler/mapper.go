@@ -3,6 +3,8 @@ package handler
 import (
 	"time"
 
+	"go.mongodb.org/mongo-driver/bson/primitive"
+
 	"recipes-desk/internal/modules/recipes/domain"
 )
 
@@ -27,6 +29,7 @@ func toDomainRecipe(req CreateRequest) *domain.Recipe {
 	}
 
 	return &domain.Recipe{
+		ID:          primitive.NilObjectID,
 		Title:       req.Title,
 		Description: req.Description,
 		Ingredients: ingredients,
@@ -34,6 +37,8 @@ func toDomainRecipe(req CreateRequest) *domain.Recipe {
 		CookingTime: req.CookingTime,
 		Portions:    req.Portions,
 		Tags:        req.Tags,
+		CreatedAt:   time.Time{},
+		UpdatedAt:   time.Time{},
 	}
 }
 

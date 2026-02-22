@@ -98,8 +98,14 @@ func TestHandler_List(t *testing.T) {
 			name: "success with recipes",
 			mockSetup: func(m *mockService) {
 				m.On("GetAll", mock.Anything).Return([]domain.Recipe{
-					{ID: primitive.NewObjectID(), Title: "Recipe 1"},
-					{ID: primitive.NewObjectID(), Title: "Recipe 2"},
+					{ //nolint:exhaustruct // test struct
+						ID:    primitive.NewObjectID(),
+						Title: "Recipe 1",
+					},
+					{ //nolint:exhaustruct // test struct
+						ID:    primitive.NewObjectID(),
+						Title: "Recipe 2",
+					},
 				}, nil)
 			},
 			wantStatusCode: http.StatusOK,
@@ -131,7 +137,7 @@ func TestHandler_List(t *testing.T) {
 			router.GET("/recipes", h.List)
 
 			w := httptest.NewRecorder()
-			req, _ := http.NewRequest("GET", "/recipes", nil)
+			req, _ := http.NewRequest(http.MethodGet, "/recipes", nil)
 			router.ServeHTTP(w, req)
 
 			assert.Equal(t, tt.wantStatusCode, w.Code)
@@ -139,7 +145,7 @@ func TestHandler_List(t *testing.T) {
 			if tt.wantStatusCode == http.StatusOK {
 				var response handler.ListResponse
 				err := json.Unmarshal(w.Body.Bytes(), &response)
-				assert.NoError(t, err)
+				require.NoError(t, err)
 				assert.Len(t, response.Recipes, tt.wantRecipes)
 				assert.Equal(t, tt.wantRecipes, response.Count)
 			}
@@ -242,8 +248,8 @@ func TestHandler_Search(t *testing.T) {
 			mockSetup: func(m *mockService) {
 				m.On("Search", mock.Anything, "pasta").
 					Return([]domain.Recipe{
-						{Title: "Pasta Carbonara"},
-						{Title: "Pasta Bolognese"},
+						{Title: "Pasta Carbonara"}, //nolint:exhaustruct // test struct
+						{Title: "Pasta Bolognese"}, //nolint:exhaustruct // test struct
 					}, nil)
 			},
 			wantStatusCode: http.StatusOK,
@@ -303,20 +309,20 @@ func TestHandler_Create(t *testing.T) {
 
 	tests := []struct {
 		name           string
-		body           map[string]interface{}
+		body           map[string]any
 		mockSetup      func(*mockService)
 		wantStatusCode int
 		wantCreated    bool
 	}{
 		{
 			name: "success",
-			body: map[string]interface{}{
+			body: map[string]any{
 				"title":       "New Recipe",
 				"description": "This is a valid description that is long enough",
-				"ingredients": []map[string]interface{}{
+				"ingredients": []map[string]any{
 					{"name": "Ingredient 1", "amount": 100, "unit": "g"},
 				},
-				"steps": []map[string]interface{}{
+				"steps": []map[string]any{
 					{"order": 1, "description": "Step 1", "duration": 10},
 				},
 				"cookingTime": 30,
@@ -325,7 +331,7 @@ func TestHandler_Create(t *testing.T) {
 			},
 			mockSetup: func(m *mockService) {
 				m.On("Create", mock.Anything, mock.AnythingOfType("*domain.Recipe")).
-					Return(&domain.Recipe{
+					Return(&domain.Recipe{ //nolint:exhaustruct // test struct
 						ID:    recipeID,
 						Title: "New Recipe",
 					}, nil)
@@ -335,13 +341,13 @@ func TestHandler_Create(t *testing.T) {
 		},
 		{
 			name: "validation error",
-			body: map[string]interface{}{
+			body: map[string]any{
 				"title":       "AB", // Title too short (less than 3 characters)
 				"description": "Valid description",
-				"ingredients": []map[string]interface{}{
+				"ingredients": []map[string]any{
 					{"name": "Ingredient 1", "amount": 100, "unit": "g"},
 				},
-				"steps": []map[string]interface{}{
+				"steps": []map[string]any{
 					{"order": 1, "description": "Step 1", "duration": 10},
 				},
 				"cookingTime": 30,
@@ -407,20 +413,20 @@ func TestHandler_Update(t *testing.T) {
 	tests := []struct {
 		name           string
 		id             string
-		body           map[string]interface{}
+		body           map[string]any
 		mockSetup      func(*mockService)
 		wantStatusCode int
 	}{
 		{
 			name: "success",
 			id:   recipeID.Hex(),
-			body: map[string]interface{}{
+			body: map[string]any{
 				"title":       "Updated Recipe",
 				"description": "This is a valid description that is long enough",
-				"ingredients": []map[string]interface{}{
+				"ingredients": []map[string]any{
 					{"name": "Ingredient 1", "amount": 100, "unit": "g"},
 				},
-				"steps": []map[string]interface{}{
+				"steps": []map[string]any{
 					{"order": 1, "description": "Step 1", "duration": 10},
 				},
 				"cookingTime": 30,
@@ -429,20 +435,26 @@ func TestHandler_Update(t *testing.T) {
 			},
 			mockSetup: func(m *mockService) {
 				m.On("Update", mock.Anything, recipeID.Hex(), mock.AnythingOfType("*domain.Recipe")).
-					Return(&domain.Recipe{ID: recipeID, Title: "Updated Recipe"}, nil)
+					Return(
+						&domain.Recipe{ //nolint:exhaustruct // test struct
+							ID:    recipeID,
+							Title: "Updated Recipe",
+						},
+						nil,
+					)
 			},
 			wantStatusCode: http.StatusOK,
 		},
 		{
 			name: "not found",
 			id:   recipeID.Hex(),
-			body: map[string]interface{}{
+			body: map[string]any{
 				"title":       "Updated Recipe",
 				"description": "This is a valid description that is long enough",
-				"ingredients": []map[string]interface{}{
+				"ingredients": []map[string]any{
 					{"name": "Ingredient 1", "amount": 100, "unit": "g"},
 				},
-				"steps": []map[string]interface{}{
+				"steps": []map[string]any{
 					{"order": 1, "description": "Step 1", "duration": 10},
 				},
 				"cookingTime": 30,
@@ -458,13 +470,13 @@ func TestHandler_Update(t *testing.T) {
 		{
 			name: "http validation error",
 			id:   recipeID.Hex(),
-			body: map[string]interface{}{
+			body: map[string]any{
 				"title":       "", // empty title
 				"description": "This is a valid description that is long enough",
-				"ingredients": []map[string]interface{}{
+				"ingredients": []map[string]any{
 					{"name": "Ingredient 1", "amount": 100, "unit": "g"},
 				},
-				"steps": []map[string]interface{}{
+				"steps": []map[string]any{
 					{"order": 1, "description": "Step 1", "duration": 10},
 				},
 				"cookingTime": 30,
@@ -478,13 +490,13 @@ func TestHandler_Update(t *testing.T) {
 		{
 			name: "validation error",
 			id:   recipeID.Hex(),
-			body: map[string]interface{}{
+			body: map[string]any{
 				"title":       "AB", // Title too short
 				"description": "Valid description",
-				"ingredients": []map[string]interface{}{
+				"ingredients": []map[string]any{
 					{"name": "Ingredient 1", "amount": 100, "unit": "g"},
 				},
-				"steps": []map[string]interface{}{
+				"steps": []map[string]any{
 					{"order": 1, "description": "Step 1", "duration": 10},
 				},
 				"cookingTime": 30,
