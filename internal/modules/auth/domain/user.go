@@ -26,19 +26,6 @@ func (u *User) SetTimestamps() {
 	}
 }
 
-// ToSafe returns a safe copy to avoid exposing sensitive data.
-func (u *User) ToSafe() *User {
-	return &User{
-		ID:                u.ID,
-		Email:             u.Email,
-		FirstName:         u.FirstName,
-		LastName:          u.LastName,
-		Password:          "",
-		CreatedAt:         u.CreatedAt,
-		PasswordUpdatedAt: u.PasswordUpdatedAt,
-	}
-}
-
 // Validate performs business validation on the user.
 func (u *User) Validate() error {
 	if u.Email == "" {

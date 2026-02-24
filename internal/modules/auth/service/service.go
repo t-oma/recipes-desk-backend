@@ -3,8 +3,10 @@ package service
 import (
 	"context"
 	"errors"
+	"time"
 
 	"github.com/rs/zerolog"
+	"go.mongodb.org/mongo-driver/bson/primitive"
 	"golang.org/x/crypto/bcrypt"
 
 	"recipes-desk/internal/modules/auth/domain"
@@ -29,7 +31,7 @@ func NewService(repo domain.Repository, log *zerolog.Logger, ps PasswordService)
 	}
 }
 
-func (s *Service) GetByID(ctx context.Context, id string) (*domain.User, error) {
+func (s *Service) GetByID(ctx context.Context, id string) (*SafeUser, error) {
 	user, err := s.repo.FindByID(ctx, id)
 	if err != nil {
 		if errors.Is(err, domain.ErrNotFound) {
@@ -41,10 +43,10 @@ func (s *Service) GetByID(ctx context.Context, id string) (*domain.User, error) 
 	}
 
 	s.log.Debug().Str("user_id", id).Msg("User retrieved")
-	return user.ToSafe(), nil
+	return SafeUserFromUser(user), nil
 }
 
-func (s *Service) GetByEmail(ctx context.Context, email string) (*domain.User, error) {
+func (s *Service) GetByEmail(ctx context.Context, email string) (*SafeUser, error) {
 	user, err := s.repo.FindByEmail(ctx, email)
 	if err != nil {
 		if errors.Is(err, domain.ErrNotFound) {
@@ -56,24 +58,34 @@ func (s *Service) GetByEmail(ctx context.Context, email string) (*domain.User, e
 	}
 
 	s.log.Debug().Str("email", email).Msg("User retrieved")
-	return user.ToSafe(), nil
+	return SafeUserFromUser(user), nil
 }
 
-func (s *Service) Register(ctx context.Context, user *domain.User) (*domain.User, error) {
+func (s *Service) Register(ctx context.Context, params *RegisterParams) (*AuthResult, error) {
+	user := &domain.User{
+		ID:                primitive.NilObjectID,
+		Email:             params.Email,
+		FirstName:         params.FirstName,
+		LastName:          params.LastName,
+		Password:          params.Password,
+		CreatedAt:         time.Time{},
+		PasswordUpdatedAt: time.Time{},
+	}
+
 	if err := user.Validate(); err != nil {
 		s.log.Debug().Err(err).Msg("User validation failed")
 		return nil, err
 	}
 
-	if exists, err := s.repo.ExistsByEmail(ctx, user.Email); err != nil {
+	if exists, err := s.repo.ExistsByEmail(ctx, params.Email); err != nil {
 		s.log.Error().Err(err).Msg("Failed to check if user exists")
 		return nil, err
 	} else if exists {
-		s.log.Debug().Str("email", user.Email).Msg("User already exists")
+		s.log.Debug().Str("email", params.Email).Msg("User already exists")
 		return nil, domain.ErrAlreadyExists
 	}
 
-	hash, err := s.ps.Hash(user.Password)
+	hash, err := s.ps.Hash(params.Password)
 	if err != nil {
 		s.log.Error().Err(err).Msg("Failed to hash password")
 		if errors.Is(err, bcrypt.ErrPasswordTooLong) {
@@ -83,31 +95,37 @@ func (s *Service) Register(ctx context.Context, user *domain.User) (*domain.User
 	}
 	user.Password = hash
 
-	if err := s.repo.Create(ctx, user); err != nil {
+	if err = s.repo.Create(ctx, user); err != nil {
 		s.log.Error().Err(err).Msg("Failed to create user")
 		return nil, err
 	}
 
-	s.log.Info().Str("email", user.Email).Msg("User created")
-	return user.ToSafe(), nil
+	s.log.Info().Str("email", params.Email).Msg("User created")
+	return &AuthResult{
+		User:        SafeUserFromUser(user),
+		AccessToken: "accessToken",
+	}, nil
 }
 
-func (s *Service) Login(ctx context.Context, email string, password string) (*domain.User, error) {
-	user, err := s.repo.FindByEmail(ctx, email)
+func (s *Service) Login(ctx context.Context, params *LoginParams) (*AuthResult, error) {
+	user, err := s.repo.FindByEmail(ctx, params.Email)
 	if err != nil {
 		if errors.Is(err, domain.ErrNotFound) {
-			s.log.Debug().Str("email", email).Msg("User not found")
+			s.log.Debug().Str("email", params.Email).Msg("User not found")
 			return nil, err
 		}
-		s.log.Error().Err(err).Str("email", email).Msg("Failed to get user")
+		s.log.Error().Err(err).Str("email", params.Email).Msg("Failed to get user")
 		return nil, err
 	}
 
-	if !s.ps.Verify(password, user.Password) {
-		s.log.Debug().Str("email", email).Msg("Invalid password")
+	if !s.ps.Verify(params.Password, user.Password) {
+		s.log.Debug().Str("email", params.Email).Msg("Invalid password")
 		return nil, domain.ErrInvalidCredentials
 	}
 
-	s.log.Debug().Str("email", email).Msg("User logged in")
-	return user.ToSafe(), nil
+	s.log.Debug().Str("email", params.Email).Msg("User logged in")
+	return &AuthResult{
+		User:        SafeUserFromUser(user),
+		AccessToken: "accessToken",
+	}, nil
 }

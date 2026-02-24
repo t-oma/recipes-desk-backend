@@ -9,6 +9,7 @@ import (
 	"github.com/rs/zerolog"
 
 	"recipes-desk/internal/modules/auth/domain"
+	"recipes-desk/internal/modules/auth/service"
 )
 
 type Handler struct {
@@ -17,10 +18,10 @@ type Handler struct {
 }
 
 type AuthService interface {
-	GetByID(ctx context.Context, id string) (*domain.User, error)
-	GetByEmail(ctx context.Context, email string) (*domain.User, error)
-	Register(ctx context.Context, user *domain.User) (*domain.User, error)
-	Login(ctx context.Context, email string, password string) (*domain.User, error)
+	GetByID(ctx context.Context, id string) (*service.SafeUser, error)
+	GetByEmail(ctx context.Context, email string) (*service.SafeUser, error)
+	Register(ctx context.Context, params *service.RegisterParams) (*service.AuthResult, error)
+	Login(ctx context.Context, params *service.LoginParams) (*service.AuthResult, error)
 }
 
 func NewHandler(service AuthService, log *zerolog.Logger) *Handler {
@@ -51,14 +52,18 @@ func (h *Handler) Register(c *gin.Context) {
 		return
 	}
 
-	user := toDomainUser(req)
-	created, err := h.service.Register(c.Request.Context(), user)
+	result, err := h.service.Register(c.Request.Context(), &service.RegisterParams{
+		Email:     req.Email,
+		FirstName: req.FirstName,
+		LastName:  req.LastName,
+		Password:  req.Password,
+	})
 	if err != nil {
 		handleError(c, err)
 		return
 	}
 
-	c.JSON(http.StatusCreated, toResponse(created))
+	c.JSON(http.StatusCreated, toResponse(result))
 }
 
 func (h *Handler) Login(c *gin.Context) {
@@ -70,11 +75,14 @@ func (h *Handler) Login(c *gin.Context) {
 	}
 
 	h.log.Debug().Str("user_email", req.Email).Msg("Logging in user")
-	user, err := h.service.Login(c.Request.Context(), req.Email, req.Password)
+	result, err := h.service.Login(c.Request.Context(), &service.LoginParams{
+		Email:    req.Email,
+		Password: req.Password,
+	})
 	if err != nil {
 		handleError(c, err)
 		return
 	}
 
-	c.JSON(http.StatusOK, toResponse(user))
+	c.JSON(http.StatusOK, toResponse(result))
 }

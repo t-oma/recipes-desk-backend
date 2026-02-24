@@ -6,6 +6,7 @@ import (
 	"go.mongodb.org/mongo-driver/bson/primitive"
 
 	"recipes-desk/internal/modules/auth/domain"
+	"recipes-desk/internal/modules/auth/service"
 )
 
 func toDomainUser(req RegisterRequest) *domain.User {
@@ -20,7 +21,7 @@ func toDomainUser(req RegisterRequest) *domain.User {
 	}
 }
 
-func toUserResponse(user *domain.User) UserResponse {
+func toUserResponse(user *service.SafeUser) UserResponse {
 	return UserResponse{
 		ID:                user.ID.Hex(),
 		Email:             user.Email,
@@ -31,8 +32,8 @@ func toUserResponse(user *domain.User) UserResponse {
 	}
 }
 
-func toResponse(user *domain.User) AuthResponse {
+func toResponse(authResult *service.AuthResult) AuthResponse {
 	return AuthResponse{
-		User: toUserResponse(user),
+		User: toUserResponse(authResult.User),
 	}
 }
