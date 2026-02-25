@@ -12,22 +12,34 @@ import (
 	"recipes-desk/internal/modules/auth/domain"
 )
 
-type PasswordService interface {
+type passwordService interface {
 	Hash(password string) (string, error)
 	Verify(password, hash string) bool
 }
 
-type Service struct {
-	repo domain.Repository
-	log  *zerolog.Logger
-	ps   PasswordService
+type tokenService interface {
+	GenerateToken(userID, email string) (string, error)
+	ValidateToken(tokenString string) (*Claims, error)
 }
 
-func NewService(repo domain.Repository, log *zerolog.Logger, ps PasswordService) *Service {
+type Service struct {
+	repo     domain.Repository
+	log      *zerolog.Logger
+	password passwordService
+	token    tokenService
+}
+
+func NewService(
+	repo domain.Repository,
+	log *zerolog.Logger,
+	password passwordService,
+	token tokenService,
+) *Service {
 	return &Service{
-		repo: repo,
-		log:  log,
-		ps:   ps,
+		repo:     repo,
+		log:      log,
+		password: password,
+		token:    token,
 	}
 }
 
@@ -85,7 +97,7 @@ func (s *Service) Register(ctx context.Context, params *RegisterParams) (*AuthRe
 		return nil, domain.ErrAlreadyExists
 	}
 
-	hash, err := s.ps.Hash(params.Password)
+	hash, err := s.password.Hash(params.Password)
 	if err != nil {
 		s.log.Error().Err(err).Msg("Failed to hash password")
 		if errors.Is(err, bcrypt.ErrPasswordTooLong) {
@@ -101,9 +113,16 @@ func (s *Service) Register(ctx context.Context, params *RegisterParams) (*AuthRe
 	}
 
 	s.log.Info().Str("email", params.Email).Msg("User created")
+
+	token, err := s.token.GenerateToken(user.ID.Hex(), user.Email)
+	if err != nil {
+		s.log.Error().Err(err).Msg("Failed to generate token")
+		return nil, err
+	}
+
 	return &AuthResult{
 		User:        SafeUserFromUser(user),
-		AccessToken: "accessToken",
+		AccessToken: token,
 	}, nil
 }
 
@@ -118,14 +137,21 @@ func (s *Service) Login(ctx context.Context, params *LoginParams) (*AuthResult, 
 		return nil, err
 	}
 
-	if !s.ps.Verify(params.Password, user.Password) {
+	if !s.password.Verify(params.Password, user.Password) {
 		s.log.Debug().Str("email", params.Email).Msg("Invalid password")
 		return nil, domain.ErrInvalidCredentials
 	}
 
 	s.log.Debug().Str("email", params.Email).Msg("User logged in")
+
+	token, err := s.token.GenerateToken(user.ID.Hex(), user.Email)
+	if err != nil {
+		s.log.Error().Err(err).Msg("Failed to generate token")
+		return nil, err
+	}
+
 	return &AuthResult{
 		User:        SafeUserFromUser(user),
-		AccessToken: "accessToken",
+		AccessToken: token,
 	}, nil
 }

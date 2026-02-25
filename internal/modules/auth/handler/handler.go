@@ -4,12 +4,19 @@ import (
 	"context"
 	"errors"
 	"net/http"
+	"time"
 
 	"github.com/gin-gonic/gin"
 	"github.com/rs/zerolog"
 
 	"recipes-desk/internal/modules/auth/domain"
 	"recipes-desk/internal/modules/auth/service"
+)
+
+const (
+	accessTokenCookieName = "access_token"
+	cookiePath            = "/"
+	cookieMaxAge          = 86400 // 24 hours in seconds
 )
 
 type Handler struct {
@@ -63,6 +70,9 @@ func (h *Handler) Register(c *gin.Context) {
 		return
 	}
 
+	// Set access token as httpOnly cookie
+	setAuthCookie(c, result.AccessToken, cookieMaxAge)
+
 	c.JSON(http.StatusCreated, toResponse(result))
 }
 
@@ -84,5 +94,51 @@ func (h *Handler) Login(c *gin.Context) {
 		return
 	}
 
+	// Set access token as httpOnly cookie
+	setAuthCookie(c, result.AccessToken, cookieMaxAge)
+
 	c.JSON(http.StatusOK, toResponse(result))
+}
+
+// Logout handles user logout by clearing the authentication cookie.
+func (h *Handler) Logout(c *gin.Context) {
+	clearAuthCookie(c)
+	c.JSON(http.StatusOK, gin.H{"message": "logged out successfully"})
+}
+
+// Me returns the current authenticated user.
+func (h *Handler) Me(c *gin.Context) {
+	userID := c.GetString("userID")
+	if userID == "" {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "unauthorized"})
+		return
+	}
+
+	user, err := h.service.GetByID(c.Request.Context(), userID)
+	if err != nil {
+		handleError(c, err)
+		return
+	}
+
+	c.JSON(http.StatusOK, user)
+}
+
+// setAuthCookie sets the access token as an httpOnly cookie.
+func setAuthCookie(c *gin.Context, token string, maxAge time.Duration) {
+	cookie := &http.Cookie{
+		Name:     accessTokenCookieName,
+		Value:    token,
+		Path:     cookiePath,
+		MaxAge:   int(maxAge.Seconds()),
+		HttpOnly: true,
+		Secure:   false, // Set to true in production with HTTPS
+		SameSite: http.SameSiteLaxMode,
+	}
+	c.SetCookieData(cookie)
+	c.Writer.Header()
+}
+
+// clearAuthCookie clears the authentication cookie.
+func clearAuthCookie(c *gin.Context) {
+	c.SetCookie(accessTokenCookieName, "", -1, cookiePath, "", false, true)
 }
