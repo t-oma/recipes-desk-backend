@@ -14,22 +14,30 @@ import (
 )
 
 const (
-	accessTokenCookieName = "access_token"
-	cookiePath            = "/"
+	accessTokenCookieName  = "access_token"
+	refreshTokenCookieName = "refresh_token"
+	cookiePath             = "/"
 )
 
+// Handler handles HTTP requests for authentication.
 type Handler struct {
 	service AuthService
 	log     *zerolog.Logger
 }
 
+// AuthService defines the interface for auth business logic.
 type AuthService interface {
 	GetByID(ctx context.Context, id string) (*service.SafeUser, error)
 	GetByEmail(ctx context.Context, email string) (*service.SafeUser, error)
 	Register(ctx context.Context, params *service.RegisterParams) (*service.AuthResult, error)
 	Login(ctx context.Context, params *service.LoginParams) (*service.AuthResult, error)
+	RefreshTokens(
+		ctx context.Context,
+		input *service.RefreshTokensParams,
+	) (*service.RefreshTokensResult, error)
 }
 
+// NewHandler creates a new auth handler.
 func NewHandler(service AuthService, log *zerolog.Logger) *Handler {
 	return &Handler{
 		service: service,
@@ -45,6 +53,8 @@ func handleError(c *gin.Context, err error) {
 		c.JSON(http.StatusConflict, gin.H{"error": "user already exists"})
 	case errors.Is(err, domain.ErrValidation):
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+	case errors.Is(err, domain.ErrInvalidToken), errors.Is(err, domain.ErrExpiredToken):
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "invalid or expired token"})
 	default:
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "internal server error"})
 	}
@@ -69,8 +79,9 @@ func (h *Handler) Register(c *gin.Context) {
 		return
 	}
 
-	// Set access token as httpOnly cookie with same expiry as token
-	setAuthCookie(c, result.AccessToken, result.AccessExpiresAt)
+	// Set cookies
+	setAuthCookie(c, accessTokenCookieName, result.AccessToken, result.AccessExpiresAt)
+	setAuthCookie(c, refreshTokenCookieName, result.RefreshToken, result.RefreshExpiresAt)
 
 	c.JSON(http.StatusCreated, toResponse(result))
 }
@@ -93,15 +104,39 @@ func (h *Handler) Login(c *gin.Context) {
 		return
 	}
 
-	// Set access token as httpOnly cookie with same expiry as token
-	setAuthCookie(c, result.AccessToken, result.AccessExpiresAt)
+	// Set cookies
+	setAuthCookie(c, accessTokenCookieName, result.AccessToken, result.AccessExpiresAt)
+	setAuthCookie(c, refreshTokenCookieName, result.RefreshToken, result.RefreshExpiresAt)
 
 	c.JSON(http.StatusOK, toResponse(result))
 }
 
-// Logout handles user logout by clearing the authentication cookie.
+func (h *Handler) Refresh(c *gin.Context) {
+	refreshToken, err := c.Cookie(refreshTokenCookieName)
+	if err != nil {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "refresh token required"})
+		return
+	}
+
+	result, err := h.service.RefreshTokens(c.Request.Context(), &service.RefreshTokensParams{
+		RefreshToken: refreshToken,
+	})
+	if err != nil {
+		handleError(c, err)
+		return
+	}
+
+	// Set new cookies
+	setAuthCookie(c, accessTokenCookieName, result.AccessToken, result.AccessExpiresAt)
+	setAuthCookie(c, refreshTokenCookieName, result.RefreshToken, result.RefreshExpiresAt)
+
+	c.JSON(http.StatusOK, nil)
+}
+
+// Logout handles user logout by clearing the authentication cookies.
 func (h *Handler) Logout(c *gin.Context) {
-	clearAuthCookie(c)
+	clearAuthCookie(c, accessTokenCookieName)
+	clearAuthCookie(c, refreshTokenCookieName)
 	c.JSON(http.StatusOK, gin.H{"message": "logged out successfully"})
 }
 
@@ -122,15 +157,15 @@ func (h *Handler) Me(c *gin.Context) {
 	c.JSON(http.StatusOK, user)
 }
 
-// setAuthCookie sets the access token as an httpOnly cookie.
-func setAuthCookie(c *gin.Context, token string, expiresAt time.Time) {
+// setAuthCookie sets an httpOnly cookie with the given name and token.
+func setAuthCookie(c *gin.Context, name, token string, expiresAt time.Time) {
 	maxAge := int(time.Until(expiresAt).Seconds())
 	if maxAge < 0 {
 		maxAge = 0
 	}
 
 	cookie := &http.Cookie{
-		Name:     accessTokenCookieName,
+		Name:     name,
 		Value:    token,
 		Path:     cookiePath,
 		MaxAge:   maxAge,
@@ -139,11 +174,11 @@ func setAuthCookie(c *gin.Context, token string, expiresAt time.Time) {
 		Secure:   false, // Set to true in production with HTTPS
 		SameSite: http.SameSiteLaxMode,
 	}
+
 	c.SetCookieData(cookie)
-	c.Writer.Header()
 }
 
 // clearAuthCookie clears the authentication cookie.
-func clearAuthCookie(c *gin.Context) {
-	c.SetCookie(accessTokenCookieName, "", -1, cookiePath, "", false, true)
+func clearAuthCookie(c *gin.Context, name string) {
+	c.SetCookie(name, "", -1, cookiePath, "", false, true)
 }

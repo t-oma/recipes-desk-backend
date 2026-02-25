@@ -1,47 +1,54 @@
 package service
 
 import (
+	"context"
+	"crypto/rand"
+	"crypto/sha256"
+	"encoding/base64"
 	"errors"
 	"fmt"
 	"time"
 
 	"github.com/golang-jwt/jwt/v5"
+	"go.mongodb.org/mongo-driver/bson/primitive"
+
+	"recipes-desk/internal/modules/auth/domain"
 )
 
-var (
-	ErrInvalidToken = errors.New("invalid token")
-	ErrExpiredToken = errors.New("token has expired")
-)
-
-// Claims represents the JWT claims structure.
 type Claims struct {
 	jwt.RegisteredClaims
 
 	UserID string `json:"userId"`
-	Email  string `json:"email"`
 }
 
 // TokenService handles JWT token generation and validation.
 type TokenService struct {
-	secret       []byte
-	accessExpiry time.Duration
+	refreshRepo   domain.RefreshTokenRepository
+	secret        []byte
+	accessExpiry  time.Duration
+	refreshExpiry time.Duration
 }
 
-// NewTokenService creates a new TokenService.
-func NewTokenService(secret string, accessExpiry time.Duration) *TokenService {
+func NewTokenService(
+	refreshRepo domain.RefreshTokenRepository,
+	secret string,
+	accessExpiry time.Duration,
+	refreshExpiry time.Duration,
+) *TokenService {
 	return &TokenService{
-		secret:       []byte(secret),
-		accessExpiry: accessExpiry,
+		refreshRepo:   refreshRepo,
+		secret:        []byte(secret),
+		accessExpiry:  accessExpiry,
+		refreshExpiry: refreshExpiry,
 	}
 }
 
-// GenerateToken creates a new JWT access token for the user.
-func (s *TokenService) GenerateToken(userID, email string) (*TokenResult, error) {
+// GenerateAccessToken creates a new JWT access token for the user.
+func (s *TokenService) GenerateAccessToken(userID string) (*TokenResult, error) {
 	now := time.Now()
 	expiresAt := now.Add(s.accessExpiry)
 	claims := Claims{
 		UserID: userID,
-		Email:  email,
 		RegisteredClaims: jwt.RegisteredClaims{ //nolint:exhaustruct // only need ExpiresAt, IssuedAt, NotBefore
 			ExpiresAt: jwt.NewNumericDate(expiresAt),
 			IssuedAt:  jwt.NewNumericDate(now),
@@ -56,13 +63,13 @@ func (s *TokenService) GenerateToken(userID, email string) (*TokenResult, error)
 	}
 
 	return &TokenResult{
-		AccessToken:     tokenString,
-		AccessExpiresAt: expiresAt,
+		Token:     tokenString,
+		ExpiresAt: expiresAt,
 	}, nil
 }
 
-// ValidateToken validates the JWT token and returns the claims.
-func (s *TokenService) ValidateToken(tokenString string) (*Claims, error) {
+// ValidateAccessToken validates the JWT access token and returns the claims.
+func (s *TokenService) ValidateAccessToken(tokenString string) (*Claims, error) {
 	token, err := jwt.ParseWithClaims(
 		tokenString,
 		&Claims{}, //nolint:exhaustruct // JWT library initializes fields
@@ -74,14 +81,99 @@ func (s *TokenService) ValidateToken(tokenString string) (*Claims, error) {
 		})
 	if err != nil {
 		if errors.Is(err, jwt.ErrTokenExpired) {
-			return nil, ErrExpiredToken
+			return nil, domain.ErrExpiredToken
 		}
-		return nil, fmt.Errorf("%w: %w", ErrInvalidToken, err)
+		return nil, fmt.Errorf("%w: %w", domain.ErrInvalidToken, err)
 	}
 
 	if claims, ok := token.Claims.(*Claims); ok && token.Valid {
 		return claims, nil
 	}
 
-	return nil, ErrInvalidToken
+	return nil, domain.ErrInvalidToken
+}
+
+// GenerateRefreshToken creates a new refresh token and stores its hash in the database.
+func (s *TokenService) GenerateRefreshToken(
+	ctx context.Context,
+	userID primitive.ObjectID,
+) (*TokenResult, error) {
+	randomBytes := make([]byte, 32)
+	if _, err := rand.Read(randomBytes); err != nil {
+		return nil, fmt.Errorf("failed to generate random token: %w", err)
+	}
+
+	plainToken := base64.URLEncoding.EncodeToString(randomBytes)
+	tokenHash := hashToken(plainToken)
+
+	refreshToken := &domain.RefreshToken{ //nolint:exhaustruct // fields set via SetTimestamps
+		UserID:    userID,
+		TokenHash: tokenHash,
+	}
+	refreshToken.SetTimestamps(s.refreshExpiry)
+
+	if err := s.refreshRepo.Create(ctx, refreshToken); err != nil {
+		return nil, fmt.Errorf("failed to store refresh token: %w", err)
+	}
+
+	return &TokenResult{
+		Token:     plainToken,
+		ExpiresAt: refreshToken.ExpiresAt,
+	}, nil
+}
+
+// ValidateRefreshToken validates a refresh token and returns the associated user ID.
+func (s *TokenService) ValidateRefreshToken(
+	ctx context.Context,
+	plainToken string,
+) (primitive.ObjectID, error) {
+	tokenHash := hashToken(plainToken)
+
+	storedToken, err := s.refreshRepo.FindByHash(ctx, tokenHash)
+	if err != nil {
+		if errors.Is(err, domain.ErrNotFound) {
+			return primitive.NilObjectID, domain.ErrTokenNotFound
+		}
+		return primitive.NilObjectID, fmt.Errorf("failed to find refresh token: %w", err)
+	}
+
+	// Check if token has expired
+	if time.Now().After(storedToken.ExpiresAt) {
+		return primitive.NilObjectID, domain.ErrExpiredToken
+	}
+
+	return storedToken.UserID, nil
+}
+
+// RotateRefreshToken invalidates the old refresh token and creates a new one.
+func (s *TokenService) RotateRefreshToken(
+	ctx context.Context,
+	oldPlainToken string,
+) (*TokenResult, primitive.ObjectID, error) {
+	userID, err := s.ValidateRefreshToken(ctx, oldPlainToken)
+	if err != nil {
+		return nil, primitive.NilObjectID, err
+	}
+
+	oldTokenHash := hashToken(oldPlainToken)
+	if err = s.refreshRepo.DeleteByHash(ctx, oldTokenHash); err != nil {
+		return nil, primitive.NilObjectID, fmt.Errorf(
+			"failed to delete old refresh token: %w",
+			err,
+		)
+	}
+
+	// Generate new token
+	newToken, err := s.GenerateRefreshToken(ctx, userID)
+	if err != nil {
+		return nil, primitive.NilObjectID, err
+	}
+
+	return newToken, userID, nil
+}
+
+// hashToken creates a SHA-256 hash of the token.
+func hashToken(token string) string {
+	hash := sha256.Sum256([]byte(token))
+	return base64.StdEncoding.EncodeToString(hash[:])
 }

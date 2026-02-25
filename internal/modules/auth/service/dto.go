@@ -41,12 +41,26 @@ func SafeUserFromUser(user *domain.User) *SafeUser {
 }
 
 type AuthResult struct {
-	User            *SafeUser `json:"user"`
-	AccessToken     string    `json:"accessToken"`
-	AccessExpiresAt time.Time `json:"accessExpiresAt"`
+	User             *SafeUser `json:"user"`
+	AccessToken      string    `json:"accessToken"`
+	AccessExpiresAt  time.Time `json:"accessExpiresAt"`
+	RefreshToken     string    `json:"-"` // Not returned in JSON, only in cookie
+	RefreshExpiresAt time.Time `json:"-"` // Not returned in JSON
 }
 
+// TokenResult contains the generated token and its metadata.
 type TokenResult struct {
-	AccessToken     string
-	AccessExpiresAt time.Time
+	Token     string
+	ExpiresAt time.Time
+}
+
+type RefreshTokensParams struct {
+	RefreshToken string
+}
+
+type RefreshTokensResult struct {
+	AccessToken      string    `json:"accessToken"`
+	AccessExpiresAt  time.Time `json:"accessExpiresAt"`
+	RefreshToken     string    `json:"refreshToken"`
+	RefreshExpiresAt time.Time `json:"refreshExpiresAt"`
 }

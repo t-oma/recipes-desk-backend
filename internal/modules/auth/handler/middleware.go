@@ -10,7 +10,7 @@ import (
 )
 
 type tokenService interface {
-	ValidateToken(tokenString string) (*service.Claims, error)
+	ValidateAccessToken(tokenString string) (*service.Claims, error)
 }
 
 // AuthMiddleware creates a middleware that validates JWT tokens from cookies.
@@ -38,7 +38,7 @@ func AuthMiddleware(service tokenService) gin.HandlerFunc {
 		}
 
 		// Validate token
-		claims, err := service.ValidateToken(tokenString)
+		claims, err := service.ValidateAccessToken(tokenString)
 		if err != nil {
 			c.JSON(http.StatusUnauthorized, gin.H{"error": "invalid or expired token"})
 			c.Abort()

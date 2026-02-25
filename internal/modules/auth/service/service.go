@@ -18,8 +18,13 @@ type passwordService interface {
 }
 
 type tokenService interface {
-	GenerateToken(userID, email string) (*TokenResult, error)
-	ValidateToken(tokenString string) (*Claims, error)
+	GenerateAccessToken(userID string) (*TokenResult, error)
+	ValidateAccessToken(tokenString string) (*Claims, error)
+	GenerateRefreshToken(ctx context.Context, userID primitive.ObjectID) (*TokenResult, error)
+	RotateRefreshToken(
+		ctx context.Context,
+		oldToken string,
+	) (*TokenResult, primitive.ObjectID, error)
 }
 
 type Service struct {
@@ -114,16 +119,26 @@ func (s *Service) Register(ctx context.Context, params *RegisterParams) (*AuthRe
 
 	s.log.Info().Str("email", params.Email).Msg("User created")
 
-	tokenResult, err := s.token.GenerateToken(user.ID.Hex(), user.Email)
+	// Generate access token
+	accessResult, err := s.token.GenerateAccessToken(user.ID.Hex())
 	if err != nil {
-		s.log.Error().Err(err).Msg("Failed to generate token")
+		s.log.Error().Err(err).Msg("Failed to generate access token")
+		return nil, err
+	}
+
+	// Generate refresh token
+	refreshResult, err := s.token.GenerateRefreshToken(ctx, user.ID)
+	if err != nil {
+		s.log.Error().Err(err).Msg("Failed to generate refresh token")
 		return nil, err
 	}
 
 	return &AuthResult{
-		User:            SafeUserFromUser(user),
-		AccessToken:     tokenResult.AccessToken,
-		AccessExpiresAt: tokenResult.AccessExpiresAt,
+		User:             SafeUserFromUser(user),
+		AccessToken:      accessResult.Token,
+		AccessExpiresAt:  accessResult.ExpiresAt,
+		RefreshToken:     refreshResult.Token,
+		RefreshExpiresAt: refreshResult.ExpiresAt,
 	}, nil
 }
 
@@ -145,15 +160,52 @@ func (s *Service) Login(ctx context.Context, params *LoginParams) (*AuthResult, 
 
 	s.log.Debug().Str("email", params.Email).Msg("User logged in")
 
-	tokenResult, err := s.token.GenerateToken(user.ID.Hex(), user.Email)
+	// Generate access token
+	accessResult, err := s.token.GenerateAccessToken(user.ID.Hex())
 	if err != nil {
-		s.log.Error().Err(err).Msg("Failed to generate token")
+		s.log.Error().Err(err).Msg("Failed to generate access token")
+		return nil, err
+	}
+
+	// Generate refresh token
+	refreshResult, err := s.token.GenerateRefreshToken(ctx, user.ID)
+	if err != nil {
+		s.log.Error().Err(err).Msg("Failed to generate refresh token")
 		return nil, err
 	}
 
 	return &AuthResult{
-		User:            SafeUserFromUser(user),
-		AccessToken:     tokenResult.AccessToken,
-		AccessExpiresAt: tokenResult.AccessExpiresAt,
+		User:             SafeUserFromUser(user),
+		AccessToken:      accessResult.Token,
+		AccessExpiresAt:  accessResult.ExpiresAt,
+		RefreshToken:     refreshResult.Token,
+		RefreshExpiresAt: refreshResult.ExpiresAt,
+	}, nil
+}
+
+// RefreshTokens rotates the refresh token and issues new access token.
+func (s *Service) RefreshTokens(
+	ctx context.Context,
+	params *RefreshTokensParams,
+) (*RefreshTokensResult, error) {
+	newRefreshResult, userID, err := s.token.RotateRefreshToken(ctx, params.RefreshToken)
+	if err != nil {
+		s.log.Debug().Err(err).Msg("Failed to rotate refresh token")
+		return nil, err
+	}
+
+	accessResult, err := s.token.GenerateAccessToken(userID.Hex())
+	if err != nil {
+		s.log.Error().Err(err).Msg("Failed to generate access token during refresh")
+		return nil, err
+	}
+
+	s.log.Debug().Str("user_id", userID.Hex()).Msg("Tokens refreshed successfully")
+
+	return &RefreshTokensResult{
+		AccessToken:      accessResult.Token,
+		AccessExpiresAt:  accessResult.ExpiresAt,
+		RefreshToken:     newRefreshResult.Token,
+		RefreshExpiresAt: newRefreshResult.ExpiresAt,
 	}, nil
 }
