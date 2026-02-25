@@ -18,7 +18,7 @@ type passwordService interface {
 }
 
 type tokenService interface {
-	GenerateToken(userID, email string) (string, error)
+	GenerateToken(userID, email string) (*TokenResult, error)
 	ValidateToken(tokenString string) (*Claims, error)
 }
 
@@ -114,15 +114,16 @@ func (s *Service) Register(ctx context.Context, params *RegisterParams) (*AuthRe
 
 	s.log.Info().Str("email", params.Email).Msg("User created")
 
-	token, err := s.token.GenerateToken(user.ID.Hex(), user.Email)
+	tokenResult, err := s.token.GenerateToken(user.ID.Hex(), user.Email)
 	if err != nil {
 		s.log.Error().Err(err).Msg("Failed to generate token")
 		return nil, err
 	}
 
 	return &AuthResult{
-		User:        SafeUserFromUser(user),
-		AccessToken: token,
+		User:            SafeUserFromUser(user),
+		AccessToken:     tokenResult.AccessToken,
+		AccessExpiresAt: tokenResult.AccessExpiresAt,
 	}, nil
 }
 
@@ -144,14 +145,15 @@ func (s *Service) Login(ctx context.Context, params *LoginParams) (*AuthResult, 
 
 	s.log.Debug().Str("email", params.Email).Msg("User logged in")
 
-	token, err := s.token.GenerateToken(user.ID.Hex(), user.Email)
+	tokenResult, err := s.token.GenerateToken(user.ID.Hex(), user.Email)
 	if err != nil {
 		s.log.Error().Err(err).Msg("Failed to generate token")
 		return nil, err
 	}
 
 	return &AuthResult{
-		User:        SafeUserFromUser(user),
-		AccessToken: token,
+		User:            SafeUserFromUser(user),
+		AccessToken:     tokenResult.AccessToken,
+		AccessExpiresAt: tokenResult.AccessExpiresAt,
 	}, nil
 }

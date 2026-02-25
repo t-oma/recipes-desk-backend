@@ -16,7 +16,6 @@ import (
 const (
 	accessTokenCookieName = "access_token"
 	cookiePath            = "/"
-	cookieMaxAge          = 86400 // 24 hours in seconds
 )
 
 type Handler struct {
@@ -70,8 +69,8 @@ func (h *Handler) Register(c *gin.Context) {
 		return
 	}
 
-	// Set access token as httpOnly cookie
-	setAuthCookie(c, result.AccessToken, cookieMaxAge)
+	// Set access token as httpOnly cookie with same expiry as token
+	setAuthCookie(c, result.AccessToken, result.AccessExpiresAt)
 
 	c.JSON(http.StatusCreated, toResponse(result))
 }
@@ -94,8 +93,8 @@ func (h *Handler) Login(c *gin.Context) {
 		return
 	}
 
-	// Set access token as httpOnly cookie
-	setAuthCookie(c, result.AccessToken, cookieMaxAge)
+	// Set access token as httpOnly cookie with same expiry as token
+	setAuthCookie(c, result.AccessToken, result.AccessExpiresAt)
 
 	c.JSON(http.StatusOK, toResponse(result))
 }
@@ -124,12 +123,18 @@ func (h *Handler) Me(c *gin.Context) {
 }
 
 // setAuthCookie sets the access token as an httpOnly cookie.
-func setAuthCookie(c *gin.Context, token string, maxAge time.Duration) {
+func setAuthCookie(c *gin.Context, token string, expiresAt time.Time) {
+	maxAge := int(time.Until(expiresAt).Seconds())
+	if maxAge < 0 {
+		maxAge = 0
+	}
+
 	cookie := &http.Cookie{
 		Name:     accessTokenCookieName,
 		Value:    token,
 		Path:     cookiePath,
-		MaxAge:   int(maxAge.Seconds()),
+		MaxAge:   maxAge,
+		Expires:  expiresAt,
 		HttpOnly: true,
 		Secure:   false, // Set to true in production with HTTPS
 		SameSite: http.SameSiteLaxMode,

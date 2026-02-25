@@ -41,6 +41,12 @@ func SafeUserFromUser(user *domain.User) *SafeUser {
 }
 
 type AuthResult struct {
-	User        *SafeUser `json:"user"`
-	AccessToken string    `json:"accessToken"`
+	User            *SafeUser `json:"user"`
+	AccessToken     string    `json:"accessToken"`
+	AccessExpiresAt time.Time `json:"accessExpiresAt"`
+}
+
+type TokenResult struct {
+	AccessToken     string
+	AccessExpiresAt time.Time
 }

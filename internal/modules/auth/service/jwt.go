@@ -36,13 +36,14 @@ func NewTokenService(secret string, accessExpiry time.Duration) *TokenService {
 }
 
 // GenerateToken creates a new JWT access token for the user.
-func (s *TokenService) GenerateToken(userID, email string) (string, error) {
+func (s *TokenService) GenerateToken(userID, email string) (*TokenResult, error) {
 	now := time.Now()
+	expiresAt := now.Add(s.accessExpiry)
 	claims := Claims{
 		UserID: userID,
 		Email:  email,
 		RegisteredClaims: jwt.RegisteredClaims{ //nolint:exhaustruct // only need ExpiresAt, IssuedAt, NotBefore
-			ExpiresAt: jwt.NewNumericDate(now.Add(s.accessExpiry)),
+			ExpiresAt: jwt.NewNumericDate(expiresAt),
 			IssuedAt:  jwt.NewNumericDate(now),
 			NotBefore: jwt.NewNumericDate(now),
 		},
@@ -51,10 +52,13 @@ func (s *TokenService) GenerateToken(userID, email string) (string, error) {
 	token := jwt.NewWithClaims(jwt.SigningMethodHS256, claims)
 	tokenString, err := token.SignedString(s.secret)
 	if err != nil {
-		return "", fmt.Errorf("failed to sign token: %w", err)
+		return nil, fmt.Errorf("failed to sign token: %w", err)
 	}
 
-	return tokenString, nil
+	return &TokenResult{
+		AccessToken:     tokenString,
+		AccessExpiresAt: expiresAt,
+	}, nil
 }
 
 // ValidateToken validates the JWT token and returns the claims.
