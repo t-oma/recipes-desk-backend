@@ -1,0 +1,480 @@
+package service_test
+
+import (
+	"context"
+	"crypto/rand"
+	"crypto/rsa"
+	"errors"
+	"testing"
+	"time"
+
+	"github.com/golang-jwt/jwt/v5"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/mock"
+	"github.com/stretchr/testify/require"
+	"go.mongodb.org/mongo-driver/bson/primitive"
+
+	"recipes-desk/internal/modules/auth/domain"
+	"recipes-desk/internal/modules/auth/service"
+)
+
+// mockRefreshTokenRepository is a mock implementation of domain.RefreshTokenRepository.
+type mockRefreshTokenRepository struct {
+	mock.Mock
+}
+
+var _ domain.RefreshTokenRepository = (*mockRefreshTokenRepository)(nil)
+
+func (m *mockRefreshTokenRepository) Create(ctx context.Context, token *domain.RefreshToken) error {
+	args := m.Called(ctx, token)
+	return args.Error(0)
+}
+
+func (m *mockRefreshTokenRepository) FindByHash(
+	ctx context.Context,
+	tokenHash string,
+) (*domain.RefreshToken, error) {
+	args := m.Called(ctx, tokenHash)
+	if args.Get(0) == nil {
+		return nil, args.Error(1)
+	}
+	return args.Get(0).(*domain.RefreshToken), args.Error(1)
+}
+
+func (m *mockRefreshTokenRepository) DeleteByHash(ctx context.Context, tokenHash string) error {
+	args := m.Called(ctx, tokenHash)
+	return args.Error(0)
+}
+
+func TestTokenService_GenerateAccessToken(t *testing.T) {
+	secret := "test-secret-key-that-is-long-enough-for-hs256"
+	accessTTL := 15 * time.Minute
+	refreshTTL := 7 * 24 * time.Hour
+
+	tests := []struct {
+		name      string
+		userID    string
+		wantErr   bool
+		checkFunc func(t *testing.T, result *service.TokenResult)
+	}{
+		{
+			name:    "success",
+			userID:  primitive.NewObjectID().Hex(),
+			wantErr: false,
+			checkFunc: func(t *testing.T, result *service.TokenResult) {
+				t.Helper()
+				assert.NotEmpty(t, result.Token)
+				assert.True(t, result.ExpiresAt.After(time.Now()))
+				assert.True(t, result.ExpiresAt.Before(time.Now().Add(accessTTL+time.Minute)))
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			mockRepo := new(mockRefreshTokenRepository)
+			tokenService := service.NewTokenService(mockRepo, secret, accessTTL, refreshTTL)
+
+			result, err := tokenService.GenerateAccessToken(tt.userID)
+
+			if tt.wantErr {
+				require.Error(t, err)
+				assert.Nil(t, result)
+			} else {
+				require.NoError(t, err)
+				assert.NotNil(t, result)
+				if tt.checkFunc != nil {
+					tt.checkFunc(t, result)
+				}
+			}
+		})
+	}
+}
+
+func generateToken(
+	t *testing.T,
+	secret any,
+	method jwt.SigningMethod,
+	userID string,
+	ttl time.Duration,
+) (string, error) {
+	t.Helper()
+
+	token, _, err := service.GenerateToken(secret, method, userID, ttl)
+	return token, err
+}
+
+func TestTokenService_ValidateAccessToken(t *testing.T) {
+	secret := "test-secret-key-that-is-long-enough-for-hs256"
+	accessTTL := 15 * time.Minute
+	refreshTTL := 7 * 24 * time.Hour
+	userID := primitive.NewObjectID().Hex()
+
+	tests := []struct {
+		name       string
+		generateFn func() (string, error)
+		wantErr    error
+		wantUserID string
+	}{
+		{
+			name: "valid token",
+			generateFn: func() (string, error) {
+				return generateToken(
+					t,
+					[]byte(secret),
+					jwt.SigningMethodHS256,
+					userID,
+					accessTTL,
+				)
+			},
+			wantErr:    nil,
+			wantUserID: userID,
+		},
+		{
+			name: "expired token",
+			generateFn: func() (string, error) {
+				return generateToken(
+					t,
+					[]byte(secret),
+					jwt.SigningMethodHS256,
+					userID,
+					-time.Hour,
+				)
+			},
+			wantErr:    domain.ErrExpiredToken,
+			wantUserID: "",
+		},
+		{
+			name: "invalid signature",
+			generateFn: func() (string, error) {
+				return generateToken(
+					t,
+					[]byte("wrong-secret"),
+					jwt.SigningMethodHS256,
+					userID,
+					accessTTL,
+				)
+			},
+			wantErr:    domain.ErrInvalidToken,
+			wantUserID: "",
+		},
+		{
+			name: "malformed token",
+			generateFn: func() (string, error) {
+				return "invalid.token.string", nil
+			},
+			wantErr:    domain.ErrInvalidToken,
+			wantUserID: "",
+		},
+		{
+			name: "empty token",
+			generateFn: func() (string, error) {
+				return "", nil
+			},
+			wantErr:    domain.ErrInvalidToken,
+			wantUserID: "",
+		},
+		{
+			name: "token with invalid method",
+			generateFn: func() (string, error) {
+				key, err := rsa.GenerateKey(rand.Reader, 2048)
+				if err != nil {
+					t.Fatal(err)
+				}
+
+				return generateToken(
+					t,
+					key,
+					jwt.SigningMethodRS256,
+					userID,
+					accessTTL,
+				)
+			},
+			wantErr:    domain.ErrInvalidToken,
+			wantUserID: "",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			mockRepo := new(mockRefreshTokenRepository)
+			tokenService := service.NewTokenService(mockRepo, secret, accessTTL, refreshTTL)
+
+			token, err := tt.generateFn()
+			require.NoError(t, err)
+
+			claims, validateErr := tokenService.ValidateAccessToken(token)
+
+			if tt.wantErr != nil {
+				require.Error(t, validateErr)
+				require.ErrorIs(t, validateErr, tt.wantErr)
+				assert.Nil(t, claims)
+			} else {
+				require.NoError(t, validateErr)
+				assert.NotNil(t, claims)
+				assert.Equal(t, tt.wantUserID, claims.UserID)
+			}
+		})
+	}
+}
+
+func TestTokenService_GenerateRefreshToken(t *testing.T) {
+	secret := "test-secret"
+	accessTTL := 15 * time.Minute
+	refreshTTL := 7 * 24 * time.Hour
+	userID := primitive.NewObjectID()
+
+	tests := []struct {
+		name      string
+		mockSetup func(*mockRefreshTokenRepository)
+		wantErr   bool
+		checkFunc func(t *testing.T, result *service.TokenResult)
+	}{
+		{
+			name: "success",
+			mockSetup: func(m *mockRefreshTokenRepository) {
+				m.On("Create", mock.Anything, mock.AnythingOfType("*domain.RefreshToken")).
+					Return(nil)
+			},
+			wantErr: false,
+			checkFunc: func(t *testing.T, result *service.TokenResult) {
+				t.Helper()
+				assert.NotEmpty(t, result.Token)
+				assert.True(t, result.ExpiresAt.After(time.Now()))
+				assert.True(t, result.ExpiresAt.Before(time.Now().Add(refreshTTL+time.Hour)))
+			},
+		},
+		{
+			name: "repository error",
+			mockSetup: func(m *mockRefreshTokenRepository) {
+				m.On("Create", mock.Anything, mock.AnythingOfType("*domain.RefreshToken")).
+					Return(errors.New("database error"))
+			},
+			wantErr:   true,
+			checkFunc: nil,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			mockRepo := new(mockRefreshTokenRepository)
+			if tt.mockSetup != nil {
+				tt.mockSetup(mockRepo)
+			}
+
+			tokenService := service.NewTokenService(mockRepo, secret, accessTTL, refreshTTL)
+			result, err := tokenService.GenerateRefreshToken(context.Background(), userID)
+
+			if tt.wantErr {
+				require.Error(t, err)
+				assert.Nil(t, result)
+			} else {
+				require.NoError(t, err)
+				assert.NotNil(t, result)
+				if tt.checkFunc != nil {
+					tt.checkFunc(t, result)
+				}
+			}
+
+			mockRepo.AssertExpectations(t)
+		})
+	}
+}
+
+func TestTokenService_ValidateRefreshToken(t *testing.T) {
+	secret := "test-secret"
+	accessTTL := 15 * time.Minute
+	refreshTTL := 7 * 24 * time.Hour
+	userID := primitive.NewObjectID()
+	tokenHash := "test-token-hash"
+
+	tests := []struct {
+		name       string
+		plainToken string
+		mockSetup  func(*mockRefreshTokenRepository)
+		wantErr    error
+		wantUserID primitive.ObjectID
+	}{
+		{
+			name:       "valid token",
+			plainToken: "valid-plain-token",
+			mockSetup: func(m *mockRefreshTokenRepository) {
+				m.On("FindByHash", mock.Anything, mock.AnythingOfType("string")).
+					Return(&domain.RefreshToken{
+						ID:        primitive.NewObjectID(),
+						UserID:    userID,
+						TokenHash: tokenHash,
+						ExpiresAt: time.Now().Add(time.Hour),
+						CreatedAt: time.Now().Add(-time.Hour),
+					}, nil)
+			},
+			wantErr:    nil,
+			wantUserID: userID,
+		},
+		{
+			name:       "token not found",
+			plainToken: "non-existent-token",
+			mockSetup: func(m *mockRefreshTokenRepository) {
+				m.On("FindByHash", mock.Anything, mock.AnythingOfType("string")).
+					Return(nil, domain.ErrNotFound)
+			},
+			wantErr:    domain.ErrTokenNotFound,
+			wantUserID: primitive.NilObjectID,
+		},
+		{
+			name:       "token expired",
+			plainToken: "expired-token",
+			mockSetup: func(m *mockRefreshTokenRepository) {
+				m.On("FindByHash", mock.Anything, mock.AnythingOfType("string")).
+					Return(&domain.RefreshToken{
+						ID:        primitive.NewObjectID(),
+						UserID:    userID,
+						TokenHash: tokenHash,
+						ExpiresAt: time.Now().Add(-time.Hour),
+						CreatedAt: time.Now().Add(-2 * time.Hour),
+					}, nil)
+			},
+			wantErr:    domain.ErrExpiredToken,
+			wantUserID: primitive.NilObjectID,
+		},
+		{
+			name:       "repository error",
+			plainToken: "error-token",
+			mockSetup: func(m *mockRefreshTokenRepository) {
+				m.On("FindByHash", mock.Anything, mock.AnythingOfType("string")).
+					Return(nil, errors.New("database error"))
+			},
+			wantErr:    errors.New("failed to find refresh token"),
+			wantUserID: primitive.NilObjectID,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			mockRepo := new(mockRefreshTokenRepository)
+			tt.mockSetup(mockRepo)
+
+			tokenService := service.NewTokenService(mockRepo, secret, accessTTL, refreshTTL)
+			resultUserID, err := tokenService.ValidateRefreshToken(
+				context.Background(),
+				tt.plainToken,
+			)
+
+			if tt.wantErr != nil {
+				require.Error(t, err)
+				if errors.Is(tt.wantErr, domain.ErrTokenNotFound) ||
+					errors.Is(tt.wantErr, domain.ErrExpiredToken) {
+					require.ErrorIs(t, err, tt.wantErr)
+				} else {
+					assert.Contains(t, err.Error(), tt.wantErr.Error())
+				}
+				assert.Equal(t, tt.wantUserID, resultUserID)
+			} else {
+				require.NoError(t, err)
+				assert.Equal(t, tt.wantUserID, resultUserID)
+			}
+
+			mockRepo.AssertExpectations(t)
+		})
+	}
+}
+
+func TestTokenService_RotateRefreshToken(t *testing.T) {
+	secret := "test-secret"
+	accessTTL := 15 * time.Minute
+	refreshTTL := 7 * 24 * time.Hour
+	userID := primitive.NewObjectID()
+
+	tests := []struct {
+		name          string
+		oldToken      string
+		mockSetup     func(*mockRefreshTokenRepository)
+		wantErr       error
+		checkNewToken bool
+	}{
+		{
+			name:     "success",
+			oldToken: "valid-old-token",
+			mockSetup: func(m *mockRefreshTokenRepository) {
+				m.On("FindByHash", mock.Anything, mock.AnythingOfType("string")).
+					Return(&domain.RefreshToken{
+						ID:        primitive.NewObjectID(),
+						UserID:    userID,
+						TokenHash: "old-hash",
+						ExpiresAt: time.Now().Add(time.Hour),
+						CreatedAt: time.Now().Add(-time.Hour),
+					}, nil).Once()
+
+				m.On("DeleteByHash", mock.Anything, mock.AnythingOfType("string")).
+					Return(nil).Once()
+
+				m.On("Create", mock.Anything, mock.AnythingOfType("*domain.RefreshToken")).
+					Return(nil).Once()
+			},
+			wantErr:       nil,
+			checkNewToken: true,
+		},
+		{
+			name:     "invalid old token",
+			oldToken: "invalid-token",
+			mockSetup: func(m *mockRefreshTokenRepository) {
+				m.On("FindByHash", mock.Anything, mock.AnythingOfType("string")).
+					Return(nil, domain.ErrNotFound).Once()
+			},
+			wantErr:       domain.ErrTokenNotFound,
+			checkNewToken: false,
+		},
+		{
+			name:     "delete old token error",
+			oldToken: "valid-old-token",
+			mockSetup: func(m *mockRefreshTokenRepository) {
+				m.On("FindByHash", mock.Anything, mock.AnythingOfType("string")).
+					Return(&domain.RefreshToken{
+						ID:        primitive.NewObjectID(),
+						UserID:    userID,
+						TokenHash: "old-hash",
+						ExpiresAt: time.Now().Add(time.Hour),
+						CreatedAt: time.Now().Add(-time.Hour),
+					}, nil).Once()
+				m.On("DeleteByHash", mock.Anything, mock.AnythingOfType("string")).
+					Return(errors.New("delete error")).Once()
+			},
+			wantErr:       errors.New("failed to delete old refresh token"),
+			checkNewToken: false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			mockRepo := new(mockRefreshTokenRepository)
+			tt.mockSetup(mockRepo)
+
+			tokenService := service.NewTokenService(mockRepo, secret, accessTTL, refreshTTL)
+			newToken, resultUserID, err := tokenService.RotateRefreshToken(
+				context.Background(),
+				tt.oldToken,
+			)
+
+			if tt.wantErr != nil {
+				require.Error(t, err)
+				if errors.Is(tt.wantErr, domain.ErrTokenNotFound) {
+					require.ErrorIs(t, err, tt.wantErr)
+				} else {
+					assert.Contains(t, err.Error(), tt.wantErr.Error())
+				}
+				assert.Nil(t, newToken)
+				assert.Equal(t, primitive.NilObjectID, resultUserID)
+			} else {
+				require.NoError(t, err)
+				assert.NotNil(t, newToken)
+				assert.Equal(t, userID, resultUserID)
+				if tt.checkNewToken {
+					assert.NotEmpty(t, newToken.Token)
+					assert.True(t, newToken.ExpiresAt.After(time.Now()))
+				}
+			}
+
+			mockRepo.AssertExpectations(t)
+		})
+	}
+}
