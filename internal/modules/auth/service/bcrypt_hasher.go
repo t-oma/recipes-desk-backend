@@ -2,27 +2,18 @@ package service
 
 import "golang.org/x/crypto/bcrypt"
 
-const (
-	DefaultHashCost = 14
-	MinHashCost     = 12
-)
-
 type BcryptHasher struct {
-	cost int
+	Cost int
 }
 
 func NewBcryptHasher(cost int) *BcryptHasher {
-	if cost < MinHashCost {
-		cost = MinHashCost
-	}
-
 	return &BcryptHasher{
-		cost: cost,
+		Cost: cost,
 	}
 }
 
 func (s *BcryptHasher) Hash(password string) (string, error) {
-	bytes, err := bcrypt.GenerateFromPassword([]byte(password), s.cost)
+	bytes, err := bcrypt.GenerateFromPassword([]byte(password), s.Cost)
 	return string(bytes), err
 }
 
