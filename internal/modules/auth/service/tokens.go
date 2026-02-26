@@ -47,21 +47,14 @@ func NewTokenService(
 
 // GenerateAccessToken creates a new JWT access token for the user.
 func (s *TokenService) GenerateAccessToken(userID string) (*TokenResult, error) {
-	now := time.Now()
-	expiresAt := now.Add(s.accessTTL)
-	claims := Claims{
-		UserID: userID,
-		RegisteredClaims: jwt.RegisteredClaims{ //nolint:exhaustruct // only need ExpiresAt, IssuedAt, NotBefore
-			ExpiresAt: jwt.NewNumericDate(expiresAt),
-			IssuedAt:  jwt.NewNumericDate(now),
-			NotBefore: jwt.NewNumericDate(now),
-		},
-	}
-
-	token := jwt.NewWithClaims(jwt.SigningMethodHS256, claims)
-	tokenString, err := token.SignedString(s.secret)
+	tokenString, expiresAt, err := GenerateToken(
+		s.secret,
+		jwt.SigningMethodHS256,
+		userID,
+		s.accessTTL,
+	)
 	if err != nil {
-		return nil, fmt.Errorf("%w: %w", ErrSignToken, err)
+		return nil, err
 	}
 
 	return &TokenResult{
@@ -178,4 +171,30 @@ func (s *TokenService) RotateRefreshToken(
 func hashToken(token string) string {
 	hash := sha256.Sum256([]byte(token))
 	return base64.StdEncoding.EncodeToString(hash[:])
+}
+
+func GenerateToken(
+	secret any,
+	method jwt.SigningMethod,
+	userID string,
+	ttl time.Duration,
+) (string, time.Time, error) {
+	now := time.Now()
+	expiresAt := now.Add(ttl)
+	claims := Claims{
+		UserID: userID,
+		RegisteredClaims: jwt.RegisteredClaims{ //nolint:exhaustruct // only need ExpiresAt, IssuedAt, NotBefore
+			ExpiresAt: jwt.NewNumericDate(expiresAt),
+			IssuedAt:  jwt.NewNumericDate(now),
+			NotBefore: jwt.NewNumericDate(now),
+		},
+	}
+
+	token := jwt.NewWithClaims(method, claims)
+	tokenString, err := token.SignedString(secret)
+	if err != nil {
+		return "", time.Time{}, fmt.Errorf("%w: %w", ErrSignToken, err)
+	}
+
+	return tokenString, expiresAt, nil
 }
