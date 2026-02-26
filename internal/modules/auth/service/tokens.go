@@ -15,6 +15,8 @@ import (
 	"recipes-desk/internal/modules/auth/domain"
 )
 
+var ErrSignToken = errors.New("failed to sign token")
+
 type Claims struct {
 	jwt.RegisteredClaims
 
@@ -23,30 +25,30 @@ type Claims struct {
 
 // TokenService handles JWT token generation and validation.
 type TokenService struct {
-	refreshRepo   domain.RefreshTokenRepository
-	secret        []byte
-	accessExpiry  time.Duration
-	refreshExpiry time.Duration
+	refreshRepo domain.RefreshTokenRepository
+	secret      []byte
+	accessTTL   time.Duration
+	refreshTTL  time.Duration
 }
 
 func NewTokenService(
 	refreshRepo domain.RefreshTokenRepository,
 	secret string,
-	accessExpiry time.Duration,
-	refreshExpiry time.Duration,
+	accessTTL time.Duration,
+	refreshTTL time.Duration,
 ) *TokenService {
 	return &TokenService{
-		refreshRepo:   refreshRepo,
-		secret:        []byte(secret),
-		accessExpiry:  accessExpiry,
-		refreshExpiry: refreshExpiry,
+		refreshRepo: refreshRepo,
+		secret:      []byte(secret),
+		accessTTL:   accessTTL,
+		refreshTTL:  refreshTTL,
 	}
 }
 
 // GenerateAccessToken creates a new JWT access token for the user.
 func (s *TokenService) GenerateAccessToken(userID string) (*TokenResult, error) {
 	now := time.Now()
-	expiresAt := now.Add(s.accessExpiry)
+	expiresAt := now.Add(s.accessTTL)
 	claims := Claims{
 		UserID: userID,
 		RegisteredClaims: jwt.RegisteredClaims{ //nolint:exhaustruct // only need ExpiresAt, IssuedAt, NotBefore
@@ -59,7 +61,7 @@ func (s *TokenService) GenerateAccessToken(userID string) (*TokenResult, error) 
 	token := jwt.NewWithClaims(jwt.SigningMethodHS256, claims)
 	tokenString, err := token.SignedString(s.secret)
 	if err != nil {
-		return nil, fmt.Errorf("failed to sign token: %w", err)
+		return nil, fmt.Errorf("%w: %w", ErrSignToken, err)
 	}
 
 	return &TokenResult{
@@ -110,7 +112,7 @@ func (s *TokenService) GenerateRefreshToken(
 		UserID:    userID,
 		TokenHash: tokenHash,
 	}
-	refreshToken.SetTimestamps(s.refreshExpiry)
+	refreshToken.SetTimestamps(s.refreshTTL)
 
 	if err := s.refreshRepo.Create(ctx, refreshToken); err != nil {
 		return nil, fmt.Errorf("failed to store refresh token: %w", err)
