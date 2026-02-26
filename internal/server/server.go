@@ -23,7 +23,15 @@ type Server struct {
 
 func NewRouter() *gin.Engine {
 	router := gin.Default()
-	router.Use(cors.Default())
+
+	// CORS configuration with credentials support
+	corsConfig := cors.Config{ //nolint:exhaustruct // using sensible defaults for other fields
+		AllowOrigins:     []string{"http://localhost:5173"}, // Frontend URL
+		AllowMethods:     []string{"GET", "POST", "PUT", "DELETE", "OPTIONS"},
+		AllowHeaders:     []string{"Origin", "Content-Type", "Accept", "Authorization"},
+		AllowCredentials: true,
+	}
+	router.Use(cors.New(corsConfig))
 
 	// Health check
 	router.GET("/health", func(c *gin.Context) {
