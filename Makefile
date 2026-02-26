@@ -1,7 +1,7 @@
 .PHONY: build run \ 
 		test test-unit \ 
-		test-integration test-integration-recipes test-integration-all test-all \ 
-		coverage coverage-integration coverage-all \
+		test-integration test-integration-recipes test-integration-auth test-integration-all test-all \ 
+		coverage coverage-integration coverage-recipes coverage-auth coverage-all \
         clean \ 
 		docker-up docker-down docker-logs \ 
 		install \ 
@@ -43,9 +43,8 @@ test-integration:
 test-integration-recipes:
 	go test -v -tags=integration -run '^TestIntegration_' ./internal/modules/recipes/...
 
-# Run integration tests for repository layer only (fastest)
-test-integration-repository:
-	go test -v -tags=integration -run '^TestIntegration_' ./internal/modules/recipes/repository/...
+test-integration-auth:
+	go test -v -tags=integration -run '^TestIntegration_' ./internal/modules/auth/...
 
 # =============================================================================
 # ALL TESTS (unit + integration)
@@ -74,6 +73,11 @@ coverage-recipes:
 	go test -tags=integration -run '^TestIntegration_' -coverprofile=coverage.out ./internal/modules/recipes/...
 	go tool cover -html=coverage.out -o coverage.html
 	@echo "Recipes coverage report generated: coverage.html"
+
+coverage-auth:
+	go test -tags=integration -run '^TestIntegration_' -coverprofile=coverage.out ./internal/modules/auth/...
+	go tool cover -html=coverage.out -o coverage.html
+	@echo "Auth coverage report generated: coverage.html"
 
 # Coverage for all tests
 coverage-all:
