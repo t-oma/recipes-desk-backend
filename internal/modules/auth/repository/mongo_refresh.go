@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"go.mongodb.org/mongo-driver/bson"
+	"go.mongodb.org/mongo-driver/bson/primitive"
 	"go.mongodb.org/mongo-driver/mongo"
 	"go.mongodb.org/mongo-driver/mongo/options"
 
@@ -48,6 +49,10 @@ func (r *MongoRefreshTokenRepository) Create(
 	ctx context.Context,
 	token *domain.RefreshToken,
 ) error {
+	if token.ID.IsZero() {
+		token.ID = primitive.NewObjectID()
+	}
+
 	_, err := r.collection.InsertOne(ctx, token)
 	if err != nil {
 		return err
