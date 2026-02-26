@@ -53,7 +53,8 @@ func handleError(c *gin.Context, err error) {
 		c.JSON(http.StatusConflict, gin.H{"error": "user already exists"})
 	case errors.Is(err, domain.ErrValidation):
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
-	case errors.Is(err, domain.ErrInvalidToken), errors.Is(err, domain.ErrExpiredToken):
+	case errors.Is(err, domain.ErrInvalidToken), errors.Is(err, domain.ErrExpiredToken),
+		errors.Is(err, domain.ErrTokenNotFound):
 		c.JSON(http.StatusUnauthorized, gin.H{"error": "invalid or expired token"})
 	default:
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "internal server error"})
