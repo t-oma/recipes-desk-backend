@@ -9,6 +9,7 @@ import (
 	"recipes-desk/internal/config"
 	"recipes-desk/internal/infra/database"
 	"recipes-desk/internal/infra/logger"
+	"recipes-desk/internal/modules/auth"
 	"recipes-desk/internal/modules/recipes"
 	"recipes-desk/internal/server"
 )
@@ -64,6 +65,17 @@ func main() {
 	// Create public and protected route groups
 	public := api.Group("")
 	protected := api.Group("")
+
+	// Initialize and register auth module
+	authModule := auth.NewModule(
+		db.Database,
+		log,
+		cfg.JWT.Secret,
+		cfg.JWT.AccessExpiry,
+		cfg.JWT.RefreshExpiry,
+	)
+	protected.Use(authModule.Middleware())
+	authModule.RegisterRoutes(public, protected)
 
 	// Initialize and register recipes module
 	recipesModule := recipes.NewModule(db.Database, log)
