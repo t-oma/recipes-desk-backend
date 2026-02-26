@@ -67,6 +67,11 @@ func setupModuleTest(t *testing.T) (*gin.Engine, *recipes.Module, func()) {
 	public := api.Group("")
 	protected := api.Group("")
 
+	protected.Use(func(c *gin.Context) {
+		c.Set("userID", "user-id")
+		c.Next()
+	})
+
 	module.RegisterRoutes(public, protected)
 
 	return router, module, cleanup

@@ -309,13 +309,15 @@ func TestHandler_Create(t *testing.T) {
 
 	tests := []struct {
 		name           string
+		userID         string
 		body           map[string]any
 		mockSetup      func(*mockService)
 		wantStatusCode int
 		wantCreated    bool
 	}{
 		{
-			name: "success",
+			name:   "success",
+			userID: "user-id",
 			body: map[string]any{
 				"title":       "New Recipe",
 				"description": "This is a valid description that is long enough",
@@ -340,7 +342,8 @@ func TestHandler_Create(t *testing.T) {
 			wantCreated:    true,
 		},
 		{
-			name: "validation error",
+			name:   "validation error",
+			userID: "user-id",
 			body: map[string]any{
 				"title":       "AB", // Title too short (less than 3 characters)
 				"description": "Valid description",
@@ -362,12 +365,23 @@ func TestHandler_Create(t *testing.T) {
 			wantCreated:    false,
 		},
 		{
-			name: "invalid json",
-			body: nil, // Will send invalid JSON
+			name:   "invalid json",
+			userID: "user-id",
+			body:   nil, // Will send invalid JSON
 			mockSetup: func(_ *mockService) {
 				// Service should not be called
 			},
 			wantStatusCode: http.StatusBadRequest,
+			wantCreated:    false,
+		},
+		{
+			name:   "unauthorized",
+			userID: "",
+			body:   nil,
+			mockSetup: func(_ *mockService) {
+				// Service should not be called
+			},
+			wantStatusCode: http.StatusUnauthorized,
 			wantCreated:    false,
 		},
 	}
@@ -379,7 +393,12 @@ func TestHandler_Create(t *testing.T) {
 				tt.mockSetup(mockSvc)
 			}
 
-			router.POST("/recipes", h.Create)
+			router.POST("/recipes", func(c *gin.Context) {
+				if tt.userID != "" {
+					c.Set("userID", tt.userID)
+				}
+				h.Create(c)
+			})
 
 			var body []byte
 			if tt.body != nil {

@@ -92,6 +92,12 @@ func (h *Handler) GetByID(c *gin.Context) {
 
 // Create handles POST /recipes.
 func (h *Handler) Create(c *gin.Context) {
+	userID := c.GetString("userID")
+	if userID == "" {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "unauthorized"})
+		return
+	}
+
 	var req CreateRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
 		h.log.Debug().Err(err).Msg("Invalid request body")
