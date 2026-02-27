@@ -238,6 +238,7 @@ func TestIntegration_MongoRefreshTokenRepository_TTLIndex(t *testing.T) {
 	defer cleanup()
 
 	repo := mongorepo.NewRefreshTokens(db)
+	repo.InitIndexes(context.Background())
 	ctx := context.Background()
 
 	t.Run("verify TTL index is created", func(t *testing.T) {

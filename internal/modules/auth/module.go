@@ -1,6 +1,7 @@
 package auth
 
 import (
+	"context"
 	"time"
 
 	"github.com/gin-gonic/gin"
@@ -26,8 +27,18 @@ func NewModule(
 	accessExpiry time.Duration,
 	refreshExpiry time.Duration,
 ) *Module {
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
 	authRepo := mongorepo.NewUsers(db)
 	refreshRepo := mongorepo.NewRefreshTokens(db)
+	err := refreshRepo.InitIndexes(ctx)
+	if err != nil {
+		cancel()
+		log.Fatal(). //nolint:gocritic // cancel() is called
+				Err(err).
+				Msg("Failed to initialize refresh token indexes")
+	}
 
 	passwordService := service.NewBcryptHasher(14)
 	tokenService := service.NewTokenService(refreshRepo, secret, accessExpiry, refreshExpiry)

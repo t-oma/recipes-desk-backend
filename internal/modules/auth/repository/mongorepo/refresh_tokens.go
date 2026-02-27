@@ -24,23 +24,24 @@ var _ domain.RefreshTokensRepository = (*RefreshTokensRepository)(nil)
 
 // NewRefreshTokens creates a new MongoRefreshTokenRepository.
 func NewRefreshTokens(db *mongo.Database) *RefreshTokensRepository {
-	repo := &RefreshTokensRepository{
+	return &RefreshTokensRepository{
 		collection: db.Collection(refreshCollectionName),
 	}
-	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
-	defer cancel()
+}
 
+func (r *RefreshTokensRepository) InitIndexes(ctx context.Context) error {
 	indexModel := mongo.IndexModel{
 		Keys:    bson.D{{Key: "expiresAt", Value: 1}},
 		Options: options.Index().SetExpireAfterSeconds(0),
 	}
 
-	_, err := repo.collection.Indexes().CreateOne(ctx, indexModel)
+	_, err := r.collection.Indexes().CreateOne(ctx, indexModel)
 	if err != nil {
 		fmt.Printf("Failed to create TTL index: %v\n", err)
+		return err
 	}
 
-	return repo
+	return nil
 }
 
 // Create stores a new refresh token in the database.
