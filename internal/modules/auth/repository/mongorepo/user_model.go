@@ -19,18 +19,23 @@ type userModel struct {
 	PasswordUpdatedAt time.Time          `bson:"passwordUpdatedAt"`
 }
 
-func (u *userModel) setTimestamps() {
+func (m *userModel) setTimestamps() {
 	now := time.Now()
-	if u.CreatedAt.IsZero() {
-		u.CreatedAt = now
+	if m.CreatedAt.IsZero() {
+		m.CreatedAt = now
 	}
-	if u.PasswordUpdatedAt.IsZero() {
-		u.PasswordUpdatedAt = now
+	if m.PasswordUpdatedAt.IsZero() {
+		m.PasswordUpdatedAt = now
 	}
 }
 
-func (u *userModel) setID() {
-	u.ID = primitive.NewObjectID()
+func (m *userModel) setID() {
+	m.ID = primitive.NewObjectID()
+}
+
+func (m *userModel) prepareForInsert() {
+	m.setTimestamps()
+	m.setID()
 }
 
 // toDomain converts a MongoDB user model to a domain user.

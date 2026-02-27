@@ -27,8 +27,6 @@ func NewRefreshTokens(db *mongo.Database) *RefreshTokensRepository {
 	repo := &RefreshTokensRepository{
 		collection: db.Collection(refreshCollectionName),
 	}
-
-	// Create TTL index on expiresAt field
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 
@@ -56,8 +54,7 @@ func (r *RefreshTokensRepository) Create(
 	if err != nil {
 		return nil, err
 	}
-	model.setTimestamps(ttl)
-	model.setID()
+	model.prepareForInsert(ttl)
 
 	_, err = r.collection.InsertOne(ctx, model)
 	if err != nil {

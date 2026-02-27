@@ -34,8 +34,7 @@ func (r *UsersRepository) Create(ctx context.Context, user *domain.User) (*domai
 	defer cancel()
 
 	model := userModelFromDomain(user)
-	model.setTimestamps()
-	model.setID()
+	model.prepareForInsert()
 
 	_, err := r.collection.InsertOne(ctx, model)
 	return model.toDomain(), err

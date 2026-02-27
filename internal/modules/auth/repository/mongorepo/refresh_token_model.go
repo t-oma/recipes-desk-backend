@@ -18,16 +18,21 @@ type refreshTokenModel struct {
 }
 
 // SetTimestamps sets the creation and expiration timestamps.
-func (rt *refreshTokenModel) setTimestamps(expiry time.Duration) {
+func (m *refreshTokenModel) setTimestamps(expiry time.Duration) {
 	now := time.Now()
-	if rt.CreatedAt.IsZero() {
-		rt.CreatedAt = now
+	if m.CreatedAt.IsZero() {
+		m.CreatedAt = now
 	}
-	rt.ExpiresAt = now.Add(expiry)
+	m.ExpiresAt = now.Add(expiry)
 }
 
-func (rt *refreshTokenModel) setID() {
-	rt.ID = primitive.NewObjectID()
+func (m *refreshTokenModel) setID() {
+	m.ID = primitive.NewObjectID()
+}
+
+func (m *refreshTokenModel) prepareForInsert(expiry time.Duration) {
+	m.setTimestamps(expiry)
+	m.setID()
 }
 
 // toDomain converts a MongoDB refresh token model to a domain refresh token.
