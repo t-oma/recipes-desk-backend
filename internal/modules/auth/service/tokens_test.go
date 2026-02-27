@@ -12,25 +12,30 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
-	"go.mongodb.org/mongo-driver/bson/primitive"
 
 	"recipes-desk/internal/modules/auth/domain"
 	"recipes-desk/internal/modules/auth/service"
 )
 
-// mockRefreshTokenRepository is a mock implementation of domain.RefreshTokenRepository.
-type mockRefreshTokenRepository struct {
+type mockRefreshTokensRepository struct {
 	mock.Mock
 }
 
-var _ domain.RefreshTokenRepository = (*mockRefreshTokenRepository)(nil)
+var _ domain.RefreshTokensRepository = (*mockRefreshTokensRepository)(nil)
 
-func (m *mockRefreshTokenRepository) Create(ctx context.Context, token *domain.RefreshToken) error {
-	args := m.Called(ctx, token)
-	return args.Error(0)
+func (m *mockRefreshTokensRepository) Create(
+	ctx context.Context,
+	token *domain.RefreshToken,
+	ttl time.Duration,
+) (*domain.RefreshToken, error) {
+	args := m.Called(ctx, token, ttl)
+	if args.Get(0) == nil {
+		return nil, args.Error(1)
+	}
+	return args.Get(0).(*domain.RefreshToken), args.Error(1)
 }
 
-func (m *mockRefreshTokenRepository) FindByHash(
+func (m *mockRefreshTokensRepository) FindByHash(
 	ctx context.Context,
 	tokenHash string,
 ) (*domain.RefreshToken, error) {
@@ -41,7 +46,7 @@ func (m *mockRefreshTokenRepository) FindByHash(
 	return args.Get(0).(*domain.RefreshToken), args.Error(1)
 }
 
-func (m *mockRefreshTokenRepository) DeleteByHash(ctx context.Context, tokenHash string) error {
+func (m *mockRefreshTokensRepository) DeleteByHash(ctx context.Context, tokenHash string) error {
 	args := m.Called(ctx, tokenHash)
 	return args.Error(0)
 }
@@ -59,7 +64,7 @@ func TestTokenService_GenerateAccessToken(t *testing.T) {
 	}{
 		{
 			name:    "success",
-			userID:  primitive.NewObjectID().Hex(),
+			userID:  "507f1f77bcf86cd799439011",
 			wantErr: false,
 			checkFunc: func(t *testing.T, result *service.TokenResult) {
 				t.Helper()
@@ -72,7 +77,7 @@ func TestTokenService_GenerateAccessToken(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			mockRepo := new(mockRefreshTokenRepository)
+			mockRepo := new(mockRefreshTokensRepository)
 			tokenService := service.NewTokenService(mockRepo, secret, accessTTL, refreshTTL)
 
 			result, err := tokenService.GenerateAccessToken(tt.userID)
@@ -108,7 +113,7 @@ func TestTokenService_ValidateAccessToken(t *testing.T) {
 	secret := "test-secret-key-that-is-long-enough-for-hs256"
 	accessTTL := 15 * time.Minute
 	refreshTTL := 7 * 24 * time.Hour
-	userID := primitive.NewObjectID().Hex()
+	userID := "507f1f77bcf86cd799439011"
 
 	tests := []struct {
 		name       string
@@ -197,7 +202,7 @@ func TestTokenService_ValidateAccessToken(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			mockRepo := new(mockRefreshTokenRepository)
+			mockRepo := new(mockRefreshTokensRepository)
 			tokenService := service.NewTokenService(mockRepo, secret, accessTTL, refreshTTL)
 
 			token, err := tt.generateFn()
@@ -222,19 +227,27 @@ func TestTokenService_GenerateRefreshToken(t *testing.T) {
 	secret := "test-secret"
 	accessTTL := 15 * time.Minute
 	refreshTTL := 7 * 24 * time.Hour
-	userID := primitive.NewObjectID()
+	userID := "507f1f77bcf86cd799439011"
 
 	tests := []struct {
 		name      string
-		mockSetup func(*mockRefreshTokenRepository)
+		mockSetup func(*mockRefreshTokensRepository)
 		wantErr   bool
 		checkFunc func(t *testing.T, result *service.TokenResult)
 	}{
 		{
 			name: "success",
-			mockSetup: func(m *mockRefreshTokenRepository) {
-				m.On("Create", mock.Anything, mock.AnythingOfType("*domain.RefreshToken")).
-					Return(nil)
+			mockSetup: func(m *mockRefreshTokensRepository) {
+				m.On("Create", mock.Anything, mock.AnythingOfType("*domain.RefreshToken"), mock.AnythingOfType("time.Duration")).
+					Return(
+						&domain.RefreshToken{
+							ID:        "507f1f77bcf86cd799439011",
+							UserID:    userID,
+							TokenHash: "somehash",
+							ExpiresAt: time.Now().Add(refreshTTL),
+							CreatedAt: time.Now().Add(-time.Hour),
+						}, nil,
+					)
 			},
 			wantErr: false,
 			checkFunc: func(t *testing.T, result *service.TokenResult) {
@@ -246,9 +259,9 @@ func TestTokenService_GenerateRefreshToken(t *testing.T) {
 		},
 		{
 			name: "repository error",
-			mockSetup: func(m *mockRefreshTokenRepository) {
-				m.On("Create", mock.Anything, mock.AnythingOfType("*domain.RefreshToken")).
-					Return(errors.New("database error"))
+			mockSetup: func(m *mockRefreshTokensRepository) {
+				m.On("Create", mock.Anything, mock.AnythingOfType("*domain.RefreshToken"), mock.AnythingOfType("time.Duration")).
+					Return(nil, errors.New("database error"))
 			},
 			wantErr:   true,
 			checkFunc: nil,
@@ -257,7 +270,7 @@ func TestTokenService_GenerateRefreshToken(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			mockRepo := new(mockRefreshTokenRepository)
+			mockRepo := new(mockRefreshTokensRepository)
 			if tt.mockSetup != nil {
 				tt.mockSetup(mockRepo)
 			}
@@ -285,23 +298,22 @@ func TestTokenService_ValidateRefreshToken(t *testing.T) {
 	secret := "test-secret"
 	accessTTL := 15 * time.Minute
 	refreshTTL := 7 * 24 * time.Hour
-	userID := primitive.NewObjectID()
+	userID := "507f1f77bcf86cd799439011"
 	tokenHash := "test-token-hash"
 
 	tests := []struct {
 		name       string
 		plainToken string
-		mockSetup  func(*mockRefreshTokenRepository)
+		mockSetup  func(*mockRefreshTokensRepository)
 		wantErr    error
-		wantUserID primitive.ObjectID
+		wantUserID string
 	}{
 		{
 			name:       "valid token",
 			plainToken: "valid-plain-token",
-			mockSetup: func(m *mockRefreshTokenRepository) {
+			mockSetup: func(m *mockRefreshTokensRepository) {
 				m.On("FindByHash", mock.Anything, mock.AnythingOfType("string")).
-					Return(&domain.RefreshToken{
-						ID:        primitive.NewObjectID(),
+					Return(&domain.RefreshToken{ //nolint:exhaustruct // test struct
 						UserID:    userID,
 						TokenHash: tokenHash,
 						ExpiresAt: time.Now().Add(time.Hour),
@@ -314,20 +326,19 @@ func TestTokenService_ValidateRefreshToken(t *testing.T) {
 		{
 			name:       "token not found",
 			plainToken: "non-existent-token",
-			mockSetup: func(m *mockRefreshTokenRepository) {
+			mockSetup: func(m *mockRefreshTokensRepository) {
 				m.On("FindByHash", mock.Anything, mock.AnythingOfType("string")).
 					Return(nil, domain.ErrNotFound)
 			},
 			wantErr:    domain.ErrTokenNotFound,
-			wantUserID: primitive.NilObjectID,
+			wantUserID: "",
 		},
 		{
 			name:       "token expired",
 			plainToken: "expired-token",
-			mockSetup: func(m *mockRefreshTokenRepository) {
+			mockSetup: func(m *mockRefreshTokensRepository) {
 				m.On("FindByHash", mock.Anything, mock.AnythingOfType("string")).
-					Return(&domain.RefreshToken{
-						ID:        primitive.NewObjectID(),
+					Return(&domain.RefreshToken{ //nolint:exhaustruct // test struct
 						UserID:    userID,
 						TokenHash: tokenHash,
 						ExpiresAt: time.Now().Add(-time.Hour),
@@ -335,23 +346,23 @@ func TestTokenService_ValidateRefreshToken(t *testing.T) {
 					}, nil)
 			},
 			wantErr:    domain.ErrExpiredToken,
-			wantUserID: primitive.NilObjectID,
+			wantUserID: "",
 		},
 		{
 			name:       "repository error",
 			plainToken: "error-token",
-			mockSetup: func(m *mockRefreshTokenRepository) {
+			mockSetup: func(m *mockRefreshTokensRepository) {
 				m.On("FindByHash", mock.Anything, mock.AnythingOfType("string")).
 					Return(nil, errors.New("database error"))
 			},
 			wantErr:    errors.New("failed to find refresh token"),
-			wantUserID: primitive.NilObjectID,
+			wantUserID: "",
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			mockRepo := new(mockRefreshTokenRepository)
+			mockRepo := new(mockRefreshTokensRepository)
 			tt.mockSetup(mockRepo)
 
 			tokenService := service.NewTokenService(mockRepo, secret, accessTTL, refreshTTL)
@@ -383,22 +394,21 @@ func TestTokenService_RotateRefreshToken(t *testing.T) {
 	secret := "test-secret"
 	accessTTL := 15 * time.Minute
 	refreshTTL := 7 * 24 * time.Hour
-	userID := primitive.NewObjectID()
+	userID := "507f1f77bcf86cd799439011"
 
 	tests := []struct {
 		name          string
 		oldToken      string
-		mockSetup     func(*mockRefreshTokenRepository)
+		mockSetup     func(*mockRefreshTokensRepository)
 		wantErr       error
 		checkNewToken bool
 	}{
 		{
 			name:     "success",
 			oldToken: "valid-old-token",
-			mockSetup: func(m *mockRefreshTokenRepository) {
+			mockSetup: func(m *mockRefreshTokensRepository) {
 				m.On("FindByHash", mock.Anything, mock.AnythingOfType("string")).
-					Return(&domain.RefreshToken{
-						ID:        primitive.NewObjectID(),
+					Return(&domain.RefreshToken{ //nolint:exhaustruct // test struct
 						UserID:    userID,
 						TokenHash: "old-hash",
 						ExpiresAt: time.Now().Add(time.Hour),
@@ -408,8 +418,17 @@ func TestTokenService_RotateRefreshToken(t *testing.T) {
 				m.On("DeleteByHash", mock.Anything, mock.AnythingOfType("string")).
 					Return(nil).Once()
 
-				m.On("Create", mock.Anything, mock.AnythingOfType("*domain.RefreshToken")).
-					Return(nil).Once()
+				m.On("Create", mock.Anything, mock.AnythingOfType("*domain.RefreshToken"), mock.AnythingOfType("time.Duration")).
+					Return(
+						&domain.RefreshToken{
+							ID:        "507f1f77bcf86cd799439011",
+							UserID:    userID,
+							TokenHash: "new-hash",
+							ExpiresAt: time.Now().Add(refreshTTL),
+							CreatedAt: time.Now().Add(-time.Hour),
+						}, nil,
+					).
+					Once()
 			},
 			wantErr:       nil,
 			checkNewToken: true,
@@ -417,7 +436,7 @@ func TestTokenService_RotateRefreshToken(t *testing.T) {
 		{
 			name:     "invalid old token",
 			oldToken: "invalid-token",
-			mockSetup: func(m *mockRefreshTokenRepository) {
+			mockSetup: func(m *mockRefreshTokensRepository) {
 				m.On("FindByHash", mock.Anything, mock.AnythingOfType("string")).
 					Return(nil, domain.ErrNotFound).Once()
 			},
@@ -427,10 +446,9 @@ func TestTokenService_RotateRefreshToken(t *testing.T) {
 		{
 			name:     "delete old token error",
 			oldToken: "valid-old-token",
-			mockSetup: func(m *mockRefreshTokenRepository) {
+			mockSetup: func(m *mockRefreshTokensRepository) {
 				m.On("FindByHash", mock.Anything, mock.AnythingOfType("string")).
-					Return(&domain.RefreshToken{
-						ID:        primitive.NewObjectID(),
+					Return(&domain.RefreshToken{ //nolint:exhaustruct // test struct
 						UserID:    userID,
 						TokenHash: "old-hash",
 						ExpiresAt: time.Now().Add(time.Hour),
@@ -446,7 +464,7 @@ func TestTokenService_RotateRefreshToken(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			mockRepo := new(mockRefreshTokenRepository)
+			mockRepo := new(mockRefreshTokensRepository)
 			tt.mockSetup(mockRepo)
 
 			tokenService := service.NewTokenService(mockRepo, secret, accessTTL, refreshTTL)
@@ -463,7 +481,7 @@ func TestTokenService_RotateRefreshToken(t *testing.T) {
 					assert.Contains(t, err.Error(), tt.wantErr.Error())
 				}
 				assert.Nil(t, newToken)
-				assert.Equal(t, primitive.NilObjectID, resultUserID)
+				assert.Empty(t, resultUserID)
 			} else {
 				require.NoError(t, err)
 				assert.NotNil(t, newToken)

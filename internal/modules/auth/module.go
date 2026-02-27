@@ -8,7 +8,7 @@ import (
 	"go.mongodb.org/mongo-driver/mongo"
 
 	"recipes-desk/internal/modules/auth/handler"
-	"recipes-desk/internal/modules/auth/repository"
+	"recipes-desk/internal/modules/auth/repository/mongorepo"
 	"recipes-desk/internal/modules/auth/service"
 )
 
@@ -26,8 +26,8 @@ func NewModule(
 	accessExpiry time.Duration,
 	refreshExpiry time.Duration,
 ) *Module {
-	authRepo := repository.NewMongoRepository(db)
-	refreshRepo := repository.NewMongoRefreshTokenRepository(db)
+	authRepo := mongorepo.NewUsers(db)
+	refreshRepo := mongorepo.NewRefreshTokens(db)
 
 	passwordService := service.NewBcryptHasher(14)
 	tokenService := service.NewTokenService(refreshRepo, secret, accessExpiry, refreshExpiry)

@@ -10,7 +10,6 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
-	"go.mongodb.org/mongo-driver/bson/primitive"
 	"golang.org/x/crypto/bcrypt"
 
 	"recipes-desk/internal/modules/auth/domain"
@@ -22,11 +21,14 @@ type mockUserRepository struct {
 	mock.Mock
 }
 
-var _ domain.Repository = (*mockUserRepository)(nil)
+var _ domain.UsersRepository = (*mockUserRepository)(nil)
 
-func (m *mockUserRepository) Create(ctx context.Context, user *domain.User) error {
+func (m *mockUserRepository) Create(ctx context.Context, user *domain.User) (*domain.User, error) {
 	args := m.Called(ctx, user)
-	return args.Error(0)
+	if args.Get(0) == nil {
+		return nil, args.Error(1)
+	}
+	return args.Get(0).(*domain.User), args.Error(1)
 }
 
 func (m *mockUserRepository) FindByEmail(ctx context.Context, email string) (*domain.User, error) {
@@ -88,7 +90,7 @@ func (m *mockTokenService) ValidateAccessToken(tokenString string) (*service.Cla
 
 func (m *mockTokenService) GenerateRefreshToken(
 	ctx context.Context,
-	userID primitive.ObjectID,
+	userID string,
 ) (*service.TokenResult, error) {
 	args := m.Called(ctx, userID)
 	if args.Get(0) == nil {
@@ -100,17 +102,17 @@ func (m *mockTokenService) GenerateRefreshToken(
 func (m *mockTokenService) RotateRefreshToken(
 	ctx context.Context,
 	oldToken string,
-) (*service.TokenResult, primitive.ObjectID, error) {
+) (*service.TokenResult, string, error) {
 	args := m.Called(ctx, oldToken)
 	if args.Get(0) == nil {
-		return nil, args.Get(1).(primitive.ObjectID), args.Error(2)
+		return nil, args.String(1), args.Error(2)
 	}
-	return args.Get(0).(*service.TokenResult), args.Get(1).(primitive.ObjectID), args.Error(2)
+	return args.Get(0).(*service.TokenResult), args.String(1), args.Error(2)
 }
 
 func TestService_GetByID(t *testing.T) {
 	logger := zerolog.New(nil)
-	userID := primitive.NewObjectID()
+	userID := "507f1f77bcf86cd799439011"
 
 	tests := []struct {
 		name       string
@@ -118,13 +120,13 @@ func TestService_GetByID(t *testing.T) {
 		mockSetup  func(*mockUserRepository)
 		wantErr    error
 		wantUser   bool
-		wantUserID primitive.ObjectID
+		wantUserID string
 	}{
 		{
 			name: "success",
-			id:   userID.Hex(),
+			id:   userID,
 			mockSetup: func(m *mockUserRepository) {
-				m.On("FindByID", mock.Anything, userID.Hex()).
+				m.On("FindByID", mock.Anything, userID).
 					Return(&domain.User{ //nolint:exhaustruct // test struct
 						ID:        userID,
 						Email:     "test@example.com",
@@ -138,25 +140,25 @@ func TestService_GetByID(t *testing.T) {
 		},
 		{
 			name: "not found",
-			id:   userID.Hex(),
+			id:   userID,
 			mockSetup: func(m *mockUserRepository) {
-				m.On("FindByID", mock.Anything, userID.Hex()).
+				m.On("FindByID", mock.Anything, userID).
 					Return(nil, domain.ErrNotFound)
 			},
 			wantErr:    domain.ErrNotFound,
 			wantUser:   false,
-			wantUserID: primitive.NilObjectID,
+			wantUserID: "",
 		},
 		{
 			name: "repository error",
-			id:   userID.Hex(),
+			id:   userID,
 			mockSetup: func(m *mockUserRepository) {
-				m.On("FindByID", mock.Anything, userID.Hex()).
+				m.On("FindByID", mock.Anything, userID).
 					Return(nil, errors.New("database error"))
 			},
 			wantErr:    errors.New("database error"),
 			wantUser:   false,
-			wantUserID: primitive.NilObjectID,
+			wantUserID: "",
 		},
 	}
 
@@ -189,7 +191,7 @@ func TestService_GetByID(t *testing.T) {
 
 func TestService_GetByEmail(t *testing.T) {
 	logger := zerolog.New(nil)
-	userID := primitive.NewObjectID()
+	userID := "507f1f77bcf86cd799439011"
 	email := "test@example.com"
 
 	tests := []struct {
@@ -198,7 +200,7 @@ func TestService_GetByEmail(t *testing.T) {
 		mockSetup  func(*mockUserRepository)
 		wantErr    error
 		wantUser   bool
-		wantUserID primitive.ObjectID
+		wantUserID string
 	}{
 		{
 			name:  "success",
@@ -225,7 +227,7 @@ func TestService_GetByEmail(t *testing.T) {
 			},
 			wantErr:    domain.ErrNotFound,
 			wantUser:   false,
-			wantUserID: primitive.NilObjectID,
+			wantUserID: "",
 		},
 		{
 			name:  "repository error",
@@ -236,7 +238,7 @@ func TestService_GetByEmail(t *testing.T) {
 			},
 			wantErr:    errors.New("database error"),
 			wantUser:   false,
-			wantUserID: primitive.NilObjectID,
+			wantUserID: "",
 		},
 	}
 
@@ -290,7 +292,14 @@ func TestService_Register(t *testing.T) {
 
 				pwd.On("Hash", "password123").Return("hashed_password", nil)
 
-				repo.On("Create", mock.Anything, mock.AnythingOfType("*domain.User")).Return(nil)
+				repo.On("Create", mock.Anything, mock.AnythingOfType("*domain.User")).
+					Return(
+						&domain.User{ //nolint:exhaustruct // test struct
+							ID:        "507f1f77bcf86cd799439011",
+							Email:     "test@example.com",
+							FirstName: "John",
+							LastName:  "Doe",
+						}, nil)
 
 				tok.On("GenerateAccessToken", mock.AnythingOfType("string")).
 					Return(&service.TokenResult{
@@ -298,7 +307,7 @@ func TestService_Register(t *testing.T) {
 						ExpiresAt: time.Now().Add(time.Hour),
 					}, nil)
 
-				tok.On("GenerateRefreshToken", mock.Anything, mock.AnythingOfType("primitive.ObjectID")).
+				tok.On("GenerateRefreshToken", mock.Anything, mock.AnythingOfType("string")).
 					Return(&service.TokenResult{
 						Token:     "refresh_token",
 						ExpiresAt: time.Now().Add(7 * 24 * time.Hour),
@@ -393,7 +402,7 @@ func TestService_Register(t *testing.T) {
 				pwd.On("Hash", "password123").Return("hashed_password", nil)
 
 				repo.On("Create", mock.Anything, mock.AnythingOfType("*domain.User")).
-					Return(errors.New("database error"))
+					Return(nil, errors.New("database error"))
 			},
 			wantErr:    errors.New("database error"),
 			wantResult: false,
@@ -411,7 +420,15 @@ func TestService_Register(t *testing.T) {
 
 				pwd.On("Hash", "password123").Return("hashed_password", nil)
 
-				repo.On("Create", mock.Anything, mock.AnythingOfType("*domain.User")).Return(nil)
+				repo.On("Create", mock.Anything, mock.AnythingOfType("*domain.User")).
+					Return(
+						&domain.User{ //nolint:exhaustruct // test struct
+							ID:        "507f1f77bcf86cd799439011",
+							Email:     "test@example.com",
+							FirstName: "John",
+							LastName:  "Doe",
+						}, nil,
+					)
 
 				tok.On("GenerateAccessToken", mock.AnythingOfType("string")).
 					Return(nil, errors.New("token error"))
@@ -432,7 +449,15 @@ func TestService_Register(t *testing.T) {
 
 				pwd.On("Hash", "password123").Return("hashed_password", nil)
 
-				repo.On("Create", mock.Anything, mock.AnythingOfType("*domain.User")).Return(nil)
+				repo.On("Create", mock.Anything, mock.AnythingOfType("*domain.User")).
+					Return(
+						&domain.User{ //nolint:exhaustruct // test struct
+							ID:        "507f1f77bcf86cd799439011",
+							Email:     "test@example.com",
+							FirstName: "John",
+							LastName:  "Doe",
+						}, nil,
+					)
 
 				tok.On("GenerateAccessToken", mock.AnythingOfType("string")).
 					Return(&service.TokenResult{
@@ -440,7 +465,7 @@ func TestService_Register(t *testing.T) {
 						ExpiresAt: time.Now().Add(time.Hour),
 					}, nil)
 
-				tok.On("GenerateRefreshToken", mock.Anything, mock.AnythingOfType("primitive.ObjectID")).
+				tok.On("GenerateRefreshToken", mock.Anything, mock.AnythingOfType("string")).
 					Return(nil, errors.New("token error"))
 			},
 			wantErr:    errors.New("token error"),
@@ -487,7 +512,7 @@ func TestService_Register(t *testing.T) {
 
 func TestService_Login(t *testing.T) {
 	logger := zerolog.New(nil)
-	userID := primitive.NewObjectID()
+	userID := "507f1f77bcf86cd799439011"
 	email := "test@example.com"
 	password := "password123"
 	hashedPassword := "hashed_password"
@@ -513,7 +538,7 @@ func TestService_Login(t *testing.T) {
 						Password: hashedPassword,
 					}, nil)
 				pwd.On("Verify", password, hashedPassword).Return(true)
-				tok.On("GenerateAccessToken", userID.Hex()).
+				tok.On("GenerateAccessToken", userID).
 					Return(&service.TokenResult{
 						Token:     "access_token",
 						ExpiresAt: time.Now().Add(time.Hour),
@@ -585,7 +610,7 @@ func TestService_Login(t *testing.T) {
 						Password: hashedPassword,
 					}, nil)
 				pwd.On("Verify", password, hashedPassword).Return(true)
-				tok.On("GenerateAccessToken", userID.Hex()).
+				tok.On("GenerateAccessToken", userID).
 					Return(nil, errors.New("token error"))
 			},
 			wantErr:    errors.New("token error"),
@@ -605,7 +630,7 @@ func TestService_Login(t *testing.T) {
 						Password: hashedPassword,
 					}, nil)
 				pwd.On("Verify", password, hashedPassword).Return(true)
-				tok.On("GenerateAccessToken", userID.Hex()).
+				tok.On("GenerateAccessToken", userID).
 					Return(&service.TokenResult{
 						Token:     "access_token",
 						ExpiresAt: time.Now().Add(time.Hour),
@@ -657,7 +682,7 @@ func TestService_Login(t *testing.T) {
 
 func TestService_RefreshTokens(t *testing.T) {
 	logger := zerolog.New(nil)
-	userID := primitive.NewObjectID()
+	userID := "507f1f77bcf86cd799439011"
 	oldRefreshToken := "old_refresh_token"
 
 	tests := []struct {
@@ -678,7 +703,7 @@ func TestService_RefreshTokens(t *testing.T) {
 						Token:     "new_refresh_token",
 						ExpiresAt: time.Now().Add(7 * 24 * time.Hour),
 					}, userID, nil)
-				tok.On("GenerateAccessToken", userID.Hex()).
+				tok.On("GenerateAccessToken", userID).
 					Return(&service.TokenResult{
 						Token:     "new_access_token",
 						ExpiresAt: time.Now().Add(time.Hour),
@@ -694,7 +719,7 @@ func TestService_RefreshTokens(t *testing.T) {
 			},
 			mockSetup: func(tok *mockTokenService) {
 				tok.On("RotateRefreshToken", mock.Anything, "invalid_token").
-					Return(nil, primitive.NilObjectID, domain.ErrTokenNotFound)
+					Return(nil, "", domain.ErrTokenNotFound)
 			},
 			wantErr:    domain.ErrTokenNotFound,
 			wantResult: false,
@@ -706,7 +731,7 @@ func TestService_RefreshTokens(t *testing.T) {
 			},
 			mockSetup: func(tok *mockTokenService) {
 				tok.On("RotateRefreshToken", mock.Anything, "expired_token").
-					Return(nil, primitive.NilObjectID, domain.ErrExpiredToken)
+					Return(nil, "", domain.ErrExpiredToken)
 			},
 			wantErr:    domain.ErrExpiredToken,
 			wantResult: false,
@@ -722,7 +747,7 @@ func TestService_RefreshTokens(t *testing.T) {
 						Token:     "new_refresh_token",
 						ExpiresAt: time.Now().Add(7 * 24 * time.Hour),
 					}, userID, nil)
-				tok.On("GenerateAccessToken", userID.Hex()).
+				tok.On("GenerateAccessToken", userID).
 					Return(nil, errors.New("token error"))
 			},
 			wantErr:    errors.New("token error"),

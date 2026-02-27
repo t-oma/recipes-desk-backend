@@ -15,16 +15,16 @@ import (
 
 const refreshCollectionName = "refresh_tokens"
 
-// RefreshTokenRepository implements RefreshTokenRepository using MongoDB.
-type RefreshTokenRepository struct {
+// RefreshTokensRepository implements RefreshTokensRepository using MongoDB.
+type RefreshTokensRepository struct {
 	collection *mongo.Collection
 }
 
-var _ domain.RefreshTokenRepository = (*RefreshTokenRepository)(nil)
+var _ domain.RefreshTokensRepository = (*RefreshTokensRepository)(nil)
 
 // NewRefreshTokens creates a new MongoRefreshTokenRepository.
-func NewRefreshTokens(db *mongo.Database) *RefreshTokenRepository {
-	repo := &RefreshTokenRepository{
+func NewRefreshTokens(db *mongo.Database) *RefreshTokensRepository {
+	repo := &RefreshTokensRepository{
 		collection: db.Collection(refreshCollectionName),
 	}
 
@@ -46,7 +46,7 @@ func NewRefreshTokens(db *mongo.Database) *RefreshTokenRepository {
 }
 
 // Create stores a new refresh token in the database.
-func (r *RefreshTokenRepository) Create(
+func (r *RefreshTokensRepository) Create(
 	ctx context.Context,
 	token *domain.RefreshToken,
 	ttl time.Duration,
@@ -69,7 +69,7 @@ func (r *RefreshTokenRepository) Create(
 }
 
 // FindByHash finds a refresh token by its hash.
-func (r *RefreshTokenRepository) FindByHash(
+func (r *RefreshTokensRepository) FindByHash(
 	ctx context.Context,
 	tokenHash string,
 ) (*domain.RefreshToken, error) {
@@ -85,7 +85,7 @@ func (r *RefreshTokenRepository) FindByHash(
 }
 
 // DeleteByHash deletes a refresh token by its hash.
-func (r *RefreshTokenRepository) DeleteByHash(
+func (r *RefreshTokensRepository) DeleteByHash(
 	ctx context.Context,
 	tokenHash string,
 ) error {

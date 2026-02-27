@@ -15,7 +15,6 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
-	"go.mongodb.org/mongo-driver/bson/primitive"
 
 	"recipes-desk/internal/modules/auth/domain"
 	"recipes-desk/internal/modules/auth/handler"
@@ -91,7 +90,7 @@ func setupTest() (*gin.Engine, *mockAuthService, *handler.Handler) {
 }
 
 func TestHandler_Register(t *testing.T) {
-	userID := primitive.NewObjectID()
+	userID := "507f1f77bcf86cd799439011"
 
 	tests := []struct {
 		name           string
@@ -208,7 +207,7 @@ func TestHandler_Register(t *testing.T) {
 				var response handler.AuthResponse
 				err := json.Unmarshal(w.Body.Bytes(), &response)
 				require.NoError(t, err)
-				assert.Equal(t, userID.Hex(), response.User.ID)
+				assert.Equal(t, userID, response.User.ID)
 
 				// Check cookies are set
 				cookies := w.Result().Cookies()
@@ -221,7 +220,7 @@ func TestHandler_Register(t *testing.T) {
 }
 
 func TestHandler_Login(t *testing.T) {
-	userID := primitive.NewObjectID()
+	userID := "507f1f77bcf86cd799439011"
 
 	tests := []struct {
 		name           string
@@ -331,7 +330,7 @@ func TestHandler_Login(t *testing.T) {
 				var response handler.AuthResponse
 				err := json.Unmarshal(w.Body.Bytes(), &response)
 				require.NoError(t, err)
-				assert.Equal(t, userID.Hex(), response.User.ID)
+				assert.Equal(t, userID, response.User.ID)
 
 				// Check cookies are set
 				cookies := w.Result().Cookies()
@@ -471,7 +470,7 @@ func TestHandler_Logout(t *testing.T) {
 }
 
 func TestHandler_Me(t *testing.T) {
-	userID := primitive.NewObjectID()
+	userID := "507f1f77bcf86cd799439011"
 
 	tests := []struct {
 		name           string
@@ -482,9 +481,9 @@ func TestHandler_Me(t *testing.T) {
 	}{
 		{
 			name:   "success",
-			userID: userID.Hex(),
+			userID: userID,
 			mockSetup: func(m *mockAuthService) {
-				m.On("GetByID", mock.Anything, userID.Hex()).
+				m.On("GetByID", mock.Anything, userID).
 					Return(&service.SafeUser{ //nolint:exhaustruct // test struct
 						ID:        userID,
 						Email:     "test@example.com",
@@ -504,9 +503,9 @@ func TestHandler_Me(t *testing.T) {
 		},
 		{
 			name:   "user not found",
-			userID: userID.Hex(),
+			userID: userID,
 			mockSetup: func(m *mockAuthService) {
-				m.On("GetByID", mock.Anything, userID.Hex()).
+				m.On("GetByID", mock.Anything, userID).
 					Return(nil, domain.ErrNotFound)
 			},
 			wantStatusCode: http.StatusNotFound,
@@ -514,9 +513,9 @@ func TestHandler_Me(t *testing.T) {
 		},
 		{
 			name:   "service error",
-			userID: userID.Hex(),
+			userID: userID,
 			mockSetup: func(m *mockAuthService) {
-				m.On("GetByID", mock.Anything, userID.Hex()).
+				m.On("GetByID", mock.Anything, userID).
 					Return(nil, errors.New("database error"))
 			},
 			wantStatusCode: http.StatusInternalServerError,
@@ -548,7 +547,7 @@ func TestHandler_Me(t *testing.T) {
 				var response handler.UserResponse
 				err := json.Unmarshal(w.Body.Bytes(), &response)
 				require.NoError(t, err)
-				assert.Equal(t, userID.Hex(), response.ID)
+				assert.Equal(t, userID, response.ID)
 			}
 
 			mockSvc.AssertExpectations(t)
