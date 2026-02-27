@@ -3,6 +3,7 @@ package domain
 import (
 	"context"
 	"errors"
+	"time"
 )
 
 var (
@@ -13,7 +14,7 @@ var (
 
 // RefreshTokenRepository defines the interface for refresh token storage.
 type RefreshTokenRepository interface {
-	Create(ctx context.Context, token *RefreshToken) error
+	Create(ctx context.Context, token *RefreshToken, ttl time.Duration) (*RefreshToken, error)
 	FindByHash(ctx context.Context, tokenHash string) (*RefreshToken, error)
 	DeleteByHash(ctx context.Context, tokenHash string) error
 }

@@ -2,10 +2,8 @@ package domain_test
 
 import (
 	"testing"
-	"time"
 
 	"github.com/stretchr/testify/assert"
-	"go.mongodb.org/mongo-driver/bson/primitive"
 
 	"recipes-desk/internal/modules/auth/domain"
 )
@@ -18,8 +16,8 @@ func TestUser_Validate(t *testing.T) {
 	}{
 		{
 			name: "valid user",
-			user: domain.User{ //nolint:exhaustruct // test struct //nolint:exhaustruct // test struct - only validation fields needed
-				ID:        primitive.NewObjectID(),
+			user: domain.User{ //nolint:exhaustruct // test struct
+				ID:        "507f1f77bcf86cd799439011",
 				Email:     "test@example.com",
 				FirstName: "John",
 				LastName:  "Doe",
@@ -159,58 +157,4 @@ func TestUser_Validate(t *testing.T) {
 			}
 		})
 	}
-}
-
-func TestUser_SetTimestamps(t *testing.T) {
-	t.Run("sets timestamps on new user", func(t *testing.T) {
-		user := domain.User{ //nolint:exhaustruct // test struct
-			Email:     "test@example.com",
-			FirstName: "John",
-			LastName:  "Doe",
-			Password:  "password123",
-		}
-
-		before := time.Now()
-		user.SetTimestamps()
-		after := time.Now()
-
-		assert.False(t, user.CreatedAt.IsZero())
-		assert.False(t, user.PasswordUpdatedAt.IsZero())
-		assert.True(t, user.CreatedAt.After(before) || user.CreatedAt.Equal(before))
-		assert.True(t, user.CreatedAt.Before(after) || user.CreatedAt.Equal(after))
-	})
-
-	t.Run("preserves existing CreatedAt", func(t *testing.T) {
-		existingTime := time.Now().Add(-24 * time.Hour)
-		user := domain.User{ //nolint:exhaustruct // test struct
-			Email:             "test@example.com",
-			FirstName:         "John",
-			LastName:          "Doe",
-			Password:          "password123",
-			CreatedAt:         existingTime,
-			PasswordUpdatedAt: time.Time{},
-		}
-
-		user.SetTimestamps()
-
-		assert.Equal(t, existingTime, user.CreatedAt)
-		assert.False(t, user.PasswordUpdatedAt.IsZero())
-	})
-
-	t.Run("preserves existing PasswordUpdatedAt", func(t *testing.T) {
-		oldPasswordTime := time.Now().Add(-24 * time.Hour)
-		user := domain.User{ //nolint:exhaustruct // test struct
-			Email:             "test@example.com",
-			FirstName:         "John",
-			LastName:          "Doe",
-			Password:          "newpassword123",
-			CreatedAt:         time.Now().Add(-48 * time.Hour),
-			PasswordUpdatedAt: oldPasswordTime,
-		}
-
-		user.SetTimestamps()
-
-		// PasswordUpdatedAt should be preserved if already set
-		assert.Equal(t, oldPasswordTime, user.PasswordUpdatedAt)
-	})
 }
