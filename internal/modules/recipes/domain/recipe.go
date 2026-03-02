@@ -1,37 +1,37 @@
 package domain
 
 import (
+	"errors"
+	"fmt"
 	"time"
-
-	"go.mongodb.org/mongo-driver/bson/primitive"
 )
 
 // Recipe represents a cooking recipe.
 type Recipe struct {
-	ID          primitive.ObjectID `bson:"_id,omitempty" json:"id"` //nolint:tagliatelle // mongoDB id
-	Title       string             `bson:"title"         json:"title"`
-	Description string             `bson:"description"   json:"description"`
-	Ingredients []Ingredient       `bson:"ingredients"   json:"ingredients"`
-	Steps       []Step             `bson:"steps"         json:"steps"`
-	CookingTime int                `bson:"cookingTime"   json:"cookingTime"`
-	Portions    int                `bson:"portions"      json:"portions"`
-	Tags        []string           `bson:"tags"          json:"tags"`
-	CreatedAt   time.Time          `bson:"createdAt"     json:"createdAt"`
-	UpdatedAt   time.Time          `bson:"updatedAt"     json:"updatedAt"`
+	ID          string
+	Title       string
+	Description string
+	Ingredients []Ingredient
+	Steps       []Step
+	CookingTime int
+	Portions    int
+	Tags        []string
+	CreatedAt   time.Time
+	UpdatedAt   time.Time
 }
 
 // Ingredient represents a recipe ingredient.
 type Ingredient struct {
-	Name   string  `bson:"name"   json:"name"`
-	Amount float64 `bson:"amount" json:"amount"`
-	Unit   string  `bson:"unit"   json:"unit"`
+	Name   string  `bson:"name"`
+	Amount float64 `bson:"amount"`
+	Unit   string  `bson:"unit"`
 }
 
 // Step represents a cooking step.
 type Step struct {
-	Order       int    `bson:"order"       json:"order"`
-	Description string `bson:"description" json:"description"`
-	Duration    int    `bson:"duration"    json:"duration"` // in minutes
+	Order       int    `bson:"order"`
+	Description string `bson:"description"`
+	Duration    int    `bson:"duration"` // in minutes
 }
 
 // Validate performs business validation on the recipe.
@@ -66,11 +66,35 @@ func (r *Recipe) Validate() error {
 	return nil
 }
 
-// SetTimestamps sets created and updated timestamps.
-func (r *Recipe) SetTimestamps() {
-	now := time.Now()
-	if r.CreatedAt.IsZero() {
-		r.CreatedAt = now
-	}
-	r.UpdatedAt = now
-}
+var ErrValidation = errors.New("validation error")
+
+// Validation errors - wrapped with ErrValidation category.
+var (
+	ErrEmptyTitle         = fmt.Errorf("%w: title cannot be empty", ErrValidation)
+	ErrInvalidTitleLength = fmt.Errorf(
+		"%w: title must be between 3 and 200 characters",
+		ErrValidation,
+	)
+	ErrEmptyDescription         = fmt.Errorf("%w: description cannot be empty", ErrValidation)
+	ErrInvalidDescriptionLength = fmt.Errorf(
+		"%w: description must be between 10 and 5000 characters",
+		ErrValidation,
+	)
+	ErrNoIngredients = fmt.Errorf(
+		"%w: recipe must have at least one ingredient",
+		ErrValidation,
+	)
+	ErrNoSteps = fmt.Errorf(
+		"%w: recipe must have at least one step",
+		ErrValidation,
+	)
+	ErrInvalidCookingTime = fmt.Errorf(
+		"%w: cooking time must be greater than 0",
+		ErrValidation,
+	)
+	ErrInvalidPortions = fmt.Errorf(
+		"%w: portions must be between 1 and 100",
+		ErrValidation,
+	)
+	ErrNoTags = fmt.Errorf("%w: recipe must have at least one tag", ErrValidation)
+)
