@@ -1,7 +1,7 @@
 //go:build integration
 // +build integration
 
-package repository_test
+package mongorepo_test
 
 import (
 	"context"
@@ -12,12 +12,11 @@ import (
 	"github.com/testcontainers/testcontainers-go"
 	"github.com/testcontainers/testcontainers-go/modules/mongodb"
 	"github.com/testcontainers/testcontainers-go/wait"
-	"go.mongodb.org/mongo-driver/bson/primitive"
 	"go.mongodb.org/mongo-driver/mongo"
 	"go.mongodb.org/mongo-driver/mongo/options"
 
 	"recipes-desk/internal/modules/auth/domain"
-	"recipes-desk/internal/modules/auth/repository"
+	"recipes-desk/internal/modules/auth/repository/mongorepo"
 )
 
 func setupMongoContainer(t *testing.T) (*mongo.Database, func()) {
@@ -55,7 +54,7 @@ func TestIntegration_MongoRepository_Create(t *testing.T) {
 	db, cleanup := setupMongoContainer(t)
 	defer cleanup()
 
-	repo := repository.NewMongoRepository(db)
+	repo := mongorepo.NewUsers(db)
 	ctx := context.Background()
 
 	t.Run("create new user", func(t *testing.T) {
@@ -66,18 +65,18 @@ func TestIntegration_MongoRepository_Create(t *testing.T) {
 			Password:  "hashedpassword123",
 		}
 
-		err := repo.Create(ctx, user)
+		user, err := repo.Create(ctx, user)
 		require.NoError(t, err)
 
 		// Verify ID was set
-		assert.False(t, user.ID.IsZero())
+		assert.NotEmpty(t, user.ID)
 		// Verify timestamps were set
 		assert.False(t, user.CreatedAt.IsZero())
 		assert.False(t, user.PasswordUpdatedAt.IsZero())
 	})
 
-	t.Run("create user with existing ID", func(t *testing.T) {
-		existingID := primitive.NewObjectID()
+	t.Run("create user with ID provided", func(t *testing.T) {
+		existingID := "507f1f77bcf86cd799439011"
 		user := &domain.User{
 			ID:        existingID,
 			Email:     "existing@example.com",
@@ -86,11 +85,11 @@ func TestIntegration_MongoRepository_Create(t *testing.T) {
 			Password:  "hashedpassword456",
 		}
 
-		err := repo.Create(ctx, user)
+		user, err := repo.Create(ctx, user)
 		require.NoError(t, err)
 
-		// ID should be preserved
-		assert.Equal(t, existingID, user.ID)
+		// ID must be generated
+		assert.NotEqual(t, existingID, user.ID)
 	})
 }
 
@@ -98,7 +97,7 @@ func TestIntegration_MongoRepository_FindByID(t *testing.T) {
 	db, cleanup := setupMongoContainer(t)
 	defer cleanup()
 
-	repo := repository.NewMongoRepository(db)
+	repo := mongorepo.NewUsers(db)
 	ctx := context.Background()
 
 	// Create a test user first
@@ -108,11 +107,11 @@ func TestIntegration_MongoRepository_FindByID(t *testing.T) {
 		LastName:  "ByID",
 		Password:  "hashedpassword",
 	}
-	err := repo.Create(ctx, user)
+	user, err := repo.Create(ctx, user)
 	require.NoError(t, err)
 
 	t.Run("find existing user", func(t *testing.T) {
-		found, err := repo.FindByID(ctx, user.ID.Hex())
+		found, err := repo.FindByID(ctx, user.ID)
 		require.NoError(t, err)
 
 		assert.Equal(t, user.ID, found.ID)
@@ -122,7 +121,7 @@ func TestIntegration_MongoRepository_FindByID(t *testing.T) {
 	})
 
 	t.Run("find non-existent user", func(t *testing.T) {
-		nonExistentID := primitive.NewObjectID().Hex()
+		nonExistentID := "507f1f77bcf86cd799439012"
 		_, err := repo.FindByID(ctx, nonExistentID)
 		assert.ErrorIs(t, err, domain.ErrNotFound)
 	})
@@ -137,7 +136,7 @@ func TestIntegration_MongoRepository_FindByEmail(t *testing.T) {
 	db, cleanup := setupMongoContainer(t)
 	defer cleanup()
 
-	repo := repository.NewMongoRepository(db)
+	repo := mongorepo.NewUsers(db)
 	ctx := context.Background()
 
 	// Create a test user first
@@ -147,7 +146,7 @@ func TestIntegration_MongoRepository_FindByEmail(t *testing.T) {
 		LastName:  "ByEmail",
 		Password:  "hashedpassword",
 	}
-	err := repo.Create(ctx, user)
+	user, err := repo.Create(ctx, user)
 	require.NoError(t, err)
 
 	t.Run("find existing user by email", func(t *testing.T) {
@@ -168,7 +167,7 @@ func TestIntegration_MongoRepository_ExistsByEmail(t *testing.T) {
 	db, cleanup := setupMongoContainer(t)
 	defer cleanup()
 
-	repo := repository.NewMongoRepository(db)
+	repo := mongorepo.NewUsers(db)
 	ctx := context.Background()
 
 	// Create a test user first
@@ -178,7 +177,7 @@ func TestIntegration_MongoRepository_ExistsByEmail(t *testing.T) {
 		LastName:  "Test",
 		Password:  "hashedpassword",
 	}
-	err := repo.Create(ctx, user)
+	user, err := repo.Create(ctx, user)
 	require.NoError(t, err)
 
 	t.Run("check existing email", func(t *testing.T) {
@@ -198,7 +197,7 @@ func TestIntegration_MongoRepository_UniqueEmail(t *testing.T) {
 	db, cleanup := setupMongoContainer(t)
 	defer cleanup()
 
-	repo := repository.NewMongoRepository(db)
+	repo := mongorepo.NewUsers(db)
 	ctx := context.Background()
 
 	// Create first user
@@ -208,8 +207,9 @@ func TestIntegration_MongoRepository_UniqueEmail(t *testing.T) {
 		LastName:  "User",
 		Password:  "hashedpassword1",
 	}
-	err := repo.Create(ctx, user1)
+	user1, err := repo.Create(ctx, user1)
 	require.NoError(t, err)
+	assert.NotEmpty(t, user1.ID)
 
 	t.Run("cannot create user with duplicate email", func(t *testing.T) {
 		user2 := &domain.User{
@@ -220,9 +220,10 @@ func TestIntegration_MongoRepository_UniqueEmail(t *testing.T) {
 		}
 		// This should fail due to unique index (if configured)
 		// For now, we just verify both users exist
-		err := repo.Create(ctx, user2)
+		user2, err := repo.Create(ctx, user2)
 		// Without unique index, this will succeed
 		// In production, you should configure unique index on email
-		assert.NoError(t, err) // Currently no unique constraint
+		require.NoError(t, err) // Currently no unique constraint
+		assert.NotEmpty(t, user2.ID)
 	})
 }

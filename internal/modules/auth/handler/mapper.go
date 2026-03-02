@@ -8,7 +8,7 @@ import (
 
 func toUserResponse(user *service.SafeUser) UserResponse {
 	return UserResponse{
-		ID:                user.ID.Hex(),
+		ID:                user.ID,
 		Email:             user.Email,
 		FirstName:         user.FirstName,
 		LastName:          user.LastName,

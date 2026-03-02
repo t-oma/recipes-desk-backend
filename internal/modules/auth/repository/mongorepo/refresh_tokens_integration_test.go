@@ -1,7 +1,7 @@
 //go:build integration
 // +build integration
 
-package repository_test
+package mongorepo_test
 
 import (
 	"context"
@@ -10,32 +10,30 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"go.mongodb.org/mongo-driver/bson/primitive"
 
 	"recipes-desk/internal/modules/auth/domain"
-	"recipes-desk/internal/modules/auth/repository"
+	"recipes-desk/internal/modules/auth/repository/mongorepo"
 )
 
 func TestIntegration_MongoRefreshTokenRepository_Create(t *testing.T) {
 	db, cleanup := setupMongoContainer(t)
 	defer cleanup()
 
-	repo := repository.NewMongoRefreshTokenRepository(db)
+	repo := mongorepo.NewRefreshTokens(db)
 	ctx := context.Background()
 
 	t.Run("create refresh token", func(t *testing.T) {
-		userID := primitive.NewObjectID()
+		userID := "507f1f77bcf86cd799439011"
 		token := &domain.RefreshToken{
 			UserID:    userID,
 			TokenHash: "hash123",
 		}
-		token.SetTimestamps(7 * 24 * time.Hour)
 
-		err := repo.Create(ctx, token)
+		token, err := repo.Create(ctx, token, 7*24*time.Hour)
 		require.NoError(t, err)
 
 		// Verify ID was set
-		assert.False(t, token.ID.IsZero())
+		assert.NotEmpty(t, token.ID)
 		// Verify timestamps
 		assert.False(t, token.CreatedAt.IsZero())
 		assert.False(t, token.ExpiresAt.IsZero())
@@ -43,28 +41,36 @@ func TestIntegration_MongoRefreshTokenRepository_Create(t *testing.T) {
 	})
 
 	t.Run("create multiple tokens for same user", func(t *testing.T) {
-		userID := primitive.NewObjectID()
-
+		userID := "507f1f77bcf86cd799439012"
 		token1 := &domain.RefreshToken{
 			UserID:    userID,
 			TokenHash: "hash1",
 		}
-		token1.SetTimestamps(7 * 24 * time.Hour)
 
 		token2 := &domain.RefreshToken{
 			UserID:    userID,
 			TokenHash: "hash2",
 		}
-		token2.SetTimestamps(7 * 24 * time.Hour)
 
-		err := repo.Create(ctx, token1)
+		token1, err := repo.Create(ctx, token1, 7*24*time.Hour)
 		require.NoError(t, err)
 
-		err = repo.Create(ctx, token2)
+		token2, err = repo.Create(ctx, token2, 7*24*time.Hour)
 		require.NoError(t, err)
 
 		// Both should have different IDs
 		assert.NotEqual(t, token1.ID, token2.ID)
+	})
+
+	t.Run("create token with wrong userID", func(t *testing.T) {
+		userID := "wrong-user-id"
+		token := &domain.RefreshToken{
+			UserID:    userID,
+			TokenHash: "hash123",
+		}
+
+		token, err := repo.Create(ctx, token, 7*24*time.Hour)
+		require.Error(t, err)
 	})
 }
 
@@ -72,17 +78,16 @@ func TestIntegration_MongoRefreshTokenRepository_FindByHash(t *testing.T) {
 	db, cleanup := setupMongoContainer(t)
 	defer cleanup()
 
-	repo := repository.NewMongoRefreshTokenRepository(db)
+	repo := mongorepo.NewRefreshTokens(db)
 	ctx := context.Background()
 
 	// Create a test token first
-	userID := primitive.NewObjectID()
+	userID := "507f1f77bcf86cd799439011"
 	token := &domain.RefreshToken{
 		UserID:    userID,
 		TokenHash: "findme123",
 	}
-	token.SetTimestamps(7 * 24 * time.Hour)
-	err := repo.Create(ctx, token)
+	token, err := repo.Create(ctx, token, 7*24*time.Hour)
 	require.NoError(t, err)
 
 	t.Run("find existing token", func(t *testing.T) {
@@ -104,17 +109,16 @@ func TestIntegration_MongoRefreshTokenRepository_DeleteByHash(t *testing.T) {
 	db, cleanup := setupMongoContainer(t)
 	defer cleanup()
 
-	repo := repository.NewMongoRefreshTokenRepository(db)
+	repo := mongorepo.NewRefreshTokens(db)
 	ctx := context.Background()
 
 	// Create a test token first
-	userID := primitive.NewObjectID()
+	userID := "507f1f77bcf86cd799439011"
 	token := &domain.RefreshToken{
 		UserID:    userID,
 		TokenHash: "deleteme123",
 	}
-	token.SetTimestamps(7 * 24 * time.Hour)
-	err := repo.Create(ctx, token)
+	token, err := repo.Create(ctx, token, 7*24*time.Hour)
 	require.NoError(t, err)
 
 	t.Run("delete existing token", func(t *testing.T) {
@@ -137,10 +141,10 @@ func TestIntegration_MongoRefreshTokenRepository_TokenRotation(t *testing.T) {
 	db, cleanup := setupMongoContainer(t)
 	defer cleanup()
 
-	repo := repository.NewMongoRefreshTokenRepository(db)
+	repo := mongorepo.NewRefreshTokens(db)
 	ctx := context.Background()
 
-	userID := primitive.NewObjectID()
+	userID := "507f1f77bcf86cd799439011"
 
 	t.Run("simulate token rotation", func(t *testing.T) {
 		// Create old token
@@ -148,8 +152,7 @@ func TestIntegration_MongoRefreshTokenRepository_TokenRotation(t *testing.T) {
 			UserID:    userID,
 			TokenHash: "oldtoken123",
 		}
-		oldToken.SetTimestamps(7 * 24 * time.Hour)
-		err := repo.Create(ctx, oldToken)
+		oldToken, err := repo.Create(ctx, oldToken, 7*24*time.Hour)
 		require.NoError(t, err)
 
 		// Create new token (rotation)
@@ -157,8 +160,7 @@ func TestIntegration_MongoRefreshTokenRepository_TokenRotation(t *testing.T) {
 			UserID:    userID,
 			TokenHash: "newtoken456",
 		}
-		newToken.SetTimestamps(7 * 24 * time.Hour)
-		err = repo.Create(ctx, newToken)
+		newToken, err = repo.Create(ctx, newToken, 7*24*time.Hour)
 		require.NoError(t, err)
 
 		// Verify both tokens exist
@@ -188,11 +190,11 @@ func TestIntegration_MongoRefreshTokenRepository_MultipleUsers(t *testing.T) {
 	db, cleanup := setupMongoContainer(t)
 	defer cleanup()
 
-	repo := repository.NewMongoRefreshTokenRepository(db)
+	repo := mongorepo.NewRefreshTokens(db)
 	ctx := context.Background()
 
-	user1 := primitive.NewObjectID()
-	user2 := primitive.NewObjectID()
+	user1 := "507f1f77bcf86cd799439011"
+	user2 := "507f1f77bcf86cd799439012"
 
 	t.Run("tokens for different users", func(t *testing.T) {
 		// Create tokens for user1
@@ -200,8 +202,7 @@ func TestIntegration_MongoRefreshTokenRepository_MultipleUsers(t *testing.T) {
 			UserID:    user1,
 			TokenHash: "user1token",
 		}
-		token1.SetTimestamps(7 * 24 * time.Hour)
-		err := repo.Create(ctx, token1)
+		token1, err := repo.Create(ctx, token1, 7*24*time.Hour)
 		require.NoError(t, err)
 
 		// Create tokens for user2
@@ -209,8 +210,7 @@ func TestIntegration_MongoRefreshTokenRepository_MultipleUsers(t *testing.T) {
 			UserID:    user2,
 			TokenHash: "user2token",
 		}
-		token2.SetTimestamps(7 * 24 * time.Hour)
-		err = repo.Create(ctx, token2)
+		token2, err = repo.Create(ctx, token2, 7*24*time.Hour)
 		require.NoError(t, err)
 
 		// Verify each user can find their token
@@ -237,7 +237,8 @@ func TestIntegration_MongoRefreshTokenRepository_TTLIndex(t *testing.T) {
 	db, cleanup := setupMongoContainer(t)
 	defer cleanup()
 
-	repo := repository.NewMongoRefreshTokenRepository(db)
+	repo := mongorepo.NewRefreshTokens(db)
+	repo.InitIndexes(context.Background())
 	ctx := context.Background()
 
 	t.Run("verify TTL index is created", func(t *testing.T) {
@@ -246,14 +247,13 @@ func TestIntegration_MongoRefreshTokenRepository_TTLIndex(t *testing.T) {
 		assert.NotNil(t, repo)
 
 		// Create a token that expires in 1 second
-		userID := primitive.NewObjectID()
+		userID := "507f1f77bcf86cd799439011"
 		token := &domain.RefreshToken{
 			UserID:    userID,
 			TokenHash: "shortlived",
 		}
-		token.SetTimestamps(1 * time.Second)
 
-		err := repo.Create(ctx, token)
+		token, err := repo.Create(ctx, token, 1*time.Second)
 		require.NoError(t, err)
 
 		// Verify token exists

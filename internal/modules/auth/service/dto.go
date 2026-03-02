@@ -3,32 +3,34 @@ package service
 import (
 	"time"
 
-	"go.mongodb.org/mongo-driver/bson/primitive"
-
 	"recipes-desk/internal/modules/auth/domain"
 )
 
+// RegisterParams contains parameters for user registration.
 type RegisterParams struct {
-	Email     string `json:"email"     binding:"required,email"`
-	FirstName string `json:"firstName" binding:"required"`
-	LastName  string `json:"lastName"  binding:"required"`
-	Password  string `json:"password"  binding:"required"`
+	Email     string
+	FirstName string
+	LastName  string
+	Password  string
 }
 
+// LoginParams contains parameters for user login.
 type LoginParams struct {
-	Email    string `json:"email"    binding:"required,email"`
-	Password string `json:"password" binding:"required"`
+	Email    string
+	Password string
 }
 
+// SafeUser represents a user without sensitive information.
 type SafeUser struct {
-	ID                primitive.ObjectID `json:"id"`
-	Email             string             `json:"email"`
-	FirstName         string             `json:"firstName"`
-	LastName          string             `json:"lastName"`
-	CreatedAt         time.Time          `json:"createdAt"`
-	PasswordUpdatedAt time.Time          `json:"passwordUpdatedAt"`
+	ID                string
+	Email             string
+	FirstName         string
+	LastName          string
+	CreatedAt         time.Time
+	PasswordUpdatedAt time.Time
 }
 
+// SafeUserFromUser converts a domain user to a safe user.
 func SafeUserFromUser(user *domain.User) *SafeUser {
 	return &SafeUser{
 		ID:                user.ID,
@@ -40,12 +42,13 @@ func SafeUserFromUser(user *domain.User) *SafeUser {
 	}
 }
 
+// AuthResult contains the result of a successful authentication.
 type AuthResult struct {
-	User             *SafeUser `json:"user"`
-	AccessToken      string    `json:"accessToken"`
-	AccessExpiresAt  time.Time `json:"accessExpiresAt"`
-	RefreshToken     string    `json:"-"` // Not returned in JSON, only in cookie
-	RefreshExpiresAt time.Time `json:"-"` // Not returned in JSON
+	User             *SafeUser
+	AccessToken      string
+	AccessExpiresAt  time.Time
+	RefreshToken     string
+	RefreshExpiresAt time.Time
 }
 
 // TokenResult contains the generated token and its metadata.
@@ -54,13 +57,15 @@ type TokenResult struct {
 	ExpiresAt time.Time
 }
 
+// RefreshTokensParams contains parameters for token refresh.
 type RefreshTokensParams struct {
 	RefreshToken string
 }
 
+// RefreshTokensResult contains the result of a successful token refresh.
 type RefreshTokensResult struct {
-	AccessToken      string    `json:"accessToken"`
-	AccessExpiresAt  time.Time `json:"accessExpiresAt"`
-	RefreshToken     string    `json:"refreshToken"`
-	RefreshExpiresAt time.Time `json:"refreshExpiresAt"`
+	AccessToken      string
+	AccessExpiresAt  time.Time
+	RefreshToken     string
+	RefreshExpiresAt time.Time
 }

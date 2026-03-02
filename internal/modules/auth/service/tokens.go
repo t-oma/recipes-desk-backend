@@ -10,7 +10,6 @@ import (
 	"time"
 
 	"github.com/golang-jwt/jwt/v5"
-	"go.mongodb.org/mongo-driver/bson/primitive"
 
 	"recipes-desk/internal/modules/auth/domain"
 )
@@ -25,14 +24,15 @@ type Claims struct {
 
 // TokenService handles JWT token generation and validation.
 type TokenService struct {
-	refreshRepo domain.RefreshTokenRepository
+	refreshRepo domain.RefreshTokensRepository
 	secret      []byte
 	accessTTL   time.Duration
 	refreshTTL  time.Duration
 }
 
+// NewTokenService creates a new TokenService.
 func NewTokenService(
-	refreshRepo domain.RefreshTokenRepository,
+	refreshRepo domain.RefreshTokensRepository,
 	secret string,
 	accessTTL time.Duration,
 	refreshTTL time.Duration,
@@ -91,7 +91,7 @@ func (s *TokenService) ValidateAccessToken(tokenString string) (*Claims, error) 
 // GenerateRefreshToken creates a new refresh token and stores its hash in the database.
 func (s *TokenService) GenerateRefreshToken(
 	ctx context.Context,
-	userID primitive.ObjectID,
+	userID string,
 ) (*TokenResult, error) {
 	randomBytes := make([]byte, 32)
 	if _, err := rand.Read(randomBytes); err != nil {
@@ -105,9 +105,9 @@ func (s *TokenService) GenerateRefreshToken(
 		UserID:    userID,
 		TokenHash: tokenHash,
 	}
-	refreshToken.SetTimestamps(s.refreshTTL)
 
-	if err := s.refreshRepo.Create(ctx, refreshToken); err != nil {
+	refreshToken, err := s.refreshRepo.Create(ctx, refreshToken, s.refreshTTL)
+	if err != nil {
 		return nil, fmt.Errorf("failed to store refresh token: %w", err)
 	}
 
@@ -121,20 +121,20 @@ func (s *TokenService) GenerateRefreshToken(
 func (s *TokenService) ValidateRefreshToken(
 	ctx context.Context,
 	plainToken string,
-) (primitive.ObjectID, error) {
+) (string, error) {
 	tokenHash := hashToken(plainToken)
 
 	storedToken, err := s.refreshRepo.FindByHash(ctx, tokenHash)
 	if err != nil {
 		if errors.Is(err, domain.ErrNotFound) {
-			return primitive.NilObjectID, domain.ErrTokenNotFound
+			return "", domain.ErrTokenNotFound
 		}
-		return primitive.NilObjectID, fmt.Errorf("failed to find refresh token: %w", err)
+		return "", fmt.Errorf("failed to find refresh token: %w", err)
 	}
 
 	// Check if token has expired
 	if time.Now().After(storedToken.ExpiresAt) {
-		return primitive.NilObjectID, domain.ErrExpiredToken
+		return "", domain.ErrExpiredToken
 	}
 
 	return storedToken.UserID, nil
@@ -144,15 +144,15 @@ func (s *TokenService) ValidateRefreshToken(
 func (s *TokenService) RotateRefreshToken(
 	ctx context.Context,
 	oldPlainToken string,
-) (*TokenResult, primitive.ObjectID, error) {
+) (*TokenResult, string, error) {
 	userID, err := s.ValidateRefreshToken(ctx, oldPlainToken)
 	if err != nil {
-		return nil, primitive.NilObjectID, err
+		return nil, "", err
 	}
 
 	oldTokenHash := hashToken(oldPlainToken)
 	if err = s.refreshRepo.DeleteByHash(ctx, oldTokenHash); err != nil {
-		return nil, primitive.NilObjectID, fmt.Errorf(
+		return nil, "", fmt.Errorf(
 			"failed to delete old refresh token: %w",
 			err,
 		)
@@ -161,7 +161,7 @@ func (s *TokenService) RotateRefreshToken(
 	// Generate new token
 	newToken, err := s.GenerateRefreshToken(ctx, userID)
 	if err != nil {
-		return nil, primitive.NilObjectID, err
+		return nil, "", err
 	}
 
 	return newToken, userID, nil
@@ -173,6 +173,7 @@ func hashToken(token string) string {
 	return base64.StdEncoding.EncodeToString(hash[:])
 }
 
+// GenerateToken generates a JWT token with the given parameters.
 func GenerateToken(
 	secret any,
 	method jwt.SigningMethod,

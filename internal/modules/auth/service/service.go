@@ -3,10 +3,8 @@ package service
 import (
 	"context"
 	"errors"
-	"time"
 
 	"github.com/rs/zerolog"
-	"go.mongodb.org/mongo-driver/bson/primitive"
 	"golang.org/x/crypto/bcrypt"
 
 	"recipes-desk/internal/modules/auth/domain"
@@ -20,22 +18,24 @@ type passwordService interface {
 type tokenService interface {
 	GenerateAccessToken(userID string) (*TokenResult, error)
 	ValidateAccessToken(tokenString string) (*Claims, error)
-	GenerateRefreshToken(ctx context.Context, userID primitive.ObjectID) (*TokenResult, error)
+	GenerateRefreshToken(ctx context.Context, userID string) (*TokenResult, error)
 	RotateRefreshToken(
 		ctx context.Context,
 		oldToken string,
-	) (*TokenResult, primitive.ObjectID, error)
+	) (*TokenResult, string, error)
 }
 
+// Service handles authentication business logic.
 type Service struct {
-	repo     domain.Repository
+	repo     domain.UsersRepository
 	log      *zerolog.Logger
 	password passwordService
 	token    tokenService
 }
 
+// NewService creates a new auth service.
 func NewService(
-	repo domain.Repository,
+	repo domain.UsersRepository,
 	log *zerolog.Logger,
 	password passwordService,
 	token tokenService,
@@ -48,6 +48,7 @@ func NewService(
 	}
 }
 
+// GetByID retrieves a user by their ID.
 func (s *Service) GetByID(ctx context.Context, id string) (*SafeUser, error) {
 	user, err := s.repo.FindByID(ctx, id)
 	if err != nil {
@@ -63,6 +64,7 @@ func (s *Service) GetByID(ctx context.Context, id string) (*SafeUser, error) {
 	return SafeUserFromUser(user), nil
 }
 
+// GetByEmail retrieves a user by their email.
 func (s *Service) GetByEmail(ctx context.Context, email string) (*SafeUser, error) {
 	user, err := s.repo.FindByEmail(ctx, email)
 	if err != nil {
@@ -78,15 +80,14 @@ func (s *Service) GetByEmail(ctx context.Context, email string) (*SafeUser, erro
 	return SafeUserFromUser(user), nil
 }
 
+// Register creates a new user and returns authentication tokens.
 func (s *Service) Register(ctx context.Context, params *RegisterParams) (*AuthResult, error) {
-	user := &domain.User{
-		ID:                primitive.NilObjectID,
-		Email:             params.Email,
-		FirstName:         params.FirstName,
-		LastName:          params.LastName,
-		Password:          params.Password,
-		CreatedAt:         time.Time{},
-		PasswordUpdatedAt: time.Time{},
+	user := &domain.User{ //nolint:exhaustruct // fields set below
+		ID:        "",
+		Email:     params.Email,
+		FirstName: params.FirstName,
+		LastName:  params.LastName,
+		Password:  params.Password,
 	}
 
 	if err := user.Validate(); err != nil {
@@ -112,7 +113,8 @@ func (s *Service) Register(ctx context.Context, params *RegisterParams) (*AuthRe
 	}
 	user.Password = hash
 
-	if err = s.repo.Create(ctx, user); err != nil {
+	user, err = s.repo.Create(ctx, user)
+	if err != nil {
 		s.log.Error().Err(err).Msg("Failed to create user")
 		return nil, err
 	}
@@ -120,7 +122,7 @@ func (s *Service) Register(ctx context.Context, params *RegisterParams) (*AuthRe
 	s.log.Info().Str("email", params.Email).Msg("User created")
 
 	// Generate access token
-	accessResult, err := s.token.GenerateAccessToken(user.ID.Hex())
+	accessResult, err := s.token.GenerateAccessToken(user.ID)
 	if err != nil {
 		s.log.Error().Err(err).Msg("Failed to generate access token")
 		return nil, err
@@ -142,6 +144,7 @@ func (s *Service) Register(ctx context.Context, params *RegisterParams) (*AuthRe
 	}, nil
 }
 
+// Login authenticates a user and returns authentication tokens.
 func (s *Service) Login(ctx context.Context, params *LoginParams) (*AuthResult, error) {
 	user, err := s.repo.FindByEmail(ctx, params.Email)
 	if err != nil {
@@ -161,7 +164,7 @@ func (s *Service) Login(ctx context.Context, params *LoginParams) (*AuthResult, 
 	s.log.Debug().Str("email", params.Email).Msg("User logged in")
 
 	// Generate access token
-	accessResult, err := s.token.GenerateAccessToken(user.ID.Hex())
+	accessResult, err := s.token.GenerateAccessToken(user.ID)
 	if err != nil {
 		s.log.Error().Err(err).Msg("Failed to generate access token")
 		return nil, err
@@ -194,13 +197,13 @@ func (s *Service) RefreshTokens(
 		return nil, err
 	}
 
-	accessResult, err := s.token.GenerateAccessToken(userID.Hex())
+	accessResult, err := s.token.GenerateAccessToken(userID)
 	if err != nil {
 		s.log.Error().Err(err).Msg("Failed to generate access token during refresh")
 		return nil, err
 	}
 
-	s.log.Debug().Str("user_id", userID.Hex()).Msg("Tokens refreshed successfully")
+	s.log.Debug().Str("user_id", userID).Msg("Tokens refreshed successfully")
 
 	return &RefreshTokensResult{
 		AccessToken:      accessResult.Token,

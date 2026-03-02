@@ -2,28 +2,17 @@ package domain
 
 import (
 	"time"
-
-	"go.mongodb.org/mongo-driver/bson/primitive"
 )
 
+// User represents a user in the domain layer.
 type User struct {
-	ID                primitive.ObjectID `bson:"_id"               json:"id"` //nolint:tagliatelle // mongoDB id
-	Email             string             `bson:"email"             json:"email"`
-	FirstName         string             `bson:"firstName"         json:"firstName"`
-	LastName          string             `bson:"lastName"          json:"lastName"`
-	Password          string             `bson:"password"          json:"password"`
-	CreatedAt         time.Time          `bson:"createdAt"         json:"createdAt"`
-	PasswordUpdatedAt time.Time          `bson:"passwordUpdatedAt" json:"passwordUpdatedAt"`
-}
-
-func (u *User) SetTimestamps() {
-	now := time.Now()
-	if u.CreatedAt.IsZero() {
-		u.CreatedAt = now
-	}
-	if u.PasswordUpdatedAt.IsZero() {
-		u.PasswordUpdatedAt = now
-	}
+	ID                string
+	Email             string
+	FirstName         string
+	LastName          string
+	Password          string
+	CreatedAt         time.Time
+	PasswordUpdatedAt time.Time
 }
 
 // Validate performs business validation on the user.
