@@ -1,4 +1,4 @@
-package domain
+package domain //nolint:cyclop // TODO: refactor
 
 import (
 	"context"
