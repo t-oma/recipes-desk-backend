@@ -6,7 +6,7 @@ import (
 	"go.mongodb.org/mongo-driver/mongo"
 
 	"recipes-desk/internal/modules/recipes/handler"
-	"recipes-desk/internal/modules/recipes/repository"
+	"recipes-desk/internal/modules/recipes/repository/mongorepo"
 	"recipes-desk/internal/modules/recipes/service"
 )
 
@@ -17,7 +17,7 @@ type Module struct {
 
 // NewModule creates a new recipes module.
 func NewModule(db *mongo.Database, log *zerolog.Logger) *Module {
-	recipeRepo := repository.NewMongoRepository(db)
+	recipeRepo := mongorepo.NewRecipes(db)
 	recipeService := service.NewService(recipeRepo, log)
 	recipeHandler := handler.NewHandler(recipeService, log)
 

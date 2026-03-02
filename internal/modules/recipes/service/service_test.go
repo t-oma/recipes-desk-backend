@@ -9,7 +9,6 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
-	"go.mongodb.org/mongo-driver/bson/primitive"
 
 	"recipes-desk/internal/modules/recipes/domain"
 	"recipes-desk/internal/modules/recipes/service"
@@ -20,11 +19,17 @@ type mockRepository struct {
 	mock.Mock
 }
 
-var _ domain.Repository = (*mockRepository)(nil)
+var _ domain.RecipesRepository = (*mockRepository)(nil)
 
-func (m *mockRepository) Create(ctx context.Context, recipe *domain.Recipe) error {
+func (m *mockRepository) Create(
+	ctx context.Context,
+	recipe *domain.Recipe,
+) (*domain.Recipe, error) {
 	args := m.Called(ctx, recipe)
-	return args.Error(0)
+	if args.Get(0) == nil {
+		return nil, args.Error(1)
+	}
+	return args.Get(0).(*domain.Recipe), args.Error(1)
 }
 
 func (m *mockRepository) FindByID(ctx context.Context, id string) (*domain.Recipe, error) {
@@ -51,9 +56,15 @@ func (m *mockRepository) Search(ctx context.Context, query string) ([]domain.Rec
 	return args.Get(0).([]domain.Recipe), args.Error(1)
 }
 
-func (m *mockRepository) Update(ctx context.Context, recipe *domain.Recipe) error {
+func (m *mockRepository) Update(
+	ctx context.Context,
+	recipe *domain.Recipe,
+) (*domain.Recipe, error) {
 	args := m.Called(ctx, recipe)
-	return args.Error(0)
+	if args.Get(0) == nil {
+		return nil, args.Error(1)
+	}
+	return args.Get(0).(*domain.Recipe), args.Error(1)
 }
 
 func (m *mockRepository) Delete(ctx context.Context, id string) error {
@@ -84,7 +95,10 @@ func TestService_Create(t *testing.T) {
 			},
 			mockSetup: func(m *mockRepository) {
 				m.On("Create", mock.Anything, mock.AnythingOfType("*domain.Recipe")).
-					Return(nil)
+					Return(&domain.Recipe{ //nolint:exhaustruct // test struct
+						ID:    "id123",
+						Title: "Test Recipe",
+					}, nil)
 			},
 			wantErr: nil,
 			wantID:  true,
@@ -119,7 +133,7 @@ func TestService_Create(t *testing.T) {
 			},
 			mockSetup: func(m *mockRepository) {
 				m.On("Create", mock.Anything, mock.AnythingOfType("*domain.Recipe")).
-					Return(errors.New("database error"))
+					Return(nil, errors.New("database error"))
 			},
 			wantErr: errors.New("database error"),
 			wantID:  false,
@@ -152,7 +166,7 @@ func TestService_Create(t *testing.T) {
 
 func TestService_GetByID(t *testing.T) {
 	logger := zerolog.New(nil)
-	recipeID := primitive.NewObjectID()
+	recipeID := "id123"
 
 	tests := []struct {
 		name       string
@@ -163,9 +177,9 @@ func TestService_GetByID(t *testing.T) {
 	}{
 		{
 			name: "success",
-			id:   recipeID.Hex(),
+			id:   recipeID,
 			mockSetup: func(m *mockRepository) {
-				m.On("FindByID", mock.Anything, recipeID.Hex()).
+				m.On("FindByID", mock.Anything, recipeID).
 					Return(
 						&domain.Recipe{ //nolint:exhaustruct // test struct
 							ID:    recipeID,
@@ -179,9 +193,9 @@ func TestService_GetByID(t *testing.T) {
 		},
 		{
 			name: "not found",
-			id:   recipeID.Hex(),
+			id:   recipeID,
 			mockSetup: func(m *mockRepository) {
-				m.On("FindByID", mock.Anything, recipeID.Hex()).
+				m.On("FindByID", mock.Anything, recipeID).
 					Return(nil, domain.ErrNotFound)
 			},
 			wantErr:    domain.ErrNotFound,
@@ -189,9 +203,9 @@ func TestService_GetByID(t *testing.T) {
 		},
 		{
 			name: "repository error",
-			id:   recipeID.Hex(),
+			id:   recipeID,
 			mockSetup: func(m *mockRepository) {
-				m.On("FindByID", mock.Anything, recipeID.Hex()).
+				m.On("FindByID", mock.Anything, recipeID).
 					Return(nil, errors.New("database error"))
 			},
 			wantErr:    errors.New("database error"),
@@ -360,7 +374,7 @@ func TestService_Search(t *testing.T) {
 
 func TestService_Update(t *testing.T) {
 	logger := zerolog.New(nil)
-	recipeID := primitive.NewObjectID()
+	recipeID := "id123"
 
 	tests := []struct {
 		name      string
@@ -371,7 +385,7 @@ func TestService_Update(t *testing.T) {
 	}{
 		{
 			name: "success",
-			id:   recipeID.Hex(),
+			id:   recipeID,
 			recipe: &domain.Recipe{ //nolint:exhaustruct // test struct
 				Title:       "Updated Recipe",
 				Description: "This is a valid description",
@@ -382,7 +396,7 @@ func TestService_Update(t *testing.T) {
 				Tags:        []string{"updated"},
 			},
 			mockSetup: func(m *mockRepository) {
-				m.On("FindByID", mock.Anything, recipeID.Hex()).
+				m.On("FindByID", mock.Anything, recipeID).
 					Return(
 						&domain.Recipe{ //nolint:exhaustruct // test struct
 							ID:    recipeID,
@@ -391,13 +405,16 @@ func TestService_Update(t *testing.T) {
 						nil,
 					)
 				m.On("Update", mock.Anything, mock.AnythingOfType("*domain.Recipe")).
-					Return(nil)
+					Return(&domain.Recipe{ //nolint:exhaustruct // test struct
+						ID:    recipeID,
+						Title: "Updated Recipe",
+					}, nil)
 			},
 			wantErr: nil,
 		},
 		{
 			name: "not found",
-			id:   recipeID.Hex(),
+			id:   recipeID,
 			recipe: &domain.Recipe{ //nolint:exhaustruct // test struct
 				Title:       "Updated Recipe",
 				Description: "This is a valid description",
@@ -408,14 +425,14 @@ func TestService_Update(t *testing.T) {
 				Tags:        []string{"updated"},
 			},
 			mockSetup: func(m *mockRepository) {
-				m.On("FindByID", mock.Anything, recipeID.Hex()).
+				m.On("FindByID", mock.Anything, recipeID).
 					Return(nil, domain.ErrNotFound)
 			},
 			wantErr: domain.ErrNotFound,
 		},
 		{
 			name: "validation error",
-			id:   recipeID.Hex(),
+			id:   recipeID,
 			recipe: &domain.Recipe{ //nolint:exhaustruct // test struct
 				Title:       "", // Invalid - empty title
 				Description: "Valid description",
@@ -427,7 +444,7 @@ func TestService_Update(t *testing.T) {
 			},
 			mockSetup: func(m *mockRepository) {
 				// FindByID is called first
-				m.On("FindByID", mock.Anything, recipeID.Hex()).
+				m.On("FindByID", mock.Anything, recipeID).
 					Return(
 						&domain.Recipe{ //nolint:exhaustruct // test struct
 							ID:    recipeID,
@@ -440,7 +457,7 @@ func TestService_Update(t *testing.T) {
 		},
 		{
 			name: "repository update error",
-			id:   recipeID.Hex(),
+			id:   recipeID,
 			recipe: &domain.Recipe{ //nolint:exhaustruct // test struct
 				Title:       "Updated Recipe",
 				Description: "This is a valid description",
@@ -451,7 +468,7 @@ func TestService_Update(t *testing.T) {
 				Tags:        []string{"updated"},
 			},
 			mockSetup: func(m *mockRepository) {
-				m.On("FindByID", mock.Anything, recipeID.Hex()).
+				m.On("FindByID", mock.Anything, recipeID).
 					Return(
 						&domain.Recipe{ //nolint:exhaustruct // test struct
 							ID:    recipeID,
@@ -460,7 +477,7 @@ func TestService_Update(t *testing.T) {
 						nil,
 					)
 				m.On("Update", mock.Anything, mock.AnythingOfType("*domain.Recipe")).
-					Return(errors.New("update failed"))
+					Return(nil, errors.New("update failed"))
 			},
 			wantErr: errors.New("update failed"),
 		},
@@ -494,7 +511,7 @@ func TestService_Update(t *testing.T) {
 
 func TestService_Delete(t *testing.T) {
 	logger := zerolog.New(nil)
-	recipeID := primitive.NewObjectID()
+	recipeID := "id123"
 
 	tests := []struct {
 		name      string
@@ -504,34 +521,34 @@ func TestService_Delete(t *testing.T) {
 	}{
 		{
 			name: "success",
-			id:   recipeID.Hex(),
+			id:   recipeID,
 			mockSetup: func(m *mockRepository) {
-				m.On("FindByID", mock.Anything, recipeID.Hex()).
+				m.On("FindByID", mock.Anything, recipeID).
 					Return(
 						&domain.Recipe{ //nolint:exhaustruct // test struct
 							ID:    recipeID,
 							Title: "Test",
 						},
 						nil)
-				m.On("Delete", mock.Anything, recipeID.Hex()).
+				m.On("Delete", mock.Anything, recipeID).
 					Return(nil)
 			},
 			wantErr: nil,
 		},
 		{
 			name: "not found",
-			id:   recipeID.Hex(),
+			id:   recipeID,
 			mockSetup: func(m *mockRepository) {
-				m.On("FindByID", mock.Anything, recipeID.Hex()).
+				m.On("FindByID", mock.Anything, recipeID).
 					Return(nil, domain.ErrNotFound)
 			},
 			wantErr: domain.ErrNotFound,
 		},
 		{
 			name: "delete error",
-			id:   recipeID.Hex(),
+			id:   recipeID,
 			mockSetup: func(m *mockRepository) {
-				m.On("FindByID", mock.Anything, recipeID.Hex()).
+				m.On("FindByID", mock.Anything, recipeID).
 					Return(
 						&domain.Recipe{ //nolint:exhaustruct // test struct
 							ID:    recipeID,
@@ -539,7 +556,7 @@ func TestService_Delete(t *testing.T) {
 						},
 						nil,
 					)
-				m.On("Delete", mock.Anything, recipeID.Hex()).
+				m.On("Delete", mock.Anything, recipeID).
 					Return(errors.New("delete error"))
 			},
 			wantErr: errors.New("delete error"),

@@ -2,11 +2,9 @@ package domain_test
 
 import (
 	"testing"
-	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"go.mongodb.org/mongo-driver/bson/primitive"
 
 	"recipes-desk/internal/modules/recipes/domain"
 )
@@ -217,93 +215,6 @@ func TestRecipe_Validate(t *testing.T) {
 			}
 		})
 	}
-}
-
-func TestRecipe_SetTimestamps(t *testing.T) {
-	tests := []struct {
-		name          string
-		recipe        domain.Recipe
-		wantCreatedAt bool
-		wantUpdatedAt bool
-	}{
-		{
-			name: "new recipe - sets both timestamps",
-			recipe: domain.Recipe{ //nolint:exhaustruct // test struct
-				ID: primitive.NewObjectID(),
-			},
-			wantCreatedAt: true,
-			wantUpdatedAt: true,
-		},
-		{
-			name: "existing recipe - updates only updatedAt",
-			recipe: domain.Recipe{ //nolint:exhaustruct // test struct
-				ID:        primitive.NewObjectID(),
-				CreatedAt: time.Now().Add(-time.Hour),
-			},
-			wantCreatedAt: true,
-			wantUpdatedAt: true,
-		},
-		{
-			name: "recipe with zero values - sets both",
-			recipe: domain.Recipe{ //nolint:exhaustruct // test struct
-				ID:        primitive.NilObjectID,
-				CreatedAt: time.Time{},
-				UpdatedAt: time.Time{},
-			},
-			wantCreatedAt: true,
-			wantUpdatedAt: true,
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			originalCreatedAt := tt.recipe.CreatedAt
-
-			tt.recipe.SetTimestamps()
-
-			// UpdatedAt should always be set to now
-			assert.False(t, tt.recipe.UpdatedAt.IsZero(), "UpdatedAt should be set")
-			assert.WithinDuration(t, time.Now(), tt.recipe.UpdatedAt, time.Second)
-
-			if tt.wantCreatedAt {
-				if originalCreatedAt.IsZero() {
-					// If it was zero, it should be set to now
-					assert.False(t, tt.recipe.CreatedAt.IsZero(), "CreatedAt should be set")
-					assert.WithinDuration(t, time.Now(), tt.recipe.CreatedAt, time.Second)
-				} else {
-					// If it had a value, it should be preserved
-					assert.Equal(
-						t,
-						originalCreatedAt,
-						tt.recipe.CreatedAt,
-						"CreatedAt should be preserved",
-					)
-				}
-			}
-		})
-	}
-}
-
-func TestRecipe_SetTimestamps_PreservesCreatedAt(t *testing.T) {
-	// Specific test for the preservation of CreatedAt
-	originalTime := time.Date(2023, 1, 1, 12, 0, 0, 0, time.UTC)
-
-	recipe := domain.Recipe{ //nolint:exhaustruct // test struct
-		ID:        primitive.NewObjectID(),
-		CreatedAt: originalTime,
-		UpdatedAt: originalTime,
-	}
-
-	// Wait a bit to ensure time difference
-	time.Sleep(10 * time.Millisecond)
-
-	recipe.SetTimestamps()
-
-	// CreatedAt should be preserved
-	assert.Equal(t, originalTime, recipe.CreatedAt, "CreatedAt should be preserved")
-
-	// UpdatedAt should be updated
-	assert.True(t, recipe.UpdatedAt.After(originalTime), "UpdatedAt should be after original time")
 }
 
 func TestRecipe_Validate_WrappedErrors(t *testing.T) {
