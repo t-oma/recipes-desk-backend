@@ -11,35 +11,33 @@ import (
 
 // Service handles business logic for recipes.
 type Service struct {
-	repo domain.Repository
+	repo domain.RecipesRepository
 	log  *zerolog.Logger
 }
 
-// NewService creates a new recipe service.
-func NewService(repo domain.Repository, log *zerolog.Logger) *Service {
+func NewService(repo domain.RecipesRepository, log *zerolog.Logger) *Service {
 	return &Service{
 		repo: repo,
 		log:  log,
 	}
 }
 
-// Create creates a new recipe.
 func (s *Service) Create(ctx context.Context, recipe *domain.Recipe) (*domain.Recipe, error) {
 	if err := recipe.Validate(); err != nil {
 		s.log.Debug().Err(err).Msg("Recipe validation failed")
 		return nil, err
 	}
 
-	if err := s.repo.Create(ctx, recipe); err != nil {
+	recipe, err := s.repo.Create(ctx, recipe)
+	if err != nil {
 		s.log.Error().Err(err).Msg("Failed to create recipe")
 		return nil, err
 	}
 
-	s.log.Info().Str("recipe_id", recipe.ID.Hex()).Msg("Recipe created")
+	s.log.Info().Str("recipe_id", recipe.ID).Msg("Recipe created")
 	return recipe, nil
 }
 
-// GetByID retrieves a recipe by ID.
 func (s *Service) GetByID(ctx context.Context, id string) (*domain.Recipe, error) {
 	recipe, err := s.repo.FindByID(ctx, id)
 	if err != nil {
@@ -55,7 +53,6 @@ func (s *Service) GetByID(ctx context.Context, id string) (*domain.Recipe, error
 	return recipe, nil
 }
 
-// GetAll retrieves all recipes.
 func (s *Service) GetAll(ctx context.Context) ([]domain.Recipe, error) {
 	recipes, err := s.repo.FindAll(ctx)
 	if err != nil {
@@ -67,7 +64,6 @@ func (s *Service) GetAll(ctx context.Context) ([]domain.Recipe, error) {
 	return recipes, nil
 }
 
-// Search searches recipes by title.
 func (s *Service) Search(ctx context.Context, query string) ([]domain.Recipe, error) {
 	if query == "" {
 		return s.GetAll(ctx)
@@ -83,19 +79,16 @@ func (s *Service) Search(ctx context.Context, query string) ([]domain.Recipe, er
 	return recipes, nil
 }
 
-// Update updates an existing recipe.
 func (s *Service) Update(
 	ctx context.Context,
 	id string,
 	recipe *domain.Recipe,
 ) (*domain.Recipe, error) {
-	// Check if recipe exists
 	existing, err := s.repo.FindByID(ctx, id)
 	if err != nil {
 		return nil, err
 	}
 
-	// Validate updated recipe
 	if err = recipe.Validate(); err != nil {
 		s.log.Debug().Err(err).Msg("Recipe validation failed")
 		return nil, err
@@ -105,7 +98,8 @@ func (s *Service) Update(
 	recipe.ID = existing.ID
 	recipe.CreatedAt = existing.CreatedAt
 
-	if err = s.repo.Update(ctx, recipe); err != nil {
+	recipe, err = s.repo.Update(ctx, recipe)
+	if err != nil {
 		s.log.Error().Err(err).Str("recipe_id", id).Msg("Failed to update recipe")
 		return nil, err
 	}
@@ -114,9 +108,7 @@ func (s *Service) Update(
 	return recipe, nil
 }
 
-// Delete removes a recipe by ID.
 func (s *Service) Delete(ctx context.Context, id string) error {
-	// Check if recipe exists
 	if _, err := s.repo.FindByID(ctx, id); err != nil {
 		return err
 	}

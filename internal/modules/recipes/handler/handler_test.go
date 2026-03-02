@@ -15,7 +15,6 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
-	"go.mongodb.org/mongo-driver/bson/primitive"
 
 	"recipes-desk/internal/modules/recipes/domain"
 	"recipes-desk/internal/modules/recipes/handler"
@@ -99,11 +98,11 @@ func TestHandler_List(t *testing.T) {
 			mockSetup: func(m *mockService) {
 				m.On("GetAll", mock.Anything).Return([]domain.Recipe{
 					{ //nolint:exhaustruct // test struct
-						ID:    primitive.NewObjectID(),
+						ID:    "id123",
 						Title: "Recipe 1",
 					},
 					{ //nolint:exhaustruct // test struct
-						ID:    primitive.NewObjectID(),
+						ID:    "id456",
 						Title: "Recipe 2",
 					},
 				}, nil)
@@ -156,7 +155,7 @@ func TestHandler_List(t *testing.T) {
 }
 
 func TestHandler_GetByID(t *testing.T) {
-	recipeID := primitive.NewObjectID()
+	recipeID := "abc123"
 
 	tests := []struct {
 		name           string
@@ -167,9 +166,9 @@ func TestHandler_GetByID(t *testing.T) {
 	}{
 		{
 			name: "success",
-			id:   recipeID.Hex(),
+			id:   recipeID,
 			mockSetup: func(m *mockService) {
-				m.On("GetByID", mock.Anything, recipeID.Hex()).
+				m.On("GetByID", mock.Anything, recipeID).
 					Return(&domain.Recipe{
 						ID:          recipeID,
 						Title:       "Test Recipe",
@@ -188,9 +187,9 @@ func TestHandler_GetByID(t *testing.T) {
 		},
 		{
 			name: "not found",
-			id:   recipeID.Hex(),
+			id:   recipeID,
 			mockSetup: func(m *mockService) {
-				m.On("GetByID", mock.Anything, recipeID.Hex()).
+				m.On("GetByID", mock.Anything, recipeID).
 					Return(nil, domain.ErrNotFound)
 			},
 			wantStatusCode: http.StatusNotFound,
@@ -198,9 +197,9 @@ func TestHandler_GetByID(t *testing.T) {
 		},
 		{
 			name: "service error",
-			id:   recipeID.Hex(),
+			id:   recipeID,
 			mockSetup: func(m *mockService) {
-				m.On("GetByID", mock.Anything, recipeID.Hex()).
+				m.On("GetByID", mock.Anything, recipeID).
 					Return(nil, errors.New("database error"))
 			},
 			wantStatusCode: http.StatusInternalServerError,
@@ -225,7 +224,7 @@ func TestHandler_GetByID(t *testing.T) {
 				var response handler.RecipeResponse
 				err := json.Unmarshal(w.Body.Bytes(), &response)
 				require.NoError(t, err)
-				assert.Equal(t, recipeID.Hex(), response.ID)
+				assert.Equal(t, recipeID, response.ID)
 				assert.Equal(t, "Test Recipe", response.Title)
 			}
 
@@ -305,7 +304,7 @@ func TestHandler_Search(t *testing.T) {
 }
 
 func TestHandler_Create(t *testing.T) {
-	recipeID := primitive.NewObjectID()
+	recipeID := "abc123"
 
 	tests := []struct {
 		name           string
@@ -418,7 +417,7 @@ func TestHandler_Create(t *testing.T) {
 				var response handler.RecipeResponse
 				err := json.Unmarshal(w.Body.Bytes(), &response)
 				require.NoError(t, err)
-				assert.Equal(t, recipeID.Hex(), response.ID)
+				assert.Equal(t, recipeID, response.ID)
 			}
 
 			mockSvc.AssertExpectations(t)
@@ -427,7 +426,7 @@ func TestHandler_Create(t *testing.T) {
 }
 
 func TestHandler_Update(t *testing.T) {
-	recipeID := primitive.NewObjectID()
+	recipeID := "abc123"
 
 	tests := []struct {
 		name           string
@@ -438,7 +437,7 @@ func TestHandler_Update(t *testing.T) {
 	}{
 		{
 			name: "success",
-			id:   recipeID.Hex(),
+			id:   recipeID,
 			body: map[string]any{
 				"title":       "Updated Recipe",
 				"description": "This is a valid description that is long enough",
@@ -453,10 +452,10 @@ func TestHandler_Update(t *testing.T) {
 				"tags":        []string{"updated"},
 			},
 			mockSetup: func(m *mockService) {
-				m.On("Update", mock.Anything, recipeID.Hex(), mock.AnythingOfType("*domain.Recipe")).
+				m.On("Update", mock.Anything, recipeID, mock.AnythingOfType("*domain.Recipe")).
 					Return(
 						&domain.Recipe{ //nolint:exhaustruct // test struct
-							ID:    recipeID,
+							ID:    "id123",
 							Title: "Updated Recipe",
 						},
 						nil,
@@ -466,7 +465,7 @@ func TestHandler_Update(t *testing.T) {
 		},
 		{
 			name: "not found",
-			id:   recipeID.Hex(),
+			id:   recipeID,
 			body: map[string]any{
 				"title":       "Updated Recipe",
 				"description": "This is a valid description that is long enough",
@@ -481,14 +480,14 @@ func TestHandler_Update(t *testing.T) {
 				"tags":        []string{"updated"},
 			},
 			mockSetup: func(m *mockService) {
-				m.On("Update", mock.Anything, recipeID.Hex(), mock.AnythingOfType("*domain.Recipe")).
+				m.On("Update", mock.Anything, recipeID, mock.AnythingOfType("*domain.Recipe")).
 					Return(nil, domain.ErrNotFound)
 			},
 			wantStatusCode: http.StatusNotFound,
 		},
 		{
 			name: "http validation error",
-			id:   recipeID.Hex(),
+			id:   recipeID,
 			body: map[string]any{
 				"title":       "", // empty title
 				"description": "This is a valid description that is long enough",
@@ -508,7 +507,7 @@ func TestHandler_Update(t *testing.T) {
 		},
 		{
 			name: "validation error",
-			id:   recipeID.Hex(),
+			id:   recipeID,
 			body: map[string]any{
 				"title":       "AB", // Title too short
 				"description": "Valid description",
@@ -523,7 +522,7 @@ func TestHandler_Update(t *testing.T) {
 				"tags":        []string{"updated"},
 			},
 			mockSetup: func(m *mockService) {
-				m.On("Update", mock.Anything, recipeID.Hex(), mock.Anything).
+				m.On("Update", mock.Anything, recipeID, mock.Anything).
 					Return(nil, domain.ErrInvalidTitleLength)
 			},
 			wantStatusCode: http.StatusBadRequest,
@@ -550,7 +549,7 @@ func TestHandler_Update(t *testing.T) {
 }
 
 func TestHandler_Delete(t *testing.T) {
-	recipeID := primitive.NewObjectID()
+	recipeID := "abc123"
 
 	tests := []struct {
 		name           string
@@ -560,25 +559,25 @@ func TestHandler_Delete(t *testing.T) {
 	}{
 		{
 			name: "success",
-			id:   recipeID.Hex(),
+			id:   recipeID,
 			mockSetup: func(m *mockService) {
-				m.On("Delete", mock.Anything, recipeID.Hex()).Return(nil)
+				m.On("Delete", mock.Anything, recipeID).Return(nil)
 			},
 			wantStatusCode: http.StatusOK,
 		},
 		{
 			name: "not found",
-			id:   recipeID.Hex(),
+			id:   recipeID,
 			mockSetup: func(m *mockService) {
-				m.On("Delete", mock.Anything, recipeID.Hex()).Return(domain.ErrNotFound)
+				m.On("Delete", mock.Anything, recipeID).Return(domain.ErrNotFound)
 			},
 			wantStatusCode: http.StatusNotFound,
 		},
 		{
 			name: "service error",
-			id:   recipeID.Hex(),
+			id:   recipeID,
 			mockSetup: func(m *mockService) {
-				m.On("Delete", mock.Anything, recipeID.Hex()).Return(errors.New("database error"))
+				m.On("Delete", mock.Anything, recipeID).Return(errors.New("database error"))
 			},
 			wantStatusCode: http.StatusInternalServerError,
 		},

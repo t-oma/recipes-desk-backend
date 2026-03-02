@@ -22,16 +22,16 @@ type Recipe struct {
 
 // Ingredient represents a recipe ingredient.
 type Ingredient struct {
-	Name   string  `bson:"name"`
-	Amount float64 `bson:"amount"`
-	Unit   string  `bson:"unit"`
+	Name   string
+	Amount float64
+	Unit   string
 }
 
 // Step represents a cooking step.
 type Step struct {
-	Order       int    `bson:"order"`
-	Description string `bson:"description"`
-	Duration    int    `bson:"duration"` // in minutes
+	Order       int
+	Description string
+	Duration    int // in minutes
 }
 
 // Validate performs business validation on the recipe.
