@@ -1,0 +1,42 @@
+package recipe_test
+
+import (
+	"testing"
+
+	"github.com/stretchr/testify/require"
+
+	"recipes-desk/internal/modules/recipes/domain/recipe"
+)
+
+func TestNewCookingTime(t *testing.T) {
+	tests := []struct {
+		name    string
+		seconds int
+		wantErr error
+	}{
+		{
+			name:    "valid time",
+			seconds: 10 * 60,
+			wantErr: nil,
+		},
+		{
+			name:    "invalid time",
+			seconds: -1,
+			wantErr: recipe.ErrCookingNegativeTime,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got, gotErr := recipe.NewCookingTime(tt.seconds)
+			if tt.wantErr != nil {
+				require.Error(t, gotErr)
+				require.ErrorIs(t, gotErr, tt.wantErr)
+			} else {
+				require.NoError(t, gotErr)
+				require.NotNil(t, got)
+				require.NotEmpty(t, got.String())
+				require.InDelta(t, tt.seconds, got.Duration().Seconds(), 0.01)
+			}
+		})
+	}
+}
