@@ -18,8 +18,8 @@ import (
 	"go.mongodb.org/mongo-driver/mongo"
 	"go.mongodb.org/mongo-driver/mongo/options"
 
+	"recipes-desk/internal/modules/recipes/adapter/out/mongorepo"
 	"recipes-desk/internal/modules/recipes/domain"
-	"recipes-desk/internal/modules/recipes/repository/mongorepo"
 )
 
 func setupMongoContainer(t *testing.T) (*mongo.Database, func()) {

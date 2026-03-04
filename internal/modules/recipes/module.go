@@ -6,7 +6,7 @@ import (
 	"go.mongodb.org/mongo-driver/mongo"
 
 	httphandler "recipes-desk/internal/modules/recipes/adapter/in/http"
-	"recipes-desk/internal/modules/recipes/adapter/out/persistence/mongorepo"
+	"recipes-desk/internal/modules/recipes/adapter/out/mongorepo"
 	"recipes-desk/internal/modules/recipes/application"
 )
 
