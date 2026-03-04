@@ -1,4 +1,4 @@
-package service
+package application
 
 import (
 	"context"
@@ -7,22 +7,11 @@ import (
 
 	"github.com/rs/zerolog"
 
+	"recipes-desk/internal/modules/recipes/application/dto"
+	"recipes-desk/internal/modules/recipes/application/mapper"
+	"recipes-desk/internal/modules/recipes/application/ports/in"
 	"recipes-desk/internal/modules/recipes/domain"
 )
-
-// RecipeService defines the service interface.
-type RecipeService interface {
-	Create(ctx context.Context, recipe CreateRecipeInput) (*RecipeDTO, error)
-	GetByID(ctx context.Context, id string) (*RecipeDTO, error)
-	GetAll(ctx context.Context) ([]RecipeDTO, error)
-	Search(ctx context.Context, query string) ([]RecipeDTO, error)
-	Update(
-		ctx context.Context,
-		id string,
-		recipe UpdateRecipeInput,
-	) (*RecipeDTO, error)
-	Delete(ctx context.Context, id string) error
-}
 
 // Service handles business logic for recipes.
 type Service struct {
@@ -30,7 +19,7 @@ type Service struct {
 	log  *zerolog.Logger
 }
 
-var _ RecipeService = (*Service)(nil)
+var _ in.RecipeService = (*Service)(nil)
 
 func NewService(repo domain.RecipesRepository, log *zerolog.Logger) *Service {
 	return &Service{
@@ -39,7 +28,7 @@ func NewService(repo domain.RecipesRepository, log *zerolog.Logger) *Service {
 	}
 }
 
-func toDomainIngredients(ingredients []IngredientInput) []domain.Ingredient {
+func toDomainIngredients(ingredients []dto.IngredientInput) []domain.Ingredient {
 	mapped := make([]domain.Ingredient, len(ingredients))
 	for i, ing := range ingredients {
 		mapped[i] = domain.Ingredient{
@@ -51,7 +40,7 @@ func toDomainIngredients(ingredients []IngredientInput) []domain.Ingredient {
 	return mapped
 }
 
-func toDomainSteps(steps []StepInput) []domain.Step {
+func toDomainSteps(steps []dto.StepInput) []domain.Step {
 	mapped := make([]domain.Step, len(steps))
 	for i, step := range steps {
 		mapped[i] = domain.Step{
@@ -63,7 +52,7 @@ func toDomainSteps(steps []StepInput) []domain.Step {
 	return mapped
 }
 
-func (s *Service) Create(ctx context.Context, input CreateRecipeInput) (*RecipeDTO, error) {
+func (s *Service) Create(ctx context.Context, input dto.CreateRecipeInput) (*dto.Recipe, error) {
 	recipe := &domain.Recipe{
 		ID:          "",
 		Title:       input.Title,
@@ -88,11 +77,10 @@ func (s *Service) Create(ctx context.Context, input CreateRecipeInput) (*RecipeD
 		return nil, err
 	}
 
-	s.log.Info().Str("recipe_id", recipe.ID).Msg("Recipe created")
-	return toRecipeDTO(recipe), nil
+	return mapper.ToRecipeDTO(recipe), nil
 }
 
-func (s *Service) GetByID(ctx context.Context, id string) (*RecipeDTO, error) {
+func (s *Service) GetByID(ctx context.Context, id string) (*dto.Recipe, error) {
 	recipe, err := s.repo.FindByID(ctx, id)
 	if err != nil {
 		if errors.Is(err, domain.ErrNotFound) {
@@ -103,27 +91,25 @@ func (s *Service) GetByID(ctx context.Context, id string) (*RecipeDTO, error) {
 		return nil, err
 	}
 
-	s.log.Debug().Str("recipe_id", id).Msg("Recipe retrieved")
-	return toRecipeDTO(recipe), nil
+	return mapper.ToRecipeDTO(recipe), nil
 }
 
-func (s *Service) GetAll(ctx context.Context) ([]RecipeDTO, error) {
+func (s *Service) GetAll(ctx context.Context) ([]dto.Recipe, error) {
 	recipes, err := s.repo.FindAll(ctx)
 	if err != nil {
 		s.log.Error().Err(err).Msg("Failed to get all recipes")
 		return nil, err
 	}
 
-	s.log.Debug().Int("count", len(recipes)).Msg("Retrieved all recipes")
-	dtos := make([]RecipeDTO, len(recipes))
+	dtos := make([]dto.Recipe, len(recipes))
 	for i, recipe := range recipes {
-		dtos[i] = *toRecipeDTO(&recipe)
+		dtos[i] = *mapper.ToRecipeDTO(&recipe)
 	}
 
 	return dtos, nil
 }
 
-func (s *Service) Search(ctx context.Context, query string) ([]RecipeDTO, error) {
+func (s *Service) Search(ctx context.Context, query string) ([]dto.Recipe, error) {
 	if query == "" {
 		return s.GetAll(ctx)
 	}
@@ -134,10 +120,9 @@ func (s *Service) Search(ctx context.Context, query string) ([]RecipeDTO, error)
 		return nil, err
 	}
 
-	s.log.Debug().Str("query", query).Int("count", len(recipes)).Msg("Search completed")
-	dtos := make([]RecipeDTO, len(recipes))
+	dtos := make([]dto.Recipe, len(recipes))
 	for i, recipe := range recipes {
-		dtos[i] = *toRecipeDTO(&recipe)
+		dtos[i] = *mapper.ToRecipeDTO(&recipe)
 	}
 	return dtos, nil
 }
@@ -145,8 +130,8 @@ func (s *Service) Search(ctx context.Context, query string) ([]RecipeDTO, error)
 func (s *Service) Update(
 	ctx context.Context,
 	id string,
-	input UpdateRecipeInput,
-) (*RecipeDTO, error) {
+	input dto.UpdateRecipeInput,
+) (*dto.Recipe, error) {
 	existing, err := s.repo.FindByID(ctx, id)
 	if err != nil {
 		return nil, err
@@ -176,8 +161,7 @@ func (s *Service) Update(
 		return nil, err
 	}
 
-	s.log.Info().Str("recipe_id", id).Msg("Recipe updated")
-	return toRecipeDTO(recipe), nil
+	return mapper.ToRecipeDTO(recipe), nil
 }
 
 func (s *Service) Delete(ctx context.Context, id string) error {
@@ -190,6 +174,5 @@ func (s *Service) Delete(ctx context.Context, id string) error {
 		return err
 	}
 
-	s.log.Info().Str("recipe_id", id).Msg("Recipe deleted")
 	return nil
 }

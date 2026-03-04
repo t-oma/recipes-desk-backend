@@ -1,4 +1,4 @@
-package service_test
+package application_test
 
 import (
 	"context"
@@ -10,8 +10,9 @@ import (
 	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
 
+	"recipes-desk/internal/modules/recipes/application"
+	"recipes-desk/internal/modules/recipes/application/dto"
 	"recipes-desk/internal/modules/recipes/domain"
-	"recipes-desk/internal/modules/recipes/service"
 )
 
 // mockRepository is a mock implementation of domain.Repository for testing.
@@ -77,18 +78,18 @@ func TestService_Create(t *testing.T) {
 
 	tests := []struct {
 		name      string
-		input     service.CreateRecipeInput
+		input     dto.CreateRecipeInput
 		mockSetup func(*mockRepository)
 		wantErr   error
 		wantID    bool
 	}{
 		{
 			name: "success",
-			input: service.CreateRecipeInput{
+			input: dto.CreateRecipeInput{
 				Title:       "Test Recipe",
 				Description: "This is a valid description",
-				Ingredients: []service.IngredientInput{{Name: "Test", Amount: 1, Unit: "g"}},
-				Steps:       []service.StepInput{{Order: 1, Description: "Step", Duration: 1}},
+				Ingredients: []dto.IngredientInput{{Name: "Test", Amount: 1, Unit: "g"}},
+				Steps:       []dto.StepInput{{Order: 1, Description: "Step", Duration: 1}},
 				CookingTime: 10,
 				Portions:    2,
 				Tags:        []string{"test"},
@@ -105,11 +106,11 @@ func TestService_Create(t *testing.T) {
 		},
 		{
 			name: "validation error - empty title",
-			input: service.CreateRecipeInput{
+			input: dto.CreateRecipeInput{
 				Title:       "",
 				Description: "Valid description",
-				Ingredients: []service.IngredientInput{{Name: "Test", Amount: 1, Unit: "g"}},
-				Steps:       []service.StepInput{{Order: 1, Description: "Step", Duration: 1}},
+				Ingredients: []dto.IngredientInput{{Name: "Test", Amount: 1, Unit: "g"}},
+				Steps:       []dto.StepInput{{Order: 1, Description: "Step", Duration: 1}},
 				CookingTime: 10,
 				Portions:    2,
 				Tags:        []string{"test"},
@@ -122,11 +123,11 @@ func TestService_Create(t *testing.T) {
 		},
 		{
 			name: "repository error",
-			input: service.CreateRecipeInput{
+			input: dto.CreateRecipeInput{
 				Title:       "Test Recipe",
 				Description: "This is a valid description",
-				Ingredients: []service.IngredientInput{{Name: "Test", Amount: 1, Unit: "g"}},
-				Steps:       []service.StepInput{{Order: 1, Description: "Step", Duration: 1}},
+				Ingredients: []dto.IngredientInput{{Name: "Test", Amount: 1, Unit: "g"}},
+				Steps:       []dto.StepInput{{Order: 1, Description: "Step", Duration: 1}},
 				CookingTime: 10,
 				Portions:    2,
 				Tags:        []string{"test"},
@@ -147,7 +148,7 @@ func TestService_Create(t *testing.T) {
 				tt.mockSetup(mockRepo)
 			}
 
-			svc := service.NewService(mockRepo, &logger)
+			svc := application.NewService(mockRepo, &logger)
 			created, err := svc.Create(context.Background(), tt.input)
 
 			if tt.wantErr != nil {
@@ -218,7 +219,7 @@ func TestService_GetByID(t *testing.T) {
 			mockRepo := new(mockRepository)
 			tt.mockSetup(mockRepo)
 
-			svc := service.NewService(mockRepo, &logger)
+			svc := application.NewService(mockRepo, &logger)
 			recipe, err := svc.GetByID(context.Background(), tt.id)
 
 			if tt.wantErr != nil {
@@ -286,7 +287,7 @@ func TestService_GetAll(t *testing.T) {
 			mockRepo := new(mockRepository)
 			tt.mockSetup(mockRepo)
 
-			svc := service.NewService(mockRepo, &logger)
+			svc := application.NewService(mockRepo, &logger)
 			recipes, err := svc.GetAll(context.Background())
 
 			if tt.wantErr != nil {
@@ -356,7 +357,7 @@ func TestService_Search(t *testing.T) {
 			mockRepo := new(mockRepository)
 			tt.mockSetup(mockRepo)
 
-			svc := service.NewService(mockRepo, &logger)
+			svc := application.NewService(mockRepo, &logger)
 			recipes, err := svc.Search(context.Background(), tt.query)
 
 			if tt.wantErr != nil {
@@ -376,11 +377,11 @@ func TestService_Update(t *testing.T) {
 	logger := zerolog.New(nil)
 	recipeID := "id123"
 
-	validInput := service.UpdateRecipeInput{
+	validInput := dto.UpdateRecipeInput{
 		Title:       "Updated Recipe",
 		Description: "This is a valid description",
-		Ingredients: []service.IngredientInput{{Name: "Test", Amount: 1, Unit: "g"}},
-		Steps:       []service.StepInput{{Order: 1, Description: "Step", Duration: 1}},
+		Ingredients: []dto.IngredientInput{{Name: "Test", Amount: 1, Unit: "g"}},
+		Steps:       []dto.StepInput{{Order: 1, Description: "Step", Duration: 1}},
 		CookingTime: 15,
 		Portions:    4,
 		Tags:        []string{"updated"},
@@ -389,7 +390,7 @@ func TestService_Update(t *testing.T) {
 	tests := []struct {
 		name      string
 		id        string
-		input     service.UpdateRecipeInput
+		input     dto.UpdateRecipeInput
 		mockSetup func(*mockRepository)
 		wantErr   error
 	}{
@@ -427,11 +428,11 @@ func TestService_Update(t *testing.T) {
 		{
 			name: "validation error",
 			id:   recipeID,
-			input: service.UpdateRecipeInput{
+			input: dto.UpdateRecipeInput{
 				Title:       "", // Invalid - empty title
 				Description: "Valid description",
-				Ingredients: []service.IngredientInput{{Name: "Test", Amount: 1, Unit: "g"}},
-				Steps:       []service.StepInput{{Order: 1, Description: "Step", Duration: 1}},
+				Ingredients: []dto.IngredientInput{{Name: "Test", Amount: 1, Unit: "g"}},
+				Steps:       []dto.StepInput{{Order: 1, Description: "Step", Duration: 1}},
 				CookingTime: 15,
 				Portions:    4,
 				Tags:        []string{"updated"},
@@ -474,7 +475,7 @@ func TestService_Update(t *testing.T) {
 			mockRepo := new(mockRepository)
 			tt.mockSetup(mockRepo)
 
-			svc := service.NewService(mockRepo, &logger)
+			svc := application.NewService(mockRepo, &logger)
 			updated, err := svc.Update(context.Background(), tt.id, tt.input)
 
 			if tt.wantErr != nil {
@@ -554,7 +555,7 @@ func TestService_Delete(t *testing.T) {
 			mockRepo := new(mockRepository)
 			tt.mockSetup(mockRepo)
 
-			svc := service.NewService(mockRepo, &logger)
+			svc := application.NewService(mockRepo, &logger)
 			err := svc.Delete(context.Background(), tt.id)
 
 			if tt.wantErr != nil {

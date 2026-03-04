@@ -7,18 +7,19 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/rs/zerolog"
 
+	"recipes-desk/internal/modules/recipes/application/dto"
+	"recipes-desk/internal/modules/recipes/application/ports/in"
 	"recipes-desk/internal/modules/recipes/domain"
-	"recipes-desk/internal/modules/recipes/service"
 )
 
 // Handler handles HTTP requests for recipes.
 type Handler struct {
-	service service.RecipeService
+	service in.RecipeService
 	log     *zerolog.Logger
 }
 
 // NewHandler creates a new recipe handler.
-func NewHandler(service service.RecipeService, log *zerolog.Logger) *Handler {
+func NewHandler(service in.RecipeService, log *zerolog.Logger) *Handler {
 	return &Handler{
 		service: service,
 		log:     log,
@@ -47,7 +48,12 @@ func (h *Handler) List(c *gin.Context) {
 		return
 	}
 
-	c.JSON(http.StatusOK, result)
+	response := make([]RecipeResponse, len(result))
+	for i, recipe := range result {
+		response[i] = *toRecipeResponse(&recipe)
+	}
+
+	c.JSON(http.StatusOK, response)
 }
 
 func (h *Handler) Search(c *gin.Context) {
@@ -61,7 +67,12 @@ func (h *Handler) Search(c *gin.Context) {
 		return
 	}
 
-	c.JSON(http.StatusOK, result)
+	response := make([]RecipeResponse, len(result))
+	for i, recipe := range result {
+		response[i] = *toRecipeResponse(&recipe)
+	}
+
+	c.JSON(http.StatusOK, response)
 }
 
 // GetByID handles GET /recipes/:id.
@@ -75,7 +86,7 @@ func (h *Handler) GetByID(c *gin.Context) {
 		return
 	}
 
-	c.JSON(http.StatusOK, result)
+	c.JSON(http.StatusOK, toRecipeResponse(result))
 }
 
 func (h *Handler) Create(c *gin.Context) {
@@ -89,7 +100,7 @@ func (h *Handler) Create(c *gin.Context) {
 		return
 	}
 
-	result, err := h.service.Create(c.Request.Context(), service.CreateRecipeInput{
+	result, err := h.service.Create(c.Request.Context(), dto.CreateRecipeInput{
 		Title:       req.Title,
 		Description: req.Description,
 		Ingredients: mapIngredients(req.Ingredients),
@@ -103,7 +114,7 @@ func (h *Handler) Create(c *gin.Context) {
 		return
 	}
 
-	c.JSON(http.StatusCreated, result)
+	c.JSON(http.StatusCreated, toRecipeResponse(result))
 }
 
 func (h *Handler) Update(c *gin.Context) {
@@ -121,7 +132,7 @@ func (h *Handler) Update(c *gin.Context) {
 
 	h.log.Debug().Str("recipe_id", id).Msg("Updating recipe")
 
-	result, err := h.service.Update(c.Request.Context(), id, service.UpdateRecipeInput{
+	result, err := h.service.Update(c.Request.Context(), id, dto.UpdateRecipeInput{
 		Title:       req.Title,
 		Description: req.Description,
 		Ingredients: mapIngredients(req.Ingredients),
@@ -135,7 +146,7 @@ func (h *Handler) Update(c *gin.Context) {
 		return
 	}
 
-	c.JSON(http.StatusOK, result)
+	c.JSON(http.StatusOK, toRecipeResponse(result))
 }
 
 func (h *Handler) Delete(c *gin.Context) {
