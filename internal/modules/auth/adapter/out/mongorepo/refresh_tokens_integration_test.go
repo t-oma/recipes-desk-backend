@@ -10,20 +10,23 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"go.mongodb.org/mongo-driver/bson/primitive"
 
+	"recipes-desk/internal/modules/auth/adapter/out/mongorepo"
 	"recipes-desk/internal/modules/auth/domain"
-	"recipes-desk/internal/modules/auth/repository/mongorepo"
+	"recipes-desk/pkg/testutils"
 )
 
 func TestIntegration_MongoRefreshTokenRepository_Create(t *testing.T) {
-	db, cleanup := setupMongoContainer(t)
+	db, cleanup := testutils.SetupMongoContainer(t, _testDBName)
+
 	defer cleanup()
 
 	repo := mongorepo.NewRefreshTokens(db)
 	ctx := context.Background()
 
 	t.Run("create refresh token", func(t *testing.T) {
-		userID := "507f1f77bcf86cd799439011"
+		userID := primitive.NewObjectID().Hex()
 		token := &domain.RefreshToken{
 			UserID:    userID,
 			TokenHash: "hash123",
@@ -41,7 +44,7 @@ func TestIntegration_MongoRefreshTokenRepository_Create(t *testing.T) {
 	})
 
 	t.Run("create multiple tokens for same user", func(t *testing.T) {
-		userID := "507f1f77bcf86cd799439012"
+		userID := primitive.NewObjectID().Hex()
 		token1 := &domain.RefreshToken{
 			UserID:    userID,
 			TokenHash: "hash1",
@@ -75,14 +78,14 @@ func TestIntegration_MongoRefreshTokenRepository_Create(t *testing.T) {
 }
 
 func TestIntegration_MongoRefreshTokenRepository_FindByHash(t *testing.T) {
-	db, cleanup := setupMongoContainer(t)
+	db, cleanup := testutils.SetupMongoContainer(t, _testDBName)
 	defer cleanup()
 
 	repo := mongorepo.NewRefreshTokens(db)
 	ctx := context.Background()
 
 	// Create a test token first
-	userID := "507f1f77bcf86cd799439011"
+	userID := primitive.NewObjectID().Hex()
 	token := &domain.RefreshToken{
 		UserID:    userID,
 		TokenHash: "findme123",
@@ -106,14 +109,14 @@ func TestIntegration_MongoRefreshTokenRepository_FindByHash(t *testing.T) {
 }
 
 func TestIntegration_MongoRefreshTokenRepository_DeleteByHash(t *testing.T) {
-	db, cleanup := setupMongoContainer(t)
+	db, cleanup := testutils.SetupMongoContainer(t, _testDBName)
 	defer cleanup()
 
 	repo := mongorepo.NewRefreshTokens(db)
 	ctx := context.Background()
 
 	// Create a test token first
-	userID := "507f1f77bcf86cd799439011"
+	userID := primitive.NewObjectID().Hex()
 	token := &domain.RefreshToken{
 		UserID:    userID,
 		TokenHash: "deleteme123",
@@ -138,13 +141,13 @@ func TestIntegration_MongoRefreshTokenRepository_DeleteByHash(t *testing.T) {
 }
 
 func TestIntegration_MongoRefreshTokenRepository_TokenRotation(t *testing.T) {
-	db, cleanup := setupMongoContainer(t)
+	db, cleanup := testutils.SetupMongoContainer(t, _testDBName)
 	defer cleanup()
 
 	repo := mongorepo.NewRefreshTokens(db)
 	ctx := context.Background()
 
-	userID := "507f1f77bcf86cd799439011"
+	userID := primitive.NewObjectID().Hex()
 
 	t.Run("simulate token rotation", func(t *testing.T) {
 		// Create old token
@@ -187,14 +190,14 @@ func TestIntegration_MongoRefreshTokenRepository_TokenRotation(t *testing.T) {
 }
 
 func TestIntegration_MongoRefreshTokenRepository_MultipleUsers(t *testing.T) {
-	db, cleanup := setupMongoContainer(t)
+	db, cleanup := testutils.SetupMongoContainer(t, _testDBName)
 	defer cleanup()
 
 	repo := mongorepo.NewRefreshTokens(db)
 	ctx := context.Background()
 
-	user1 := "507f1f77bcf86cd799439011"
-	user2 := "507f1f77bcf86cd799439012"
+	user1 := primitive.NewObjectID().Hex()
+	user2 := primitive.NewObjectID().Hex()
 
 	t.Run("tokens for different users", func(t *testing.T) {
 		// Create tokens for user1
@@ -234,7 +237,7 @@ func TestIntegration_MongoRefreshTokenRepository_MultipleUsers(t *testing.T) {
 }
 
 func TestIntegration_MongoRefreshTokenRepository_TTLIndex(t *testing.T) {
-	db, cleanup := setupMongoContainer(t)
+	db, cleanup := testutils.SetupMongoContainer(t, _testDBName)
 	defer cleanup()
 
 	repo := mongorepo.NewRefreshTokens(db)
@@ -247,7 +250,7 @@ func TestIntegration_MongoRefreshTokenRepository_TTLIndex(t *testing.T) {
 		assert.NotNil(t, repo)
 
 		// Create a token that expires in 1 second
-		userID := "507f1f77bcf86cd799439011"
+		userID := primitive.NewObjectID().Hex()
 		token := &domain.RefreshToken{
 			UserID:    userID,
 			TokenHash: "shortlived",
