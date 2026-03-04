@@ -1,7 +1,6 @@
 package handler
 
 import (
-	"context"
 	"errors"
 	"net/http"
 	"time"
@@ -21,24 +20,12 @@ const (
 
 // Handler handles HTTP requests for authentication.
 type Handler struct {
-	service AuthService
+	service service.AuthService
 	log     *zerolog.Logger
 }
 
-// AuthService defines the interface for auth business logic.
-type AuthService interface {
-	GetByID(ctx context.Context, id string) (*service.SafeUser, error)
-	GetByEmail(ctx context.Context, email string) (*service.SafeUser, error)
-	Register(ctx context.Context, params *service.RegisterParams) (*service.AuthResult, error)
-	Login(ctx context.Context, params *service.LoginParams) (*service.AuthResult, error)
-	RefreshTokens(
-		ctx context.Context,
-		input *service.RefreshTokensParams,
-	) (*service.RefreshTokensResult, error)
-}
-
 // NewHandler creates a new auth handler.
-func NewHandler(service AuthService, log *zerolog.Logger) *Handler {
+func NewHandler(service service.AuthService, log *zerolog.Logger) *Handler {
 	return &Handler{
 		service: service,
 		log:     log,
@@ -69,7 +56,7 @@ func (h *Handler) Register(c *gin.Context) {
 		return
 	}
 
-	result, err := h.service.Register(c.Request.Context(), &service.RegisterParams{
+	result, err := h.service.Register(c.Request.Context(), service.RegisterInput{
 		Email:     req.Email,
 		FirstName: req.FirstName,
 		LastName:  req.LastName,
@@ -84,7 +71,7 @@ func (h *Handler) Register(c *gin.Context) {
 	setAuthCookie(c, accessTokenCookieName, result.AccessToken, result.AccessExpiresAt)
 	setAuthCookie(c, refreshTokenCookieName, result.RefreshToken, result.RefreshExpiresAt)
 
-	c.JSON(http.StatusCreated, toResponse(result))
+	c.JSON(http.StatusCreated, toAuthResponse(result))
 }
 
 func (h *Handler) Login(c *gin.Context) {
@@ -96,7 +83,7 @@ func (h *Handler) Login(c *gin.Context) {
 	}
 
 	h.log.Debug().Str("user_email", req.Email).Msg("Logging in user")
-	result, err := h.service.Login(c.Request.Context(), &service.LoginParams{
+	result, err := h.service.Login(c.Request.Context(), service.LoginInput{
 		Email:    req.Email,
 		Password: req.Password,
 	})
@@ -109,7 +96,7 @@ func (h *Handler) Login(c *gin.Context) {
 	setAuthCookie(c, accessTokenCookieName, result.AccessToken, result.AccessExpiresAt)
 	setAuthCookie(c, refreshTokenCookieName, result.RefreshToken, result.RefreshExpiresAt)
 
-	c.JSON(http.StatusOK, toResponse(result))
+	c.JSON(http.StatusOK, toAuthResponse(result))
 }
 
 func (h *Handler) Refresh(c *gin.Context) {
@@ -119,7 +106,7 @@ func (h *Handler) Refresh(c *gin.Context) {
 		return
 	}
 
-	result, err := h.service.RefreshTokens(c.Request.Context(), &service.RefreshTokensParams{
+	result, err := h.service.RefreshTokens(c.Request.Context(), service.RefreshTokensInput{
 		RefreshToken: refreshToken,
 	})
 	if err != nil {

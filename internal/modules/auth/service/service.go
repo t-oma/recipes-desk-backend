@@ -25,6 +25,18 @@ type tokenService interface {
 	) (*TokenResult, string, error)
 }
 
+// AuthService defines the interface for auth business logic.
+type AuthService interface {
+	GetByID(ctx context.Context, id string) (*UserDTO, error)
+	GetByEmail(ctx context.Context, email string) (*UserDTO, error)
+	Register(ctx context.Context, params RegisterInput) (*AuthResult, error)
+	Login(ctx context.Context, params LoginInput) (*AuthResult, error)
+	RefreshTokens(
+		ctx context.Context,
+		input RefreshTokensInput,
+	) (*RefreshTokensResult, error)
+}
+
 // Service handles authentication business logic.
 type Service struct {
 	repo     domain.UsersRepository
@@ -32,6 +44,8 @@ type Service struct {
 	password passwordService
 	token    tokenService
 }
+
+var _ AuthService = (*Service)(nil)
 
 // NewService creates a new auth service.
 func NewService(
@@ -48,8 +62,7 @@ func NewService(
 	}
 }
 
-// GetByID retrieves a user by their ID.
-func (s *Service) GetByID(ctx context.Context, id string) (*SafeUser, error) {
+func (s *Service) GetByID(ctx context.Context, id string) (*UserDTO, error) {
 	user, err := s.repo.FindByID(ctx, id)
 	if err != nil {
 		if errors.Is(err, domain.ErrNotFound) {
@@ -60,12 +73,10 @@ func (s *Service) GetByID(ctx context.Context, id string) (*SafeUser, error) {
 		return nil, err
 	}
 
-	s.log.Debug().Str("user_id", id).Msg("User retrieved")
-	return SafeUserFromUser(user), nil
+	return toUserDTO(user), nil
 }
 
-// GetByEmail retrieves a user by their email.
-func (s *Service) GetByEmail(ctx context.Context, email string) (*SafeUser, error) {
+func (s *Service) GetByEmail(ctx context.Context, email string) (*UserDTO, error) {
 	user, err := s.repo.FindByEmail(ctx, email)
 	if err != nil {
 		if errors.Is(err, domain.ErrNotFound) {
@@ -76,12 +87,10 @@ func (s *Service) GetByEmail(ctx context.Context, email string) (*SafeUser, erro
 		return nil, err
 	}
 
-	s.log.Debug().Str("email", email).Msg("User retrieved")
-	return SafeUserFromUser(user), nil
+	return toUserDTO(user), nil
 }
 
-// Register creates a new user and returns authentication tokens.
-func (s *Service) Register(ctx context.Context, params *RegisterParams) (*AuthResult, error) {
+func (s *Service) Register(ctx context.Context, params RegisterInput) (*AuthResult, error) {
 	user := &domain.User{ //nolint:exhaustruct // fields set below
 		ID:        "",
 		Email:     params.Email,
@@ -121,14 +130,12 @@ func (s *Service) Register(ctx context.Context, params *RegisterParams) (*AuthRe
 
 	s.log.Info().Str("email", params.Email).Msg("User created")
 
-	// Generate access token
 	accessResult, err := s.token.GenerateAccessToken(user.ID)
 	if err != nil {
 		s.log.Error().Err(err).Msg("Failed to generate access token")
 		return nil, err
 	}
 
-	// Generate refresh token
 	refreshResult, err := s.token.GenerateRefreshToken(ctx, user.ID)
 	if err != nil {
 		s.log.Error().Err(err).Msg("Failed to generate refresh token")
@@ -136,7 +143,7 @@ func (s *Service) Register(ctx context.Context, params *RegisterParams) (*AuthRe
 	}
 
 	return &AuthResult{
-		User:             SafeUserFromUser(user),
+		User:             toUserDTO(user),
 		AccessToken:      accessResult.Token,
 		AccessExpiresAt:  accessResult.ExpiresAt,
 		RefreshToken:     refreshResult.Token,
@@ -144,8 +151,7 @@ func (s *Service) Register(ctx context.Context, params *RegisterParams) (*AuthRe
 	}, nil
 }
 
-// Login authenticates a user and returns authentication tokens.
-func (s *Service) Login(ctx context.Context, params *LoginParams) (*AuthResult, error) {
+func (s *Service) Login(ctx context.Context, params LoginInput) (*AuthResult, error) {
 	user, err := s.repo.FindByEmail(ctx, params.Email)
 	if err != nil {
 		if errors.Is(err, domain.ErrNotFound) {
@@ -163,14 +169,12 @@ func (s *Service) Login(ctx context.Context, params *LoginParams) (*AuthResult, 
 
 	s.log.Debug().Str("email", params.Email).Msg("User logged in")
 
-	// Generate access token
 	accessResult, err := s.token.GenerateAccessToken(user.ID)
 	if err != nil {
 		s.log.Error().Err(err).Msg("Failed to generate access token")
 		return nil, err
 	}
 
-	// Generate refresh token
 	refreshResult, err := s.token.GenerateRefreshToken(ctx, user.ID)
 	if err != nil {
 		s.log.Error().Err(err).Msg("Failed to generate refresh token")
@@ -178,7 +182,7 @@ func (s *Service) Login(ctx context.Context, params *LoginParams) (*AuthResult, 
 	}
 
 	return &AuthResult{
-		User:             SafeUserFromUser(user),
+		User:             toUserDTO(user),
 		AccessToken:      accessResult.Token,
 		AccessExpiresAt:  accessResult.ExpiresAt,
 		RefreshToken:     refreshResult.Token,
@@ -186,10 +190,9 @@ func (s *Service) Login(ctx context.Context, params *LoginParams) (*AuthResult, 
 	}, nil
 }
 
-// RefreshTokens rotates the refresh token and issues new access token.
 func (s *Service) RefreshTokens(
 	ctx context.Context,
-	params *RefreshTokensParams,
+	params RefreshTokensInput,
 ) (*RefreshTokensResult, error) {
 	newRefreshResult, userID, err := s.token.RotateRefreshToken(ctx, params.RefreshToken)
 	if err != nil {
@@ -202,8 +205,6 @@ func (s *Service) RefreshTokens(
 		s.log.Error().Err(err).Msg("Failed to generate access token during refresh")
 		return nil, err
 	}
-
-	s.log.Debug().Str("user_id", userID).Msg("Tokens refreshed successfully")
 
 	return &RefreshTokensResult{
 		AccessToken:      accessResult.Token,

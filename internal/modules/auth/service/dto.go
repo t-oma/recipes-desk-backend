@@ -6,22 +6,22 @@ import (
 	"recipes-desk/internal/modules/auth/domain"
 )
 
-// RegisterParams contains parameters for user registration.
-type RegisterParams struct {
+// RegisterInput contains parameters for user registration.
+type RegisterInput struct {
 	Email     string
 	FirstName string
 	LastName  string
 	Password  string
 }
 
-// LoginParams contains parameters for user login.
-type LoginParams struct {
+// LoginInput contains parameters for user login.
+type LoginInput struct {
 	Email    string
 	Password string
 }
 
-// SafeUser represents a user without sensitive information.
-type SafeUser struct {
+// UserDTO represents a user without sensitive information.
+type UserDTO struct {
 	ID                string
 	Email             string
 	FirstName         string
@@ -30,9 +30,9 @@ type SafeUser struct {
 	PasswordUpdatedAt time.Time
 }
 
-// SafeUserFromUser converts a domain user to a safe user.
-func SafeUserFromUser(user *domain.User) *SafeUser {
-	return &SafeUser{
+// toUserDTO converts a domain user to a safe user.
+func toUserDTO(user *domain.User) *UserDTO {
+	return &UserDTO{
 		ID:                user.ID,
 		Email:             user.Email,
 		FirstName:         user.FirstName,
@@ -44,7 +44,7 @@ func SafeUserFromUser(user *domain.User) *SafeUser {
 
 // AuthResult contains the result of a successful authentication.
 type AuthResult struct {
-	User             *SafeUser
+	User             *UserDTO
 	AccessToken      string
 	AccessExpiresAt  time.Time
 	RefreshToken     string
@@ -57,8 +57,8 @@ type TokenResult struct {
 	ExpiresAt time.Time
 }
 
-// RefreshTokensParams contains parameters for token refresh.
-type RefreshTokensParams struct {
+// RefreshTokensInput contains parameters for token refresh.
+type RefreshTokensInput struct {
 	RefreshToken string
 }
 

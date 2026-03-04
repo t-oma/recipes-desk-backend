@@ -28,25 +28,25 @@ type mockAuthService struct {
 
 var _ handler.AuthService = (*mockAuthService)(nil)
 
-func (m *mockAuthService) GetByID(ctx context.Context, id string) (*service.SafeUser, error) {
+func (m *mockAuthService) GetByID(ctx context.Context, id string) (*service.UserDTO, error) {
 	args := m.Called(ctx, id)
 	if args.Get(0) == nil {
 		return nil, args.Error(1)
 	}
-	return args.Get(0).(*service.SafeUser), args.Error(1)
+	return args.Get(0).(*service.UserDTO), args.Error(1)
 }
 
-func (m *mockAuthService) GetByEmail(ctx context.Context, email string) (*service.SafeUser, error) {
+func (m *mockAuthService) GetByEmail(ctx context.Context, email string) (*service.UserDTO, error) {
 	args := m.Called(ctx, email)
 	if args.Get(0) == nil {
 		return nil, args.Error(1)
 	}
-	return args.Get(0).(*service.SafeUser), args.Error(1)
+	return args.Get(0).(*service.UserDTO), args.Error(1)
 }
 
 func (m *mockAuthService) Register(
 	ctx context.Context,
-	params *service.RegisterParams,
+	params *service.RegisterInput,
 ) (*service.AuthResult, error) {
 	args := m.Called(ctx, params)
 	if args.Get(0) == nil {
@@ -57,7 +57,7 @@ func (m *mockAuthService) Register(
 
 func (m *mockAuthService) Login(
 	ctx context.Context,
-	params *service.LoginParams,
+	params *service.LoginInput,
 ) (*service.AuthResult, error) {
 	args := m.Called(ctx, params)
 	if args.Get(0) == nil {
@@ -68,7 +68,7 @@ func (m *mockAuthService) Login(
 
 func (m *mockAuthService) RefreshTokens(
 	ctx context.Context,
-	input *service.RefreshTokensParams,
+	input *service.RefreshTokensInput,
 ) (*service.RefreshTokensResult, error) {
 	args := m.Called(ctx, input)
 	if args.Get(0) == nil {
@@ -110,7 +110,7 @@ func TestHandler_Register(t *testing.T) {
 			mockSetup: func(m *mockAuthService) {
 				m.On("Register", mock.Anything, mock.AnythingOfType("*service.RegisterParams")).
 					Return(&service.AuthResult{
-						User: &service.SafeUser{ //nolint:exhaustruct // test struct
+						User: &service.UserDTO{ //nolint:exhaustruct // test struct
 							ID:        userID,
 							Email:     "test@example.com",
 							FirstName: "John",
@@ -238,7 +238,7 @@ func TestHandler_Login(t *testing.T) {
 			mockSetup: func(m *mockAuthService) {
 				m.On("Login", mock.Anything, mock.AnythingOfType("*service.LoginParams")).
 					Return(&service.AuthResult{
-						User: &service.SafeUser{ //nolint:exhaustruct // test struct
+						User: &service.UserDTO{ //nolint:exhaustruct // test struct
 							ID:        userID,
 							Email:     "test@example.com",
 							FirstName: "John",
@@ -484,7 +484,7 @@ func TestHandler_Me(t *testing.T) {
 			userID: userID,
 			mockSetup: func(m *mockAuthService) {
 				m.On("GetByID", mock.Anything, userID).
-					Return(&service.SafeUser{ //nolint:exhaustruct // test struct
+					Return(&service.UserDTO{ //nolint:exhaustruct // test struct
 						ID:        userID,
 						Email:     "test@example.com",
 						FirstName: "John",

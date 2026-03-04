@@ -6,7 +6,7 @@ import (
 	"recipes-desk/internal/modules/auth/service"
 )
 
-func toUserResponse(user *service.SafeUser) UserResponse {
+func toUserResponse(user *service.UserDTO) UserResponse {
 	return UserResponse{
 		ID:                user.ID,
 		Email:             user.Email,
@@ -17,7 +17,7 @@ func toUserResponse(user *service.SafeUser) UserResponse {
 	}
 }
 
-func toResponse(authResult *service.AuthResult) AuthResponse {
+func toAuthResponse(authResult *service.AuthResult) AuthResponse {
 	return AuthResponse{
 		User: toUserResponse(authResult.User),
 	}

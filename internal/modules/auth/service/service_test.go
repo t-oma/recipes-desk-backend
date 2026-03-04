@@ -274,14 +274,14 @@ func TestService_Register(t *testing.T) {
 
 	tests := []struct {
 		name       string
-		params     *service.RegisterParams
+		params     *service.RegisterInput
 		mockSetup  func(*mockUserRepository, *mockPasswordService, *mockTokenService)
 		wantErr    error
 		wantResult bool
 	}{
 		{
 			name: "success",
-			params: &service.RegisterParams{
+			params: &service.RegisterInput{
 				Email:     "test@example.com",
 				FirstName: "John",
 				LastName:  "Doe",
@@ -318,7 +318,7 @@ func TestService_Register(t *testing.T) {
 		},
 		{
 			name: "validation error - empty email",
-			params: &service.RegisterParams{
+			params: &service.RegisterInput{
 				Email:     "",
 				FirstName: "John",
 				LastName:  "Doe",
@@ -332,7 +332,7 @@ func TestService_Register(t *testing.T) {
 		},
 		{
 			name: "validation error - short password",
-			params: &service.RegisterParams{
+			params: &service.RegisterInput{
 				Email:     "test@example.com",
 				FirstName: "John",
 				LastName:  "Doe",
@@ -346,7 +346,7 @@ func TestService_Register(t *testing.T) {
 		},
 		{
 			name: "user already exists",
-			params: &service.RegisterParams{
+			params: &service.RegisterInput{
 				Email:     "test@example.com",
 				FirstName: "John",
 				LastName:  "Doe",
@@ -360,7 +360,7 @@ func TestService_Register(t *testing.T) {
 		},
 		{
 			name: "exists check error",
-			params: &service.RegisterParams{
+			params: &service.RegisterInput{
 				Email:     "test@example.com",
 				FirstName: "John",
 				LastName:  "Doe",
@@ -375,7 +375,7 @@ func TestService_Register(t *testing.T) {
 		},
 		{
 			name: "password hash error - too long",
-			params: &service.RegisterParams{
+			params: &service.RegisterInput{
 				Email:     "test@example.com",
 				FirstName: "John",
 				LastName:  "Doe",
@@ -390,7 +390,7 @@ func TestService_Register(t *testing.T) {
 		},
 		{
 			name: "create user error",
-			params: &service.RegisterParams{
+			params: &service.RegisterInput{
 				Email:     "test@example.com",
 				FirstName: "John",
 				LastName:  "Doe",
@@ -409,7 +409,7 @@ func TestService_Register(t *testing.T) {
 		},
 		{
 			name: "generate access token error",
-			params: &service.RegisterParams{
+			params: &service.RegisterInput{
 				Email:     "test@example.com",
 				FirstName: "John",
 				LastName:  "Doe",
@@ -438,7 +438,7 @@ func TestService_Register(t *testing.T) {
 		},
 		{
 			name: "generate refresh token error",
-			params: &service.RegisterParams{
+			params: &service.RegisterInput{
 				Email:     "test@example.com",
 				FirstName: "John",
 				LastName:  "Doe",
@@ -519,14 +519,14 @@ func TestService_Login(t *testing.T) {
 
 	tests := []struct {
 		name       string
-		params     *service.LoginParams
+		params     *service.LoginInput
 		mockSetup  func(*mockUserRepository, *mockPasswordService, *mockTokenService)
 		wantErr    error
 		wantResult bool
 	}{
 		{
 			name: "success",
-			params: &service.LoginParams{
+			params: &service.LoginInput{
 				Email:    email,
 				Password: password,
 			},
@@ -554,7 +554,7 @@ func TestService_Login(t *testing.T) {
 		},
 		{
 			name: "user not found",
-			params: &service.LoginParams{
+			params: &service.LoginInput{
 				Email:    email,
 				Password: password,
 			},
@@ -567,7 +567,7 @@ func TestService_Login(t *testing.T) {
 		},
 		{
 			name: "repository error",
-			params: &service.LoginParams{
+			params: &service.LoginInput{
 				Email:    email,
 				Password: password,
 			},
@@ -580,7 +580,7 @@ func TestService_Login(t *testing.T) {
 		},
 		{
 			name: "invalid password",
-			params: &service.LoginParams{
+			params: &service.LoginInput{
 				Email:    email,
 				Password: password,
 			},
@@ -598,7 +598,7 @@ func TestService_Login(t *testing.T) {
 		},
 		{
 			name: "generate access token error",
-			params: &service.LoginParams{
+			params: &service.LoginInput{
 				Email:    email,
 				Password: password,
 			},
@@ -618,7 +618,7 @@ func TestService_Login(t *testing.T) {
 		},
 		{
 			name: "generate refresh token error",
-			params: &service.LoginParams{
+			params: &service.LoginInput{
 				Email:    email,
 				Password: password,
 			},
@@ -687,14 +687,14 @@ func TestService_RefreshTokens(t *testing.T) {
 
 	tests := []struct {
 		name       string
-		params     *service.RefreshTokensParams
+		params     *service.RefreshTokensInput
 		mockSetup  func(*mockTokenService)
 		wantErr    error
 		wantResult bool
 	}{
 		{
 			name: "success",
-			params: &service.RefreshTokensParams{
+			params: &service.RefreshTokensInput{
 				RefreshToken: oldRefreshToken,
 			},
 			mockSetup: func(tok *mockTokenService) {
@@ -714,7 +714,7 @@ func TestService_RefreshTokens(t *testing.T) {
 		},
 		{
 			name: "rotate token error - invalid token",
-			params: &service.RefreshTokensParams{
+			params: &service.RefreshTokensInput{
 				RefreshToken: "invalid_token",
 			},
 			mockSetup: func(tok *mockTokenService) {
@@ -726,7 +726,7 @@ func TestService_RefreshTokens(t *testing.T) {
 		},
 		{
 			name: "rotate token error - expired token",
-			params: &service.RefreshTokensParams{
+			params: &service.RefreshTokensInput{
 				RefreshToken: "expired_token",
 			},
 			mockSetup: func(tok *mockTokenService) {
@@ -738,7 +738,7 @@ func TestService_RefreshTokens(t *testing.T) {
 		},
 		{
 			name: "generate access token error",
-			params: &service.RefreshTokensParams{
+			params: &service.RefreshTokensInput{
 				RefreshToken: oldRefreshToken,
 			},
 			mockSetup: func(tok *mockTokenService) {
