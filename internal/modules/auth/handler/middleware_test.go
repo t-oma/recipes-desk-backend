@@ -11,9 +11,9 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
 
+	"recipes-desk/internal/modules/auth/application/dto"
 	"recipes-desk/internal/modules/auth/domain"
 	"recipes-desk/internal/modules/auth/handler"
-	"recipes-desk/internal/modules/auth/service"
 )
 
 // mockTokenValidator is a mock implementation of tokenService for middleware testing.
@@ -21,12 +21,12 @@ type mockTokenValidator struct {
 	mock.Mock
 }
 
-func (m *mockTokenValidator) ValidateAccessToken(tokenString string) (*service.Claims, error) {
+func (m *mockTokenValidator) ValidateAccessToken(tokenString string) (*dto.Claims, error) {
 	args := m.Called(tokenString)
 	if args.Get(0) == nil {
 		return nil, args.Error(1)
 	}
-	return args.Get(0).(*service.Claims), args.Error(1)
+	return args.Get(0).(*dto.Claims), args.Error(1)
 }
 
 func TestAuthMiddleware(t *testing.T) {
@@ -50,7 +50,7 @@ func TestAuthMiddleware(t *testing.T) {
 			},
 			mockSetup: func(m *mockTokenValidator) {
 				m.On("ValidateAccessToken", "valid_token").Return(
-					&service.Claims{UserID: "user123"}, //nolint:exhaustruct // test struct
+					&dto.Claims{UserID: "user123"}, //nolint:exhaustruct // test struct
 					nil,
 				)
 			},
@@ -65,7 +65,7 @@ func TestAuthMiddleware(t *testing.T) {
 			},
 			mockSetup: func(m *mockTokenValidator) {
 				m.On("ValidateAccessToken", "valid_header_token").Return(
-					&service.Claims{UserID: "user456"}, //nolint:exhaustruct // test struct
+					&dto.Claims{UserID: "user456"}, //nolint:exhaustruct // test struct
 					nil,
 				)
 			},
@@ -164,7 +164,7 @@ func TestAuthMiddleware(t *testing.T) {
 			mockSetup: func(m *mockTokenValidator) {
 				// Should validate cookie token, not header token
 				m.On("ValidateAccessToken", "cookie_token").Return(
-					&service.Claims{UserID: "cookie_user"}, //nolint:exhaustruct // test struct
+					&dto.Claims{UserID: "cookie_user"}, //nolint:exhaustruct // test struct
 					nil,
 				)
 			},

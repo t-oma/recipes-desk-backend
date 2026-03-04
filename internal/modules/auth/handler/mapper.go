@@ -3,10 +3,10 @@ package handler
 import (
 	"time"
 
-	"recipes-desk/internal/modules/auth/service"
+	"recipes-desk/internal/modules/auth/application/dto"
 )
 
-func toUserResponse(user *service.UserDTO) UserResponse {
+func toUserResponse(user *dto.User) UserResponse {
 	return UserResponse{
 		ID:                user.ID,
 		Email:             user.Email,
@@ -17,7 +17,7 @@ func toUserResponse(user *service.UserDTO) UserResponse {
 	}
 }
 
-func toAuthResponse(authResult *service.AuthResult) AuthResponse {
+func toAuthResponse(authResult *dto.AuthResult) AuthResponse {
 	return AuthResponse{
 		User: toUserResponse(authResult.User),
 	}

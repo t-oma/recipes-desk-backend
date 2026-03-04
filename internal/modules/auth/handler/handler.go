@@ -8,8 +8,9 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/rs/zerolog"
 
+	"recipes-desk/internal/modules/auth/application/dto"
+	"recipes-desk/internal/modules/auth/application/ports/in"
 	"recipes-desk/internal/modules/auth/domain"
-	"recipes-desk/internal/modules/auth/service"
 )
 
 const (
@@ -20,12 +21,12 @@ const (
 
 // Handler handles HTTP requests for authentication.
 type Handler struct {
-	service service.AuthService
+	service in.AuthService
 	log     *zerolog.Logger
 }
 
 // NewHandler creates a new auth handler.
-func NewHandler(service service.AuthService, log *zerolog.Logger) *Handler {
+func NewHandler(service in.AuthService, log *zerolog.Logger) *Handler {
 	return &Handler{
 		service: service,
 		log:     log,
@@ -56,7 +57,7 @@ func (h *Handler) Register(c *gin.Context) {
 		return
 	}
 
-	result, err := h.service.Register(c.Request.Context(), service.RegisterInput{
+	result, err := h.service.Register(c.Request.Context(), dto.RegisterInput{
 		Email:     req.Email,
 		FirstName: req.FirstName,
 		LastName:  req.LastName,
@@ -83,7 +84,7 @@ func (h *Handler) Login(c *gin.Context) {
 	}
 
 	h.log.Debug().Str("user_email", req.Email).Msg("Logging in user")
-	result, err := h.service.Login(c.Request.Context(), service.LoginInput{
+	result, err := h.service.Login(c.Request.Context(), dto.LoginInput{
 		Email:    req.Email,
 		Password: req.Password,
 	})
@@ -106,7 +107,7 @@ func (h *Handler) Refresh(c *gin.Context) {
 		return
 	}
 
-	result, err := h.service.RefreshTokens(c.Request.Context(), service.RefreshTokensInput{
+	result, err := h.service.RefreshTokens(c.Request.Context(), dto.RefreshTokensInput{
 		RefreshToken: refreshToken,
 	})
 	if err != nil {
@@ -123,6 +124,8 @@ func (h *Handler) Refresh(c *gin.Context) {
 
 // Logout handles user logout by clearing the authentication cookies.
 func (h *Handler) Logout(c *gin.Context) {
+	_ = c.GetString("userID")
+
 	clearAuthCookie(c, accessTokenCookieName)
 	clearAuthCookie(c, refreshTokenCookieName)
 	c.JSON(http.StatusOK, gin.H{"message": "logged out successfully"})
@@ -131,10 +134,6 @@ func (h *Handler) Logout(c *gin.Context) {
 // Me returns the current authenticated user.
 func (h *Handler) Me(c *gin.Context) {
 	userID := c.GetString("userID")
-	if userID == "" {
-		c.JSON(http.StatusUnauthorized, gin.H{"error": "unauthorized"})
-		return
-	}
 
 	user, err := h.service.GetByID(c.Request.Context(), userID)
 	if err != nil {

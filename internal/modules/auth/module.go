@@ -8,9 +8,9 @@ import (
 	"github.com/rs/zerolog"
 	"go.mongodb.org/mongo-driver/mongo"
 
+	"recipes-desk/internal/modules/auth/application"
 	"recipes-desk/internal/modules/auth/handler"
 	"recipes-desk/internal/modules/auth/repository/mongorepo"
-	"recipes-desk/internal/modules/auth/service"
 )
 
 // Module represents the authentication module.
@@ -40,9 +40,9 @@ func NewModule(
 				Msg("Failed to initialize refresh token indexes")
 	}
 
-	passwordService := service.NewBcryptHasher(14)
-	tokenService := service.NewTokenService(refreshRepo, secret, accessExpiry, refreshExpiry)
-	authService := service.NewService(authRepo, log, passwordService, tokenService)
+	passwordService := application.NewBcryptHasher(14)
+	tokenService := application.NewTokenService(refreshRepo, secret, accessExpiry, refreshExpiry)
+	authService := application.NewService(authRepo, log, passwordService, tokenService)
 
 	authHandler := handler.NewHandler(authService, log)
 

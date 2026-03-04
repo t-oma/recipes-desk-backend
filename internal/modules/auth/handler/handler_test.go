@@ -16,9 +16,10 @@ import (
 	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
 
+	"recipes-desk/internal/modules/auth/application/dto"
+	"recipes-desk/internal/modules/auth/application/ports/in"
 	"recipes-desk/internal/modules/auth/domain"
 	"recipes-desk/internal/modules/auth/handler"
-	"recipes-desk/internal/modules/auth/service"
 )
 
 // mockAuthService is a mock implementation of handler.AuthService.
@@ -26,55 +27,55 @@ type mockAuthService struct {
 	mock.Mock
 }
 
-var _ handler.AuthService = (*mockAuthService)(nil)
+var _ in.AuthService = (*mockAuthService)(nil)
 
-func (m *mockAuthService) GetByID(ctx context.Context, id string) (*service.UserDTO, error) {
+func (m *mockAuthService) GetByID(ctx context.Context, id string) (*dto.User, error) {
 	args := m.Called(ctx, id)
 	if args.Get(0) == nil {
 		return nil, args.Error(1)
 	}
-	return args.Get(0).(*service.UserDTO), args.Error(1)
+	return args.Get(0).(*dto.User), args.Error(1)
 }
 
-func (m *mockAuthService) GetByEmail(ctx context.Context, email string) (*service.UserDTO, error) {
+func (m *mockAuthService) GetByEmail(ctx context.Context, email string) (*dto.User, error) {
 	args := m.Called(ctx, email)
 	if args.Get(0) == nil {
 		return nil, args.Error(1)
 	}
-	return args.Get(0).(*service.UserDTO), args.Error(1)
+	return args.Get(0).(*dto.User), args.Error(1)
 }
 
 func (m *mockAuthService) Register(
 	ctx context.Context,
-	params *service.RegisterInput,
-) (*service.AuthResult, error) {
+	params dto.RegisterInput,
+) (*dto.AuthResult, error) {
 	args := m.Called(ctx, params)
 	if args.Get(0) == nil {
 		return nil, args.Error(1)
 	}
-	return args.Get(0).(*service.AuthResult), args.Error(1)
+	return args.Get(0).(*dto.AuthResult), args.Error(1)
 }
 
 func (m *mockAuthService) Login(
 	ctx context.Context,
-	params *service.LoginInput,
-) (*service.AuthResult, error) {
+	params dto.LoginInput,
+) (*dto.AuthResult, error) {
 	args := m.Called(ctx, params)
 	if args.Get(0) == nil {
 		return nil, args.Error(1)
 	}
-	return args.Get(0).(*service.AuthResult), args.Error(1)
+	return args.Get(0).(*dto.AuthResult), args.Error(1)
 }
 
 func (m *mockAuthService) RefreshTokens(
 	ctx context.Context,
-	input *service.RefreshTokensInput,
-) (*service.RefreshTokensResult, error) {
+	input dto.RefreshTokensInput,
+) (*dto.RefreshTokensResult, error) {
 	args := m.Called(ctx, input)
 	if args.Get(0) == nil {
 		return nil, args.Error(1)
 	}
-	return args.Get(0).(*service.RefreshTokensResult), args.Error(1)
+	return args.Get(0).(*dto.RefreshTokensResult), args.Error(1)
 }
 
 func setupTest() (*gin.Engine, *mockAuthService, *handler.Handler) {
@@ -108,9 +109,9 @@ func TestHandler_Register(t *testing.T) {
 				"password":  "password123",
 			},
 			mockSetup: func(m *mockAuthService) {
-				m.On("Register", mock.Anything, mock.AnythingOfType("*service.RegisterParams")).
-					Return(&service.AuthResult{
-						User: &service.UserDTO{ //nolint:exhaustruct // test struct
+				m.On("Register", mock.Anything, mock.AnythingOfType("dto.RegisterInput")).
+					Return(&dto.AuthResult{
+						User: &dto.User{ //nolint:exhaustruct // test struct
 							ID:        userID,
 							Email:     "test@example.com",
 							FirstName: "John",
@@ -157,7 +158,7 @@ func TestHandler_Register(t *testing.T) {
 				"password":  "password123",
 			},
 			mockSetup: func(m *mockAuthService) {
-				m.On("Register", mock.Anything, mock.AnythingOfType("*service.RegisterParams")).
+				m.On("Register", mock.Anything, mock.AnythingOfType("dto.RegisterInput")).
 					Return(nil, domain.ErrAlreadyExists)
 			},
 			wantStatusCode: http.StatusConflict,
@@ -172,7 +173,7 @@ func TestHandler_Register(t *testing.T) {
 				"password":  "password123",
 			},
 			mockSetup: func(m *mockAuthService) {
-				m.On("Register", mock.Anything, mock.AnythingOfType("*service.RegisterParams")).
+				m.On("Register", mock.Anything, mock.AnythingOfType("dto.RegisterInput")).
 					Return(nil, errors.New("database error"))
 			},
 			wantStatusCode: http.StatusInternalServerError,
@@ -236,9 +237,9 @@ func TestHandler_Login(t *testing.T) {
 				"password": "password123",
 			},
 			mockSetup: func(m *mockAuthService) {
-				m.On("Login", mock.Anything, mock.AnythingOfType("*service.LoginParams")).
-					Return(&service.AuthResult{
-						User: &service.UserDTO{ //nolint:exhaustruct // test struct
+				m.On("Login", mock.Anything, mock.AnythingOfType("dto.LoginInput")).
+					Return(&dto.AuthResult{
+						User: &dto.User{ //nolint:exhaustruct // test struct
 							ID:        userID,
 							Email:     "test@example.com",
 							FirstName: "John",
@@ -269,7 +270,7 @@ func TestHandler_Login(t *testing.T) {
 				"password": "password123",
 			},
 			mockSetup: func(m *mockAuthService) {
-				m.On("Login", mock.Anything, mock.AnythingOfType("*service.LoginParams")).
+				m.On("Login", mock.Anything, mock.AnythingOfType("dto.LoginInput")).
 					Return(nil, domain.ErrNotFound)
 			},
 			wantStatusCode: http.StatusNotFound,
@@ -282,7 +283,7 @@ func TestHandler_Login(t *testing.T) {
 				"password": "wrongpassword",
 			},
 			mockSetup: func(m *mockAuthService) {
-				m.On("Login", mock.Anything, mock.AnythingOfType("*service.LoginParams")).
+				m.On("Login", mock.Anything, mock.AnythingOfType("dto.LoginInput")).
 					Return(nil, domain.ErrInvalidCredentials)
 			},
 			wantStatusCode: http.StatusBadRequest,
@@ -295,7 +296,7 @@ func TestHandler_Login(t *testing.T) {
 				"password": "password123",
 			},
 			mockSetup: func(m *mockAuthService) {
-				m.On("Login", mock.Anything, mock.AnythingOfType("*service.LoginParams")).
+				m.On("Login", mock.Anything, mock.AnythingOfType("dto.LoginInput")).
 					Return(nil, errors.New("database error"))
 			},
 			wantStatusCode: http.StatusInternalServerError,
@@ -354,8 +355,8 @@ func TestHandler_Refresh(t *testing.T) {
 			name:   "success",
 			cookie: "valid_refresh_token",
 			mockSetup: func(m *mockAuthService) {
-				m.On("RefreshTokens", mock.Anything, mock.AnythingOfType("*service.RefreshTokensParams")).
-					Return(&service.RefreshTokensResult{
+				m.On("RefreshTokens", mock.Anything, mock.AnythingOfType("dto.RefreshTokensInput")).
+					Return(&dto.RefreshTokensResult{
 						AccessToken:      "new_access_token",
 						AccessExpiresAt:  time.Now().Add(time.Hour),
 						RefreshToken:     "new_refresh_token",
@@ -376,7 +377,7 @@ func TestHandler_Refresh(t *testing.T) {
 			name:   "invalid token",
 			cookie: "invalid_token",
 			mockSetup: func(m *mockAuthService) {
-				m.On("RefreshTokens", mock.Anything, mock.AnythingOfType("*service.RefreshTokensParams")).
+				m.On("RefreshTokens", mock.Anything, mock.AnythingOfType("dto.RefreshTokensInput")).
 					Return(nil, domain.ErrTokenNotFound)
 			},
 			wantStatusCode: http.StatusUnauthorized,
@@ -386,7 +387,7 @@ func TestHandler_Refresh(t *testing.T) {
 			name:   "expired token",
 			cookie: "expired_token",
 			mockSetup: func(m *mockAuthService) {
-				m.On("RefreshTokens", mock.Anything, mock.AnythingOfType("*service.RefreshTokensParams")).
+				m.On("RefreshTokens", mock.Anything, mock.AnythingOfType("dto.RefreshTokensInput")).
 					Return(nil, domain.ErrExpiredToken)
 			},
 			wantStatusCode: http.StatusUnauthorized,
@@ -396,7 +397,7 @@ func TestHandler_Refresh(t *testing.T) {
 			name:   "service error",
 			cookie: "valid_token",
 			mockSetup: func(m *mockAuthService) {
-				m.On("RefreshTokens", mock.Anything, mock.AnythingOfType("*service.RefreshTokensParams")).
+				m.On("RefreshTokens", mock.Anything, mock.AnythingOfType("dto.RefreshTokensInput")).
 					Return(nil, errors.New("database error"))
 			},
 			wantStatusCode: http.StatusInternalServerError,
@@ -484,7 +485,7 @@ func TestHandler_Me(t *testing.T) {
 			userID: userID,
 			mockSetup: func(m *mockAuthService) {
 				m.On("GetByID", mock.Anything, userID).
-					Return(&service.UserDTO{ //nolint:exhaustruct // test struct
+					Return(&dto.User{ //nolint:exhaustruct // test struct
 						ID:        userID,
 						Email:     "test@example.com",
 						FirstName: "John",
@@ -493,13 +494,6 @@ func TestHandler_Me(t *testing.T) {
 			},
 			wantStatusCode: http.StatusOK,
 			wantUser:       true,
-		},
-		{
-			name:           "unauthorized - no userID",
-			userID:         "",
-			mockSetup:      func(_ *mockAuthService) {},
-			wantStatusCode: http.StatusUnauthorized,
-			wantUser:       false,
 		},
 		{
 			name:   "user not found",

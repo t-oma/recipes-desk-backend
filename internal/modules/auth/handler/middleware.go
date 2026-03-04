@@ -6,11 +6,11 @@ import (
 
 	"github.com/gin-gonic/gin"
 
-	"recipes-desk/internal/modules/auth/service"
+	"recipes-desk/internal/modules/auth/application/dto"
 )
 
 type tokenService interface {
-	ValidateAccessToken(tokenString string) (*service.Claims, error)
+	ValidateAccessToken(tokenString string) (*dto.Claims, error)
 }
 
 // AuthMiddleware creates a middleware that validates JWT tokens from cookies.
