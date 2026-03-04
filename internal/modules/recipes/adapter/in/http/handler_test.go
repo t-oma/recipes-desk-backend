@@ -1,4 +1,4 @@
-package handler_test
+package httphandler_test
 
 import (
 	"bytes"
@@ -15,9 +15,10 @@ import (
 	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
 
+	httphandler "recipes-desk/internal/modules/recipes/adapter/in/http"
+	"recipes-desk/internal/modules/recipes/application/dto"
+	"recipes-desk/internal/modules/recipes/application/ports/in"
 	"recipes-desk/internal/modules/recipes/domain"
-	"recipes-desk/internal/modules/recipes/handler"
-	"recipes-desk/internal/modules/recipes/service"
 )
 
 // mockService is a mock implementation of handler.RecipeService for testing.
@@ -25,53 +26,53 @@ type mockService struct {
 	mock.Mock
 }
 
-var _ service.RecipeService = (*mockService)(nil)
+var _ in.RecipeService = (*mockService)(nil)
 
 func (m *mockService) Create(
 	ctx context.Context,
-	input service.CreateRecipeInput,
-) (*service.RecipeDTO, error) {
+	input dto.CreateRecipeInput,
+) (*dto.Recipe, error) {
 	args := m.Called(ctx, input)
 	if args.Get(0) == nil {
 		return nil, args.Error(1)
 	}
-	return args.Get(0).(*service.RecipeDTO), args.Error(1)
+	return args.Get(0).(*dto.Recipe), args.Error(1)
 }
 
-func (m *mockService) GetByID(ctx context.Context, id string) (*service.RecipeDTO, error) {
+func (m *mockService) GetByID(ctx context.Context, id string) (*dto.Recipe, error) {
 	args := m.Called(ctx, id)
 	if args.Get(0) == nil {
 		return nil, args.Error(1)
 	}
-	return args.Get(0).(*service.RecipeDTO), args.Error(1)
+	return args.Get(0).(*dto.Recipe), args.Error(1)
 }
 
-func (m *mockService) GetAll(ctx context.Context) ([]service.RecipeDTO, error) {
+func (m *mockService) GetAll(ctx context.Context) ([]dto.Recipe, error) {
 	args := m.Called(ctx)
 	if args.Get(0) == nil {
 		return nil, args.Error(1)
 	}
-	return args.Get(0).([]service.RecipeDTO), args.Error(1)
+	return args.Get(0).([]dto.Recipe), args.Error(1)
 }
 
-func (m *mockService) Search(ctx context.Context, query string) ([]service.RecipeDTO, error) {
+func (m *mockService) Search(ctx context.Context, query string) ([]dto.Recipe, error) {
 	args := m.Called(ctx, query)
 	if args.Get(0) == nil {
 		return nil, args.Error(1)
 	}
-	return args.Get(0).([]service.RecipeDTO), args.Error(1)
+	return args.Get(0).([]dto.Recipe), args.Error(1)
 }
 
 func (m *mockService) Update(
 	ctx context.Context,
 	id string,
-	input service.UpdateRecipeInput,
-) (*service.RecipeDTO, error) {
+	input dto.UpdateRecipeInput,
+) (*dto.Recipe, error) {
 	args := m.Called(ctx, id, input)
 	if args.Get(0) == nil {
 		return nil, args.Error(1)
 	}
-	return args.Get(0).(*service.RecipeDTO), args.Error(1)
+	return args.Get(0).(*dto.Recipe), args.Error(1)
 }
 
 func (m *mockService) Delete(ctx context.Context, id string) error {
@@ -79,12 +80,12 @@ func (m *mockService) Delete(ctx context.Context, id string) error {
 	return args.Error(0)
 }
 
-func setupTest() (*gin.Engine, *mockService, *handler.Handler) {
+func setupTest() (*gin.Engine, *mockService, *httphandler.Handler) {
 	gin.SetMode(gin.TestMode)
 	logger := zerolog.New(nil)
 
 	mockSvc := new(mockService)
-	h := handler.NewHandler(mockSvc, &logger)
+	h := httphandler.NewHandler(mockSvc, &logger)
 
 	router := gin.New()
 
@@ -101,7 +102,7 @@ func TestHandler_List(t *testing.T) {
 		{
 			name: "success with recipes",
 			mockSetup: func(m *mockService) {
-				m.On("GetAll", mock.Anything).Return([]service.RecipeDTO{
+				m.On("GetAll", mock.Anything).Return([]dto.Recipe{
 					{ //nolint:exhaustruct // test struct
 						ID:    "id123",
 						Title: "Recipe 1",
@@ -118,7 +119,7 @@ func TestHandler_List(t *testing.T) {
 		{
 			name: "success empty",
 			mockSetup: func(m *mockService) {
-				m.On("GetAll", mock.Anything).Return([]service.RecipeDTO{}, nil)
+				m.On("GetAll", mock.Anything).Return([]dto.Recipe{}, nil)
 			},
 			wantStatusCode: http.StatusOK,
 			wantRecipes:    0,
@@ -147,7 +148,7 @@ func TestHandler_List(t *testing.T) {
 			assert.Equal(t, tt.wantStatusCode, w.Code)
 
 			if tt.wantStatusCode == http.StatusOK {
-				var response []service.RecipeDTO
+				var response []dto.Recipe
 				err := json.Unmarshal(w.Body.Bytes(), &response)
 				require.NoError(t, err)
 				assert.Len(t, response, tt.wantRecipes)
@@ -173,7 +174,7 @@ func TestHandler_GetByID(t *testing.T) {
 			id:   recipeID,
 			mockSetup: func(m *mockService) {
 				m.On("GetByID", mock.Anything, recipeID).
-					Return(&service.RecipeDTO{ //nolint:exhaustruct // test struct
+					Return(&dto.Recipe{ //nolint:exhaustruct // test struct
 						ID:          recipeID,
 						Title:       "Test Recipe",
 						Description: "Test Description",
@@ -218,7 +219,7 @@ func TestHandler_GetByID(t *testing.T) {
 			assert.Equal(t, tt.wantStatusCode, w.Code)
 
 			if tt.wantRecipe {
-				var response service.RecipeDTO
+				var response dto.Recipe
 				err := json.Unmarshal(w.Body.Bytes(), &response)
 				require.NoError(t, err)
 				assert.Equal(t, recipeID, response.ID)
@@ -243,7 +244,7 @@ func TestHandler_Search(t *testing.T) {
 			query: "pasta",
 			mockSetup: func(m *mockService) {
 				m.On("Search", mock.Anything, "pasta").
-					Return([]service.RecipeDTO{
+					Return([]dto.Recipe{
 						{Title: "Pasta Carbonara"}, //nolint:exhaustruct // test struct
 						{Title: "Pasta Bolognese"}, //nolint:exhaustruct // test struct
 					}, nil)
@@ -256,7 +257,7 @@ func TestHandler_Search(t *testing.T) {
 			query: "",
 			mockSetup: func(m *mockService) {
 				m.On("Search", mock.Anything, "").
-					Return([]service.RecipeDTO{}, nil)
+					Return([]dto.Recipe{}, nil)
 			},
 			wantStatusCode: http.StatusOK,
 			wantRecipes:    0,
@@ -288,7 +289,7 @@ func TestHandler_Search(t *testing.T) {
 			assert.Equal(t, tt.wantStatusCode, w.Code)
 
 			if tt.wantStatusCode == http.StatusOK {
-				var response []service.RecipeDTO
+				var response []dto.Recipe
 				err := json.Unmarshal(w.Body.Bytes(), &response)
 				require.NoError(t, err)
 				assert.Len(t, response, tt.wantRecipes)
@@ -327,8 +328,8 @@ func TestHandler_Create(t *testing.T) {
 				"tags":        []string{"italian", "pasta"},
 			},
 			mockSetup: func(m *mockService) {
-				m.On("Create", mock.Anything, mock.AnythingOfType("service.CreateRecipeInput")).
-					Return(&service.RecipeDTO{ //nolint:exhaustruct // test struct
+				m.On("Create", mock.Anything, mock.AnythingOfType("dto.CreateRecipeInput")).
+					Return(&dto.Recipe{ //nolint:exhaustruct // test struct
 						ID:    recipeID,
 						Title: "New Recipe",
 					}, nil)
@@ -400,7 +401,7 @@ func TestHandler_Create(t *testing.T) {
 			assert.Equal(t, tt.wantStatusCode, w.Code)
 
 			if tt.wantCreated {
-				var response service.RecipeDTO
+				var response dto.Recipe
 				err := json.Unmarshal(w.Body.Bytes(), &response)
 				require.NoError(t, err)
 				assert.Equal(t, recipeID, response.ID)
@@ -438,9 +439,9 @@ func TestHandler_Update(t *testing.T) {
 				"tags":        []string{"updated"},
 			},
 			mockSetup: func(m *mockService) {
-				m.On("Update", mock.Anything, recipeID, mock.AnythingOfType("service.UpdateRecipeInput")).
+				m.On("Update", mock.Anything, recipeID, mock.AnythingOfType("dto.UpdateRecipeInput")).
 					Return(
-						&service.RecipeDTO{ //nolint:exhaustruct // test struct
+						&dto.Recipe{ //nolint:exhaustruct // test struct
 							ID:    "id123",
 							Title: "Updated Recipe",
 						},
@@ -466,7 +467,7 @@ func TestHandler_Update(t *testing.T) {
 				"tags":        []string{"updated"},
 			},
 			mockSetup: func(m *mockService) {
-				m.On("Update", mock.Anything, recipeID, mock.AnythingOfType("service.UpdateRecipeInput")).
+				m.On("Update", mock.Anything, recipeID, mock.AnythingOfType("dto.UpdateRecipeInput")).
 					Return(nil, domain.ErrNotFound)
 			},
 			wantStatusCode: http.StatusNotFound,

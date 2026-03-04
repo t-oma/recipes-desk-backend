@@ -5,7 +5,6 @@ package recipes_test
 
 import (
 	"bytes"
-	"context"
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
@@ -16,46 +15,17 @@ import (
 	"github.com/rs/zerolog"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"github.com/testcontainers/testcontainers-go"
-	"github.com/testcontainers/testcontainers-go/modules/mongodb"
-	"github.com/testcontainers/testcontainers-go/wait"
 	"go.mongodb.org/mongo-driver/bson/primitive"
-	"go.mongodb.org/mongo-driver/mongo"
-	"go.mongodb.org/mongo-driver/mongo/options"
 
 	"recipes-desk/internal/modules/recipes"
-	"recipes-desk/internal/modules/recipes/service"
+	"recipes-desk/internal/modules/recipes/application/dto"
+	"recipes-desk/pkg/testutils"
 )
 
-func setupTestContainer(t *testing.T) (*mongo.Database, func()) {
-	ctx := context.Background()
-
-	mongoContainer, err := mongodb.Run(ctx, "mongo:8",
-		testcontainers.WithWaitStrategy(wait.ForListeningPort("27017/tcp")),
-	)
-	require.NoError(t, err)
-
-	connStr, err := mongoContainer.ConnectionString(ctx)
-	require.NoError(t, err)
-
-	client, err := mongo.Connect(ctx, options.Client().ApplyURI(connStr))
-	require.NoError(t, err)
-
-	err = client.Ping(ctx, nil)
-	require.NoError(t, err)
-
-	db := client.Database("test_recipes_integration")
-
-	cleanup := func() {
-		client.Disconnect(ctx)
-		mongoContainer.Terminate(ctx)
-	}
-
-	return db, cleanup
-}
+const _testDBName = "test_recipes_module_integration"
 
 func setupModuleTest(t *testing.T) (*gin.Engine, *recipes.Module, func()) {
-	db, cleanup := setupTestContainer(t)
+	db, cleanup := testutils.SetupMongoContainer(t, _testDBName)
 
 	logger := zerolog.New(nil)
 	module := recipes.NewModule(db, &logger)
@@ -81,7 +51,7 @@ func TestIntegration_Module_FullCRUD(t *testing.T) {
 	router, _, cleanup := setupModuleTest(t)
 	defer cleanup()
 
-	var createdRecipe service.RecipeDTO
+	var createdRecipe dto.Recipe
 	recipeID := ""
 
 	t.Run("create recipe", func(t *testing.T) {
@@ -133,7 +103,7 @@ func TestIntegration_Module_FullCRUD(t *testing.T) {
 
 		assert.Equal(t, http.StatusOK, w.Code)
 
-		var fetchedRecipe service.RecipeDTO
+		var fetchedRecipe dto.Recipe
 		err := json.Unmarshal(w.Body.Bytes(), &fetchedRecipe)
 		require.NoError(t, err)
 
@@ -171,7 +141,7 @@ func TestIntegration_Module_FullCRUD(t *testing.T) {
 
 		assert.Equal(t, http.StatusOK, w.Code)
 
-		var updatedRecipe service.RecipeDTO
+		var updatedRecipe dto.Recipe
 		err := json.Unmarshal(w.Body.Bytes(), &updatedRecipe)
 		require.NoError(t, err)
 
@@ -189,7 +159,7 @@ func TestIntegration_Module_FullCRUD(t *testing.T) {
 
 		assert.Equal(t, http.StatusOK, w.Code)
 
-		var listResponse []service.RecipeDTO
+		var listResponse []dto.Recipe
 		err := json.Unmarshal(w.Body.Bytes(), &listResponse)
 		require.NoError(t, err)
 
@@ -282,7 +252,7 @@ func TestIntegration_Module_Search(t *testing.T) {
 
 		assert.Equal(t, http.StatusOK, w.Code)
 
-		var response []service.RecipeDTO
+		var response []dto.Recipe
 		err := json.Unmarshal(w.Body.Bytes(), &response)
 		require.NoError(t, err)
 
@@ -296,7 +266,7 @@ func TestIntegration_Module_Search(t *testing.T) {
 
 		assert.Equal(t, http.StatusOK, w.Code)
 
-		var response []service.RecipeDTO
+		var response []dto.Recipe
 		err := json.Unmarshal(w.Body.Bytes(), &response)
 		require.NoError(t, err)
 
@@ -310,7 +280,7 @@ func TestIntegration_Module_Search(t *testing.T) {
 
 		assert.Equal(t, http.StatusOK, w.Code)
 
-		var response []service.RecipeDTO
+		var response []dto.Recipe
 		err := json.Unmarshal(w.Body.Bytes(), &response)
 		require.NoError(t, err)
 
@@ -324,7 +294,7 @@ func TestIntegration_Module_Search(t *testing.T) {
 
 		assert.Equal(t, http.StatusOK, w.Code)
 
-		var response []service.RecipeDTO
+		var response []dto.Recipe
 		err := json.Unmarshal(w.Body.Bytes(), &response)
 		require.NoError(t, err)
 
@@ -494,7 +464,7 @@ func TestIntegration_Module_ErrorCases(t *testing.T) {
 		router.ServeHTTP(w, req)
 		require.Equal(t, http.StatusCreated, w.Code)
 
-		var created service.RecipeDTO
+		var created dto.Recipe
 		err := json.Unmarshal(w.Body.Bytes(), &created)
 		require.NoError(t, err)
 

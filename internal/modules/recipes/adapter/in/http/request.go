@@ -1,4 +1,4 @@
-package handler
+package httphandler
 
 // CreateRecipeRequest represents the create/update request.
 type CreateRecipeRequest struct {
