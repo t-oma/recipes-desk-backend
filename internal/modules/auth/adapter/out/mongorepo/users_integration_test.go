@@ -9,49 +9,17 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"github.com/testcontainers/testcontainers-go"
-	"github.com/testcontainers/testcontainers-go/modules/mongodb"
-	"github.com/testcontainers/testcontainers-go/wait"
-	"go.mongodb.org/mongo-driver/mongo"
-	"go.mongodb.org/mongo-driver/mongo/options"
+	"go.mongodb.org/mongo-driver/bson/primitive"
 
+	"recipes-desk/internal/modules/auth/adapter/out/mongorepo"
 	"recipes-desk/internal/modules/auth/domain"
-	"recipes-desk/internal/modules/auth/repository/mongorepo"
+	"recipes-desk/pkg/testutils"
 )
 
-func setupMongoContainer(t *testing.T) (*mongo.Database, func()) {
-	ctx := context.Background()
-
-	// Start MongoDB container
-	mongoContainer, err := mongodb.Run(ctx, "mongo:8",
-		testcontainers.WithWaitStrategy(wait.ForListeningPort("27017/tcp")),
-	)
-	require.NoError(t, err)
-
-	// Get connection string
-	connStr, err := mongoContainer.ConnectionString(ctx)
-	require.NoError(t, err)
-
-	// Connect to MongoDB
-	client, err := mongo.Connect(ctx, options.Client().ApplyURI(connStr))
-	require.NoError(t, err)
-
-	// Check connection
-	err = client.Ping(ctx, nil)
-	require.NoError(t, err)
-
-	db := client.Database("test_auth")
-
-	cleanup := func() {
-		client.Disconnect(ctx)
-		mongoContainer.Terminate(ctx)
-	}
-
-	return db, cleanup
-}
+const _testDBName = "test_auth"
 
 func TestIntegration_MongoRepository_Create(t *testing.T) {
-	db, cleanup := setupMongoContainer(t)
+	db, cleanup := testutils.SetupMongoContainer(t, _testDBName)
 	defer cleanup()
 
 	repo := mongorepo.NewUsers(db)
@@ -76,7 +44,7 @@ func TestIntegration_MongoRepository_Create(t *testing.T) {
 	})
 
 	t.Run("create user with ID provided", func(t *testing.T) {
-		existingID := "507f1f77bcf86cd799439011"
+		existingID := primitive.NewObjectID().Hex()
 		user := &domain.User{
 			ID:        existingID,
 			Email:     "existing@example.com",
@@ -94,7 +62,7 @@ func TestIntegration_MongoRepository_Create(t *testing.T) {
 }
 
 func TestIntegration_MongoRepository_FindByID(t *testing.T) {
-	db, cleanup := setupMongoContainer(t)
+	db, cleanup := testutils.SetupMongoContainer(t, _testDBName)
 	defer cleanup()
 
 	repo := mongorepo.NewUsers(db)
@@ -121,7 +89,7 @@ func TestIntegration_MongoRepository_FindByID(t *testing.T) {
 	})
 
 	t.Run("find non-existent user", func(t *testing.T) {
-		nonExistentID := "507f1f77bcf86cd799439012"
+		nonExistentID := primitive.NewObjectID().Hex()
 		_, err := repo.FindByID(ctx, nonExistentID)
 		assert.ErrorIs(t, err, domain.ErrNotFound)
 	})
@@ -133,7 +101,7 @@ func TestIntegration_MongoRepository_FindByID(t *testing.T) {
 }
 
 func TestIntegration_MongoRepository_FindByEmail(t *testing.T) {
-	db, cleanup := setupMongoContainer(t)
+	db, cleanup := testutils.SetupMongoContainer(t, _testDBName)
 	defer cleanup()
 
 	repo := mongorepo.NewUsers(db)
@@ -164,7 +132,7 @@ func TestIntegration_MongoRepository_FindByEmail(t *testing.T) {
 }
 
 func TestIntegration_MongoRepository_ExistsByEmail(t *testing.T) {
-	db, cleanup := setupMongoContainer(t)
+	db, cleanup := testutils.SetupMongoContainer(t, _testDBName)
 	defer cleanup()
 
 	repo := mongorepo.NewUsers(db)
@@ -194,7 +162,7 @@ func TestIntegration_MongoRepository_ExistsByEmail(t *testing.T) {
 }
 
 func TestIntegration_MongoRepository_UniqueEmail(t *testing.T) {
-	db, cleanup := setupMongoContainer(t)
+	db, cleanup := testutils.SetupMongoContainer(t, _testDBName)
 	defer cleanup()
 
 	repo := mongorepo.NewUsers(db)

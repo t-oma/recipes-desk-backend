@@ -1,4 +1,4 @@
-package service
+package application
 
 import (
 	"context"
@@ -7,38 +7,28 @@ import (
 	"github.com/rs/zerolog"
 	"golang.org/x/crypto/bcrypt"
 
+	"recipes-desk/internal/modules/auth/application/dto"
+	"recipes-desk/internal/modules/auth/application/mapper"
+	"recipes-desk/internal/modules/auth/application/ports/in"
 	"recipes-desk/internal/modules/auth/domain"
 )
-
-type passwordService interface {
-	Hash(password string) (string, error)
-	Verify(password, hash string) bool
-}
-
-type tokenService interface {
-	GenerateAccessToken(userID string) (*TokenResult, error)
-	ValidateAccessToken(tokenString string) (*Claims, error)
-	GenerateRefreshToken(ctx context.Context, userID string) (*TokenResult, error)
-	RotateRefreshToken(
-		ctx context.Context,
-		oldToken string,
-	) (*TokenResult, string, error)
-}
 
 // Service handles authentication business logic.
 type Service struct {
 	repo     domain.UsersRepository
 	log      *zerolog.Logger
-	password passwordService
-	token    tokenService
+	password in.PasswordService
+	token    in.TokenService
 }
+
+var _ in.AuthService = (*Service)(nil)
 
 // NewService creates a new auth service.
 func NewService(
 	repo domain.UsersRepository,
 	log *zerolog.Logger,
-	password passwordService,
-	token tokenService,
+	password in.PasswordService,
+	token in.TokenService,
 ) *Service {
 	return &Service{
 		repo:     repo,
@@ -48,8 +38,7 @@ func NewService(
 	}
 }
 
-// GetByID retrieves a user by their ID.
-func (s *Service) GetByID(ctx context.Context, id string) (*SafeUser, error) {
+func (s *Service) GetByID(ctx context.Context, id string) (*dto.User, error) {
 	user, err := s.repo.FindByID(ctx, id)
 	if err != nil {
 		if errors.Is(err, domain.ErrNotFound) {
@@ -60,12 +49,10 @@ func (s *Service) GetByID(ctx context.Context, id string) (*SafeUser, error) {
 		return nil, err
 	}
 
-	s.log.Debug().Str("user_id", id).Msg("User retrieved")
-	return SafeUserFromUser(user), nil
+	return mapper.ToUserDTO(user), nil
 }
 
-// GetByEmail retrieves a user by their email.
-func (s *Service) GetByEmail(ctx context.Context, email string) (*SafeUser, error) {
+func (s *Service) GetByEmail(ctx context.Context, email string) (*dto.User, error) {
 	user, err := s.repo.FindByEmail(ctx, email)
 	if err != nil {
 		if errors.Is(err, domain.ErrNotFound) {
@@ -76,12 +63,10 @@ func (s *Service) GetByEmail(ctx context.Context, email string) (*SafeUser, erro
 		return nil, err
 	}
 
-	s.log.Debug().Str("email", email).Msg("User retrieved")
-	return SafeUserFromUser(user), nil
+	return mapper.ToUserDTO(user), nil
 }
 
-// Register creates a new user and returns authentication tokens.
-func (s *Service) Register(ctx context.Context, params *RegisterParams) (*AuthResult, error) {
+func (s *Service) Register(ctx context.Context, params dto.RegisterInput) (*dto.AuthResult, error) {
 	user := &domain.User{ //nolint:exhaustruct // fields set below
 		ID:        "",
 		Email:     params.Email,
@@ -119,24 +104,20 @@ func (s *Service) Register(ctx context.Context, params *RegisterParams) (*AuthRe
 		return nil, err
 	}
 
-	s.log.Info().Str("email", params.Email).Msg("User created")
-
-	// Generate access token
 	accessResult, err := s.token.GenerateAccessToken(user.ID)
 	if err != nil {
 		s.log.Error().Err(err).Msg("Failed to generate access token")
 		return nil, err
 	}
 
-	// Generate refresh token
 	refreshResult, err := s.token.GenerateRefreshToken(ctx, user.ID)
 	if err != nil {
 		s.log.Error().Err(err).Msg("Failed to generate refresh token")
 		return nil, err
 	}
 
-	return &AuthResult{
-		User:             SafeUserFromUser(user),
+	return &dto.AuthResult{
+		User:             mapper.ToUserDTO(user),
 		AccessToken:      accessResult.Token,
 		AccessExpiresAt:  accessResult.ExpiresAt,
 		RefreshToken:     refreshResult.Token,
@@ -144,8 +125,7 @@ func (s *Service) Register(ctx context.Context, params *RegisterParams) (*AuthRe
 	}, nil
 }
 
-// Login authenticates a user and returns authentication tokens.
-func (s *Service) Login(ctx context.Context, params *LoginParams) (*AuthResult, error) {
+func (s *Service) Login(ctx context.Context, params dto.LoginInput) (*dto.AuthResult, error) {
 	user, err := s.repo.FindByEmail(ctx, params.Email)
 	if err != nil {
 		if errors.Is(err, domain.ErrNotFound) {
@@ -161,24 +141,20 @@ func (s *Service) Login(ctx context.Context, params *LoginParams) (*AuthResult, 
 		return nil, domain.ErrInvalidCredentials
 	}
 
-	s.log.Debug().Str("email", params.Email).Msg("User logged in")
-
-	// Generate access token
 	accessResult, err := s.token.GenerateAccessToken(user.ID)
 	if err != nil {
 		s.log.Error().Err(err).Msg("Failed to generate access token")
 		return nil, err
 	}
 
-	// Generate refresh token
 	refreshResult, err := s.token.GenerateRefreshToken(ctx, user.ID)
 	if err != nil {
 		s.log.Error().Err(err).Msg("Failed to generate refresh token")
 		return nil, err
 	}
 
-	return &AuthResult{
-		User:             SafeUserFromUser(user),
+	return &dto.AuthResult{
+		User:             mapper.ToUserDTO(user),
 		AccessToken:      accessResult.Token,
 		AccessExpiresAt:  accessResult.ExpiresAt,
 		RefreshToken:     refreshResult.Token,
@@ -186,11 +162,10 @@ func (s *Service) Login(ctx context.Context, params *LoginParams) (*AuthResult, 
 	}, nil
 }
 
-// RefreshTokens rotates the refresh token and issues new access token.
 func (s *Service) RefreshTokens(
 	ctx context.Context,
-	params *RefreshTokensParams,
-) (*RefreshTokensResult, error) {
+	params dto.RefreshTokensInput,
+) (*dto.RefreshTokensResult, error) {
 	newRefreshResult, userID, err := s.token.RotateRefreshToken(ctx, params.RefreshToken)
 	if err != nil {
 		s.log.Debug().Err(err).Msg("Failed to rotate refresh token")
@@ -203,9 +178,7 @@ func (s *Service) RefreshTokens(
 		return nil, err
 	}
 
-	s.log.Debug().Str("user_id", userID).Msg("Tokens refreshed successfully")
-
-	return &RefreshTokensResult{
+	return &dto.RefreshTokensResult{
 		AccessToken:      accessResult.Token,
 		AccessExpiresAt:  accessResult.ExpiresAt,
 		RefreshToken:     newRefreshResult.Token,

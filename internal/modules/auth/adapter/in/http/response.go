@@ -1,4 +1,4 @@
-package handler
+package httphandler
 
 type UserResponse struct {
 	ID                string `json:"id"`

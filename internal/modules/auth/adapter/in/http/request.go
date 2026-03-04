@@ -1,4 +1,4 @@
-package handler
+package httphandler
 
 type RegisterRequest struct {
 	Email     string `json:"email"     binding:"required,email"`

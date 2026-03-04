@@ -1,4 +1,4 @@
-package service_test
+package application_test
 
 import (
 	"context"
@@ -13,8 +13,9 @@ import (
 	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
 
+	"recipes-desk/internal/modules/auth/application"
+	"recipes-desk/internal/modules/auth/application/dto"
 	"recipes-desk/internal/modules/auth/domain"
-	"recipes-desk/internal/modules/auth/service"
 )
 
 type mockRefreshTokensRepository struct {
@@ -60,13 +61,13 @@ func TestTokenService_GenerateAccessToken(t *testing.T) {
 		name      string
 		userID    string
 		wantErr   bool
-		checkFunc func(t *testing.T, result *service.TokenResult)
+		checkFunc func(t *testing.T, result *dto.TokenResult)
 	}{
 		{
 			name:    "success",
 			userID:  "507f1f77bcf86cd799439011",
 			wantErr: false,
-			checkFunc: func(t *testing.T, result *service.TokenResult) {
+			checkFunc: func(t *testing.T, result *dto.TokenResult) {
 				t.Helper()
 				assert.NotEmpty(t, result.Token)
 				assert.True(t, result.ExpiresAt.After(time.Now()))
@@ -78,7 +79,7 @@ func TestTokenService_GenerateAccessToken(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			mockRepo := new(mockRefreshTokensRepository)
-			tokenService := service.NewTokenService(mockRepo, secret, accessTTL, refreshTTL)
+			tokenService := application.NewTokenService(mockRepo, secret, accessTTL, refreshTTL)
 
 			result, err := tokenService.GenerateAccessToken(tt.userID)
 
@@ -105,7 +106,7 @@ func generateToken(
 ) (string, error) {
 	t.Helper()
 
-	token, _, err := service.GenerateToken(secret, method, userID, ttl)
+	token, _, err := application.GenerateToken(secret, method, userID, ttl)
 	return token, err
 }
 
@@ -203,7 +204,7 @@ func TestTokenService_ValidateAccessToken(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			mockRepo := new(mockRefreshTokensRepository)
-			tokenService := service.NewTokenService(mockRepo, secret, accessTTL, refreshTTL)
+			tokenService := application.NewTokenService(mockRepo, secret, accessTTL, refreshTTL)
 
 			token, err := tt.generateFn()
 			require.NoError(t, err)
@@ -233,7 +234,7 @@ func TestTokenService_GenerateRefreshToken(t *testing.T) {
 		name      string
 		mockSetup func(*mockRefreshTokensRepository)
 		wantErr   bool
-		checkFunc func(t *testing.T, result *service.TokenResult)
+		checkFunc func(t *testing.T, result *dto.TokenResult)
 	}{
 		{
 			name: "success",
@@ -250,7 +251,7 @@ func TestTokenService_GenerateRefreshToken(t *testing.T) {
 					)
 			},
 			wantErr: false,
-			checkFunc: func(t *testing.T, result *service.TokenResult) {
+			checkFunc: func(t *testing.T, result *dto.TokenResult) {
 				t.Helper()
 				assert.NotEmpty(t, result.Token)
 				assert.True(t, result.ExpiresAt.After(time.Now()))
@@ -275,7 +276,7 @@ func TestTokenService_GenerateRefreshToken(t *testing.T) {
 				tt.mockSetup(mockRepo)
 			}
 
-			tokenService := service.NewTokenService(mockRepo, secret, accessTTL, refreshTTL)
+			tokenService := application.NewTokenService(mockRepo, secret, accessTTL, refreshTTL)
 			result, err := tokenService.GenerateRefreshToken(context.Background(), userID)
 
 			if tt.wantErr {
@@ -365,7 +366,7 @@ func TestTokenService_ValidateRefreshToken(t *testing.T) {
 			mockRepo := new(mockRefreshTokensRepository)
 			tt.mockSetup(mockRepo)
 
-			tokenService := service.NewTokenService(mockRepo, secret, accessTTL, refreshTTL)
+			tokenService := application.NewTokenService(mockRepo, secret, accessTTL, refreshTTL)
 			resultUserID, err := tokenService.ValidateRefreshToken(
 				context.Background(),
 				tt.plainToken,
@@ -467,7 +468,7 @@ func TestTokenService_RotateRefreshToken(t *testing.T) {
 			mockRepo := new(mockRefreshTokensRepository)
 			tt.mockSetup(mockRepo)
 
-			tokenService := service.NewTokenService(mockRepo, secret, accessTTL, refreshTTL)
+			tokenService := application.NewTokenService(mockRepo, secret, accessTTL, refreshTTL)
 			newToken, resultUserID, err := tokenService.RotateRefreshToken(
 				context.Background(),
 				tt.oldToken,

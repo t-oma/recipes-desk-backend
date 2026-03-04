@@ -1,4 +1,4 @@
-package service_test
+package application_test
 
 import (
 	"context"
@@ -12,8 +12,10 @@ import (
 	"github.com/stretchr/testify/require"
 	"golang.org/x/crypto/bcrypt"
 
+	"recipes-desk/internal/modules/auth/application"
+	"recipes-desk/internal/modules/auth/application/dto"
+	"recipes-desk/internal/modules/auth/application/ports/in"
 	"recipes-desk/internal/modules/auth/domain"
-	"recipes-desk/internal/modules/auth/service"
 )
 
 // mockUserRepository is a mock implementation of domain.Repository.
@@ -57,6 +59,8 @@ type mockPasswordService struct {
 	mock.Mock
 }
 
+var _ in.PasswordService = (*mockPasswordService)(nil)
+
 func (m *mockPasswordService) Hash(password string) (string, error) {
 	args := m.Called(password)
 	return args.String(0), args.Error(1)
@@ -72,42 +76,52 @@ type mockTokenService struct {
 	mock.Mock
 }
 
-func (m *mockTokenService) GenerateAccessToken(userID string) (*service.TokenResult, error) {
+var _ in.TokenService = (*mockTokenService)(nil)
+
+func (m *mockTokenService) GenerateAccessToken(userID string) (*dto.TokenResult, error) {
 	args := m.Called(userID)
 	if args.Get(0) == nil {
 		return nil, args.Error(1)
 	}
-	return args.Get(0).(*service.TokenResult), args.Error(1)
+	return args.Get(0).(*dto.TokenResult), args.Error(1)
 }
 
-func (m *mockTokenService) ValidateAccessToken(tokenString string) (*service.Claims, error) {
+func (m *mockTokenService) ValidateAccessToken(tokenString string) (*dto.Claims, error) {
 	args := m.Called(tokenString)
 	if args.Get(0) == nil {
 		return nil, args.Error(1)
 	}
-	return args.Get(0).(*service.Claims), args.Error(1)
+	return args.Get(0).(*dto.Claims), args.Error(1)
 }
 
 func (m *mockTokenService) GenerateRefreshToken(
 	ctx context.Context,
 	userID string,
-) (*service.TokenResult, error) {
+) (*dto.TokenResult, error) {
 	args := m.Called(ctx, userID)
 	if args.Get(0) == nil {
 		return nil, args.Error(1)
 	}
-	return args.Get(0).(*service.TokenResult), args.Error(1)
+	return args.Get(0).(*dto.TokenResult), args.Error(1)
+}
+
+func (m *mockTokenService) ValidateRefreshToken(
+	ctx context.Context,
+	plainToken string,
+) (string, error) {
+	args := m.Called(ctx, plainToken)
+	return args.String(0), args.Error(1)
 }
 
 func (m *mockTokenService) RotateRefreshToken(
 	ctx context.Context,
 	oldToken string,
-) (*service.TokenResult, string, error) {
+) (*dto.TokenResult, string, error) {
 	args := m.Called(ctx, oldToken)
 	if args.Get(0) == nil {
 		return nil, args.String(1), args.Error(2)
 	}
-	return args.Get(0).(*service.TokenResult), args.String(1), args.Error(2)
+	return args.Get(0).(*dto.TokenResult), args.String(1), args.Error(2)
 }
 
 func TestService_GetByID(t *testing.T) {
@@ -167,7 +181,7 @@ func TestService_GetByID(t *testing.T) {
 			mockRepo := new(mockUserRepository)
 			tt.mockSetup(mockRepo)
 
-			svc := service.NewService(mockRepo, &logger, nil, nil)
+			svc := application.NewService(mockRepo, &logger, nil, nil)
 			user, err := svc.GetByID(context.Background(), tt.id)
 
 			if tt.wantErr != nil {
@@ -247,7 +261,7 @@ func TestService_GetByEmail(t *testing.T) {
 			mockRepo := new(mockUserRepository)
 			tt.mockSetup(mockRepo)
 
-			svc := service.NewService(mockRepo, &logger, nil, nil)
+			svc := application.NewService(mockRepo, &logger, nil, nil)
 			user, err := svc.GetByEmail(context.Background(), tt.email)
 
 			if tt.wantErr != nil {
@@ -274,14 +288,14 @@ func TestService_Register(t *testing.T) {
 
 	tests := []struct {
 		name       string
-		params     *service.RegisterParams
+		params     dto.RegisterInput
 		mockSetup  func(*mockUserRepository, *mockPasswordService, *mockTokenService)
 		wantErr    error
 		wantResult bool
 	}{
 		{
 			name: "success",
-			params: &service.RegisterParams{
+			params: dto.RegisterInput{
 				Email:     "test@example.com",
 				FirstName: "John",
 				LastName:  "Doe",
@@ -302,13 +316,13 @@ func TestService_Register(t *testing.T) {
 						}, nil)
 
 				tok.On("GenerateAccessToken", mock.AnythingOfType("string")).
-					Return(&service.TokenResult{
+					Return(&dto.TokenResult{
 						Token:     "access_token",
 						ExpiresAt: time.Now().Add(time.Hour),
 					}, nil)
 
 				tok.On("GenerateRefreshToken", mock.Anything, mock.AnythingOfType("string")).
-					Return(&service.TokenResult{
+					Return(&dto.TokenResult{
 						Token:     "refresh_token",
 						ExpiresAt: time.Now().Add(7 * 24 * time.Hour),
 					}, nil)
@@ -318,7 +332,7 @@ func TestService_Register(t *testing.T) {
 		},
 		{
 			name: "validation error - empty email",
-			params: &service.RegisterParams{
+			params: dto.RegisterInput{
 				Email:     "",
 				FirstName: "John",
 				LastName:  "Doe",
@@ -332,7 +346,7 @@ func TestService_Register(t *testing.T) {
 		},
 		{
 			name: "validation error - short password",
-			params: &service.RegisterParams{
+			params: dto.RegisterInput{
 				Email:     "test@example.com",
 				FirstName: "John",
 				LastName:  "Doe",
@@ -346,7 +360,7 @@ func TestService_Register(t *testing.T) {
 		},
 		{
 			name: "user already exists",
-			params: &service.RegisterParams{
+			params: dto.RegisterInput{
 				Email:     "test@example.com",
 				FirstName: "John",
 				LastName:  "Doe",
@@ -360,7 +374,7 @@ func TestService_Register(t *testing.T) {
 		},
 		{
 			name: "exists check error",
-			params: &service.RegisterParams{
+			params: dto.RegisterInput{
 				Email:     "test@example.com",
 				FirstName: "John",
 				LastName:  "Doe",
@@ -375,7 +389,7 @@ func TestService_Register(t *testing.T) {
 		},
 		{
 			name: "password hash error - too long",
-			params: &service.RegisterParams{
+			params: dto.RegisterInput{
 				Email:     "test@example.com",
 				FirstName: "John",
 				LastName:  "Doe",
@@ -390,7 +404,7 @@ func TestService_Register(t *testing.T) {
 		},
 		{
 			name: "create user error",
-			params: &service.RegisterParams{
+			params: dto.RegisterInput{
 				Email:     "test@example.com",
 				FirstName: "John",
 				LastName:  "Doe",
@@ -409,7 +423,7 @@ func TestService_Register(t *testing.T) {
 		},
 		{
 			name: "generate access token error",
-			params: &service.RegisterParams{
+			params: dto.RegisterInput{
 				Email:     "test@example.com",
 				FirstName: "John",
 				LastName:  "Doe",
@@ -438,7 +452,7 @@ func TestService_Register(t *testing.T) {
 		},
 		{
 			name: "generate refresh token error",
-			params: &service.RegisterParams{
+			params: dto.RegisterInput{
 				Email:     "test@example.com",
 				FirstName: "John",
 				LastName:  "Doe",
@@ -460,7 +474,7 @@ func TestService_Register(t *testing.T) {
 					)
 
 				tok.On("GenerateAccessToken", mock.AnythingOfType("string")).
-					Return(&service.TokenResult{
+					Return(&dto.TokenResult{
 						Token:     "access_token",
 						ExpiresAt: time.Now().Add(time.Hour),
 					}, nil)
@@ -483,7 +497,7 @@ func TestService_Register(t *testing.T) {
 				tt.mockSetup(mockRepo, mockPwd, mockTok)
 			}
 
-			svc := service.NewService(mockRepo, &logger, mockPwd, mockTok)
+			svc := application.NewService(mockRepo, &logger, mockPwd, mockTok)
 			result, err := svc.Register(context.Background(), tt.params)
 
 			if tt.wantErr != nil {
@@ -519,14 +533,14 @@ func TestService_Login(t *testing.T) {
 
 	tests := []struct {
 		name       string
-		params     *service.LoginParams
+		params     dto.LoginInput
 		mockSetup  func(*mockUserRepository, *mockPasswordService, *mockTokenService)
 		wantErr    error
 		wantResult bool
 	}{
 		{
 			name: "success",
-			params: &service.LoginParams{
+			params: dto.LoginInput{
 				Email:    email,
 				Password: password,
 			},
@@ -539,12 +553,12 @@ func TestService_Login(t *testing.T) {
 					}, nil)
 				pwd.On("Verify", password, hashedPassword).Return(true)
 				tok.On("GenerateAccessToken", userID).
-					Return(&service.TokenResult{
+					Return(&dto.TokenResult{
 						Token:     "access_token",
 						ExpiresAt: time.Now().Add(time.Hour),
 					}, nil)
 				tok.On("GenerateRefreshToken", mock.Anything, userID).
-					Return(&service.TokenResult{
+					Return(&dto.TokenResult{
 						Token:     "refresh_token",
 						ExpiresAt: time.Now().Add(7 * 24 * time.Hour),
 					}, nil)
@@ -554,7 +568,7 @@ func TestService_Login(t *testing.T) {
 		},
 		{
 			name: "user not found",
-			params: &service.LoginParams{
+			params: dto.LoginInput{
 				Email:    email,
 				Password: password,
 			},
@@ -567,7 +581,7 @@ func TestService_Login(t *testing.T) {
 		},
 		{
 			name: "repository error",
-			params: &service.LoginParams{
+			params: dto.LoginInput{
 				Email:    email,
 				Password: password,
 			},
@@ -580,7 +594,7 @@ func TestService_Login(t *testing.T) {
 		},
 		{
 			name: "invalid password",
-			params: &service.LoginParams{
+			params: dto.LoginInput{
 				Email:    email,
 				Password: password,
 			},
@@ -598,7 +612,7 @@ func TestService_Login(t *testing.T) {
 		},
 		{
 			name: "generate access token error",
-			params: &service.LoginParams{
+			params: dto.LoginInput{
 				Email:    email,
 				Password: password,
 			},
@@ -618,7 +632,7 @@ func TestService_Login(t *testing.T) {
 		},
 		{
 			name: "generate refresh token error",
-			params: &service.LoginParams{
+			params: dto.LoginInput{
 				Email:    email,
 				Password: password,
 			},
@@ -631,7 +645,7 @@ func TestService_Login(t *testing.T) {
 					}, nil)
 				pwd.On("Verify", password, hashedPassword).Return(true)
 				tok.On("GenerateAccessToken", userID).
-					Return(&service.TokenResult{
+					Return(&dto.TokenResult{
 						Token:     "access_token",
 						ExpiresAt: time.Now().Add(time.Hour),
 					}, nil)
@@ -653,7 +667,7 @@ func TestService_Login(t *testing.T) {
 				tt.mockSetup(mockRepo, mockPwd, mockTok)
 			}
 
-			svc := service.NewService(mockRepo, &logger, mockPwd, mockTok)
+			svc := application.NewService(mockRepo, &logger, mockPwd, mockTok)
 			result, err := svc.Login(context.Background(), tt.params)
 
 			if tt.wantErr != nil {
@@ -687,24 +701,24 @@ func TestService_RefreshTokens(t *testing.T) {
 
 	tests := []struct {
 		name       string
-		params     *service.RefreshTokensParams
+		params     dto.RefreshTokensInput
 		mockSetup  func(*mockTokenService)
 		wantErr    error
 		wantResult bool
 	}{
 		{
 			name: "success",
-			params: &service.RefreshTokensParams{
+			params: dto.RefreshTokensInput{
 				RefreshToken: oldRefreshToken,
 			},
 			mockSetup: func(tok *mockTokenService) {
 				tok.On("RotateRefreshToken", mock.Anything, oldRefreshToken).
-					Return(&service.TokenResult{
+					Return(&dto.TokenResult{
 						Token:     "new_refresh_token",
 						ExpiresAt: time.Now().Add(7 * 24 * time.Hour),
 					}, userID, nil)
 				tok.On("GenerateAccessToken", userID).
-					Return(&service.TokenResult{
+					Return(&dto.TokenResult{
 						Token:     "new_access_token",
 						ExpiresAt: time.Now().Add(time.Hour),
 					}, nil)
@@ -714,7 +728,7 @@ func TestService_RefreshTokens(t *testing.T) {
 		},
 		{
 			name: "rotate token error - invalid token",
-			params: &service.RefreshTokensParams{
+			params: dto.RefreshTokensInput{
 				RefreshToken: "invalid_token",
 			},
 			mockSetup: func(tok *mockTokenService) {
@@ -726,7 +740,7 @@ func TestService_RefreshTokens(t *testing.T) {
 		},
 		{
 			name: "rotate token error - expired token",
-			params: &service.RefreshTokensParams{
+			params: dto.RefreshTokensInput{
 				RefreshToken: "expired_token",
 			},
 			mockSetup: func(tok *mockTokenService) {
@@ -738,12 +752,12 @@ func TestService_RefreshTokens(t *testing.T) {
 		},
 		{
 			name: "generate access token error",
-			params: &service.RefreshTokensParams{
+			params: dto.RefreshTokensInput{
 				RefreshToken: oldRefreshToken,
 			},
 			mockSetup: func(tok *mockTokenService) {
 				tok.On("RotateRefreshToken", mock.Anything, oldRefreshToken).
-					Return(&service.TokenResult{
+					Return(&dto.TokenResult{
 						Token:     "new_refresh_token",
 						ExpiresAt: time.Now().Add(7 * 24 * time.Hour),
 					}, userID, nil)
@@ -763,7 +777,7 @@ func TestService_RefreshTokens(t *testing.T) {
 				tt.mockSetup(mockTok)
 			}
 
-			svc := service.NewService(nil, &logger, nil, mockTok)
+			svc := application.NewService(nil, &logger, nil, mockTok)
 			result, err := svc.RefreshTokens(context.Background(), tt.params)
 
 			if tt.wantErr != nil {
