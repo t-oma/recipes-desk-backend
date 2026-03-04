@@ -122,7 +122,7 @@ func TestService_Create(t *testing.T) {
 		},
 		{
 			name: "repository error",
-			input: service.CreateRecipeInput{ //nolint:exhaustruct // test struct
+			input: service.CreateRecipeInput{
 				Title:       "Test Recipe",
 				Description: "This is a valid description",
 				Ingredients: []service.IngredientInput{{Name: "Test", Amount: 1, Unit: "g"}},
@@ -376,7 +376,7 @@ func TestService_Update(t *testing.T) {
 	logger := zerolog.New(nil)
 	recipeID := "id123"
 
-	validInput := service.UpdateRecipeInput{ //nolint:exhaustruct // test struct
+	validInput := service.UpdateRecipeInput{
 		Title:       "Updated Recipe",
 		Description: "This is a valid description",
 		Ingredients: []service.IngredientInput{{Name: "Test", Amount: 1, Unit: "g"}},
@@ -427,7 +427,7 @@ func TestService_Update(t *testing.T) {
 		{
 			name: "validation error",
 			id:   recipeID,
-			input: service.UpdateRecipeInput{ //nolint:exhaustruct // test struct
+			input: service.UpdateRecipeInput{
 				Title:       "", // Invalid - empty title
 				Description: "Valid description",
 				Ingredients: []service.IngredientInput{{Name: "Test", Amount: 1, Unit: "g"}},
