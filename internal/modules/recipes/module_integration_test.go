@@ -24,7 +24,7 @@ import (
 	"go.mongodb.org/mongo-driver/mongo/options"
 
 	"recipes-desk/internal/modules/recipes"
-	"recipes-desk/internal/modules/recipes/handler"
+	"recipes-desk/internal/modules/recipes/service"
 )
 
 func setupTestContainer(t *testing.T) (*mongo.Database, func()) {
@@ -81,7 +81,7 @@ func TestIntegration_Module_FullCRUD(t *testing.T) {
 	router, _, cleanup := setupModuleTest(t)
 	defer cleanup()
 
-	var createdRecipe handler.RecipeResponse
+	var createdRecipe service.RecipeDTO
 	recipeID := ""
 
 	t.Run("create recipe", func(t *testing.T) {
@@ -133,7 +133,7 @@ func TestIntegration_Module_FullCRUD(t *testing.T) {
 
 		assert.Equal(t, http.StatusOK, w.Code)
 
-		var fetchedRecipe handler.RecipeResponse
+		var fetchedRecipe service.RecipeDTO
 		err := json.Unmarshal(w.Body.Bytes(), &fetchedRecipe)
 		require.NoError(t, err)
 
@@ -171,7 +171,7 @@ func TestIntegration_Module_FullCRUD(t *testing.T) {
 
 		assert.Equal(t, http.StatusOK, w.Code)
 
-		var updatedRecipe handler.RecipeResponse
+		var updatedRecipe service.RecipeDTO
 		err := json.Unmarshal(w.Body.Bytes(), &updatedRecipe)
 		require.NoError(t, err)
 
@@ -189,13 +189,12 @@ func TestIntegration_Module_FullCRUD(t *testing.T) {
 
 		assert.Equal(t, http.StatusOK, w.Code)
 
-		var listResponse handler.ListResponse
+		var listResponse []service.RecipeDTO
 		err := json.Unmarshal(w.Body.Bytes(), &listResponse)
 		require.NoError(t, err)
 
-		assert.Equal(t, 1, listResponse.Count)
-		assert.Len(t, listResponse.Recipes, 1)
-		assert.Equal(t, "Updated Integration Recipe", listResponse.Recipes[0].Title)
+		assert.Len(t, listResponse, 1)
+		assert.Equal(t, "Updated Integration Recipe", listResponse[0].Title)
 	})
 
 	t.Run("delete recipe", func(t *testing.T) {
@@ -283,12 +282,11 @@ func TestIntegration_Module_Search(t *testing.T) {
 
 		assert.Equal(t, http.StatusOK, w.Code)
 
-		var response handler.ListResponse
+		var response []service.RecipeDTO
 		err := json.Unmarshal(w.Body.Bytes(), &response)
 		require.NoError(t, err)
 
-		assert.Equal(t, 2, response.Count)
-		assert.Len(t, response.Recipes, 2)
+		assert.Len(t, response, 2)
 	})
 
 	t.Run("search with uppercase query", func(t *testing.T) {
@@ -298,11 +296,11 @@ func TestIntegration_Module_Search(t *testing.T) {
 
 		assert.Equal(t, http.StatusOK, w.Code)
 
-		var response handler.ListResponse
+		var response []service.RecipeDTO
 		err := json.Unmarshal(w.Body.Bytes(), &response)
 		require.NoError(t, err)
 
-		assert.Equal(t, 2, response.Count)
+		assert.Len(t, response, 2)
 	})
 
 	t.Run("search with no matches", func(t *testing.T) {
@@ -312,12 +310,11 @@ func TestIntegration_Module_Search(t *testing.T) {
 
 		assert.Equal(t, http.StatusOK, w.Code)
 
-		var response handler.ListResponse
+		var response []service.RecipeDTO
 		err := json.Unmarshal(w.Body.Bytes(), &response)
 		require.NoError(t, err)
 
-		assert.Equal(t, 0, response.Count)
-		assert.Len(t, response.Recipes, 0)
+		assert.Len(t, response, 0)
 	})
 
 	t.Run("search partial match", func(t *testing.T) {
@@ -327,12 +324,12 @@ func TestIntegration_Module_Search(t *testing.T) {
 
 		assert.Equal(t, http.StatusOK, w.Code)
 
-		var response handler.ListResponse
+		var response []service.RecipeDTO
 		err := json.Unmarshal(w.Body.Bytes(), &response)
 		require.NoError(t, err)
 
-		assert.Equal(t, 1, response.Count)
-		assert.Equal(t, "Pasta Carbonara", response.Recipes[0].Title)
+		assert.Len(t, response, 1)
+		assert.Equal(t, "Pasta Carbonara", response[0].Title)
 	})
 }
 
@@ -497,7 +494,7 @@ func TestIntegration_Module_ErrorCases(t *testing.T) {
 		router.ServeHTTP(w, req)
 		require.Equal(t, http.StatusCreated, w.Code)
 
-		var created handler.RecipeResponse
+		var created service.RecipeDTO
 		err := json.Unmarshal(w.Body.Bytes(), &created)
 		require.NoError(t, err)
 
