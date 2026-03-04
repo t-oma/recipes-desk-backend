@@ -5,7 +5,6 @@ package recipes_test
 
 import (
 	"bytes"
-	"context"
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
@@ -16,46 +15,17 @@ import (
 	"github.com/rs/zerolog"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"github.com/testcontainers/testcontainers-go"
-	"github.com/testcontainers/testcontainers-go/modules/mongodb"
-	"github.com/testcontainers/testcontainers-go/wait"
 	"go.mongodb.org/mongo-driver/bson/primitive"
-	"go.mongodb.org/mongo-driver/mongo"
-	"go.mongodb.org/mongo-driver/mongo/options"
 
 	"recipes-desk/internal/modules/recipes"
 	"recipes-desk/internal/modules/recipes/application/dto"
+	"recipes-desk/pkg/testutils"
 )
 
-func setupTestContainer(t *testing.T) (*mongo.Database, func()) {
-	ctx := context.Background()
-
-	mongoContainer, err := mongodb.Run(ctx, "mongo:8",
-		testcontainers.WithWaitStrategy(wait.ForListeningPort("27017/tcp")),
-	)
-	require.NoError(t, err)
-
-	connStr, err := mongoContainer.ConnectionString(ctx)
-	require.NoError(t, err)
-
-	client, err := mongo.Connect(ctx, options.Client().ApplyURI(connStr))
-	require.NoError(t, err)
-
-	err = client.Ping(ctx, nil)
-	require.NoError(t, err)
-
-	db := client.Database("test_recipes_integration")
-
-	cleanup := func() {
-		client.Disconnect(ctx)
-		mongoContainer.Terminate(ctx)
-	}
-
-	return db, cleanup
-}
+const _testDBName = "test_recipes_module_integration"
 
 func setupModuleTest(t *testing.T) (*gin.Engine, *recipes.Module, func()) {
-	db, cleanup := setupTestContainer(t)
+	db, cleanup := testutils.SetupMongoContainer(t, _testDBName)
 
 	logger := zerolog.New(nil)
 	module := recipes.NewModule(db, &logger)

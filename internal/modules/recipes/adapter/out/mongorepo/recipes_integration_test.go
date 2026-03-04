@@ -11,50 +11,17 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"github.com/testcontainers/testcontainers-go"
-	"github.com/testcontainers/testcontainers-go/modules/mongodb"
-	"github.com/testcontainers/testcontainers-go/wait"
 	"go.mongodb.org/mongo-driver/bson/primitive"
-	"go.mongodb.org/mongo-driver/mongo"
-	"go.mongodb.org/mongo-driver/mongo/options"
 
 	"recipes-desk/internal/modules/recipes/adapter/out/mongorepo"
 	"recipes-desk/internal/modules/recipes/domain"
+	"recipes-desk/pkg/testutils"
 )
 
-func setupMongoContainer(t *testing.T) (*mongo.Database, func()) {
-	ctx := context.Background()
-
-	// Start MongoDB container
-	mongoContainer, err := mongodb.Run(ctx, "mongo:8",
-		testcontainers.WithWaitStrategy(wait.ForListeningPort("27017/tcp")),
-	)
-	require.NoError(t, err)
-
-	// Get connection string
-	connStr, err := mongoContainer.ConnectionString(ctx)
-	require.NoError(t, err)
-
-	// Connect to MongoDB
-	client, err := mongo.Connect(ctx, options.Client().ApplyURI(connStr))
-	require.NoError(t, err)
-
-	// Check connection
-	err = client.Ping(ctx, nil)
-	require.NoError(t, err)
-
-	db := client.Database("test_recipes")
-
-	cleanup := func() {
-		client.Disconnect(ctx)
-		mongoContainer.Terminate(ctx)
-	}
-
-	return db, cleanup
-}
+const _testDBName = "test_recipes_integration"
 
 func TestIntegration_MongoRepository_Create(t *testing.T) {
-	db, cleanup := setupMongoContainer(t)
+	db, cleanup := testutils.SetupMongoContainer(t, _testDBName)
 	defer cleanup()
 
 	repo := mongorepo.NewRecipes(db)
@@ -89,7 +56,7 @@ func TestIntegration_MongoRepository_Create(t *testing.T) {
 }
 
 func TestIntegration_MongoRepository_FindByID(t *testing.T) {
-	db, cleanup := setupMongoContainer(t)
+	db, cleanup := testutils.SetupMongoContainer(t, _testDBName)
 	defer cleanup()
 
 	repo := mongorepo.NewRecipes(db)
@@ -129,7 +96,7 @@ func TestIntegration_MongoRepository_FindByID(t *testing.T) {
 }
 
 func TestIntegration_MongoRepository_FindAll(t *testing.T) {
-	db, cleanup := setupMongoContainer(t)
+	db, cleanup := testutils.SetupMongoContainer(t, _testDBName)
 	defer cleanup()
 
 	repo := mongorepo.NewRecipes(db)
@@ -158,7 +125,7 @@ func TestIntegration_MongoRepository_FindAll(t *testing.T) {
 }
 
 func TestIntegration_MongoRepository_Search(t *testing.T) {
-	db, cleanup := setupMongoContainer(t)
+	db, cleanup := testutils.SetupMongoContainer(t, _testDBName)
 	defer cleanup()
 
 	repo := mongorepo.NewRecipes(db)
@@ -221,7 +188,7 @@ func TestIntegration_MongoRepository_Search(t *testing.T) {
 }
 
 func TestIntegration_MongoRepository_Update(t *testing.T) {
-	db, cleanup := setupMongoContainer(t)
+	db, cleanup := testutils.SetupMongoContainer(t, _testDBName)
 	defer cleanup()
 
 	repo := mongorepo.NewRecipes(db)
@@ -283,7 +250,7 @@ func TestIntegration_MongoRepository_Update(t *testing.T) {
 }
 
 func TestIntegration_MongoRepository_Delete(t *testing.T) {
-	db, cleanup := setupMongoContainer(t)
+	db, cleanup := testutils.SetupMongoContainer(t, _testDBName)
 	defer cleanup()
 
 	repo := mongorepo.NewRecipes(db)
