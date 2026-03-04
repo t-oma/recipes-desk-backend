@@ -1,4 +1,4 @@
-package handler_test
+package httphandler_test
 
 import (
 	"bytes"
@@ -15,10 +15,10 @@ import (
 	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
 
+	httphandler "recipes-desk/internal/modules/recipes/adapter/in/http"
 	"recipes-desk/internal/modules/recipes/application/dto"
 	"recipes-desk/internal/modules/recipes/application/ports/in"
 	"recipes-desk/internal/modules/recipes/domain"
-	"recipes-desk/internal/modules/recipes/handler"
 )
 
 // mockService is a mock implementation of handler.RecipeService for testing.
@@ -80,12 +80,12 @@ func (m *mockService) Delete(ctx context.Context, id string) error {
 	return args.Error(0)
 }
 
-func setupTest() (*gin.Engine, *mockService, *handler.Handler) {
+func setupTest() (*gin.Engine, *mockService, *httphandler.Handler) {
 	gin.SetMode(gin.TestMode)
 	logger := zerolog.New(nil)
 
 	mockSvc := new(mockService)
-	h := handler.NewHandler(mockSvc, &logger)
+	h := httphandler.NewHandler(mockSvc, &logger)
 
 	router := gin.New()
 

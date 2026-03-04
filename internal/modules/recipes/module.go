@@ -5,21 +5,21 @@ import (
 	"github.com/rs/zerolog"
 	"go.mongodb.org/mongo-driver/mongo"
 
+	httphandler "recipes-desk/internal/modules/recipes/adapter/in/http"
+	"recipes-desk/internal/modules/recipes/adapter/out/persistence/mongorepo"
 	"recipes-desk/internal/modules/recipes/application"
-	"recipes-desk/internal/modules/recipes/handler"
-	"recipes-desk/internal/modules/recipes/repository/mongorepo"
 )
 
 // Module represents the recipes module.
 type Module struct {
-	handler *handler.Handler
+	handler *httphandler.Handler
 }
 
 // NewModule creates a new recipes module.
 func NewModule(db *mongo.Database, log *zerolog.Logger) *Module {
 	recipeRepo := mongorepo.NewRecipes(db)
 	recipeService := application.NewService(recipeRepo, log)
-	recipeHandler := handler.NewHandler(recipeService, log)
+	recipeHandler := httphandler.NewHandler(recipeService, log)
 
 	return &Module{
 		handler: recipeHandler,

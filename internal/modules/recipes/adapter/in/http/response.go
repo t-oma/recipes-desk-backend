@@ -1,4 +1,4 @@
-package handler
+package httphandler
 
 type RecipeResponse struct {
 	ID          string               `json:"id"`
