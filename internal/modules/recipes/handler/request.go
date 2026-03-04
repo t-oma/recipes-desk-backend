@@ -1,7 +1,7 @@
 package handler
 
-// CreateRequest represents the create/update request.
-type CreateRequest struct {
+// CreateRecipeRequest represents the create/update request.
+type CreateRecipeRequest struct {
 	Title       string              `json:"title"       binding:"required"`
 	Description string              `json:"description" binding:"required"`
 	Ingredients []IngredientRequest `json:"ingredients" binding:"required,min=1"`

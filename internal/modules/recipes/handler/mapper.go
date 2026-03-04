@@ -1,87 +1,29 @@
 package handler
 
 import (
-	"time"
-
-	"recipes-desk/internal/modules/recipes/domain"
+	"recipes-desk/internal/modules/recipes/service"
 )
 
-// toDomainRecipe converts request to domain model.
-func toDomainRecipe(req CreateRequest) *domain.Recipe {
-	ingredients := make([]domain.Ingredient, len(req.Ingredients))
-	for i, ing := range req.Ingredients {
-		ingredients[i] = domain.Ingredient{
+func mapIngredients(ingredients []IngredientRequest) []service.IngredientInput {
+	mapped := make([]service.IngredientInput, len(ingredients))
+	for i, ing := range ingredients {
+		mapped[i] = service.IngredientInput{
 			Name:   ing.Name,
 			Amount: ing.Amount,
 			Unit:   ing.Unit,
 		}
 	}
+	return mapped
+}
 
-	steps := make([]domain.Step, len(req.Steps))
-	for i, step := range req.Steps {
-		steps[i] = domain.Step{
+func mapSteps(steps []StepRequest) []service.StepInput {
+	mapped := make([]service.StepInput, len(steps))
+	for i, step := range steps {
+		mapped[i] = service.StepInput{
 			Order:       step.Order,
 			Description: step.Description,
 			Duration:    step.Duration,
 		}
 	}
-
-	return &domain.Recipe{
-		ID:          "",
-		Title:       req.Title,
-		Description: req.Description,
-		Ingredients: ingredients,
-		Steps:       steps,
-		CookingTime: req.CookingTime,
-		Portions:    req.Portions,
-		Tags:        req.Tags,
-		CreatedAt:   time.Time{},
-		UpdatedAt:   time.Time{},
-	}
-}
-
-// toResponse converts domain model to response.
-func toResponse(recipe *domain.Recipe) RecipeResponse {
-	ingredients := make([]IngredientResponse, len(recipe.Ingredients))
-	for i, ing := range recipe.Ingredients {
-		ingredients[i] = IngredientResponse{
-			Name:   ing.Name,
-			Amount: ing.Amount,
-			Unit:   ing.Unit,
-		}
-	}
-
-	steps := make([]StepResponse, len(recipe.Steps))
-	for i, step := range recipe.Steps {
-		steps[i] = StepResponse{
-			Order:       step.Order,
-			Description: step.Description,
-			Duration:    step.Duration,
-		}
-	}
-
-	return RecipeResponse{
-		ID:          recipe.ID,
-		Title:       recipe.Title,
-		Description: recipe.Description,
-		Ingredients: ingredients,
-		Steps:       steps,
-		CookingTime: recipe.CookingTime,
-		Portions:    recipe.Portions,
-		Tags:        recipe.Tags,
-		CreatedAt:   recipe.CreatedAt.Format(time.RFC3339),
-		UpdatedAt:   recipe.UpdatedAt.Format(time.RFC3339),
-	}
-}
-
-// toListResponse converts domain recipes to list response.
-func toListResponse(recipes []domain.Recipe) ListResponse {
-	response := ListResponse{
-		Recipes: make([]RecipeResponse, len(recipes)),
-		Count:   len(recipes),
-	}
-	for i, recipe := range recipes {
-		response.Recipes[i] = toResponse(&recipe)
-	}
-	return response
+	return mapped
 }

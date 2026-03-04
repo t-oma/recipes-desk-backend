@@ -77,18 +77,18 @@ func TestService_Create(t *testing.T) {
 
 	tests := []struct {
 		name      string
-		recipe    *domain.Recipe
+		input     service.CreateRecipeInput
 		mockSetup func(*mockRepository)
 		wantErr   error
 		wantID    bool
 	}{
 		{
 			name: "success",
-			recipe: &domain.Recipe{ //nolint:exhaustruct // test struct
+			input: service.CreateRecipeInput{
 				Title:       "Test Recipe",
 				Description: "This is a valid description",
-				Ingredients: []domain.Ingredient{{Name: "Test", Amount: 1, Unit: "g"}},
-				Steps:       []domain.Step{{Order: 1, Description: "Step", Duration: 1}},
+				Ingredients: []service.IngredientInput{{Name: "Test", Amount: 1, Unit: "g"}},
+				Steps:       []service.StepInput{{Order: 1, Description: "Step", Duration: 1}},
 				CookingTime: 10,
 				Portions:    2,
 				Tags:        []string{"test"},
@@ -105,11 +105,11 @@ func TestService_Create(t *testing.T) {
 		},
 		{
 			name: "validation error - empty title",
-			recipe: &domain.Recipe{ //nolint:exhaustruct // test struct
+			input: service.CreateRecipeInput{
 				Title:       "",
 				Description: "Valid description",
-				Ingredients: []domain.Ingredient{{Name: "Test", Amount: 1, Unit: "g"}},
-				Steps:       []domain.Step{{Order: 1, Description: "Step", Duration: 1}},
+				Ingredients: []service.IngredientInput{{Name: "Test", Amount: 1, Unit: "g"}},
+				Steps:       []service.StepInput{{Order: 1, Description: "Step", Duration: 1}},
 				CookingTime: 10,
 				Portions:    2,
 				Tags:        []string{"test"},
@@ -122,11 +122,11 @@ func TestService_Create(t *testing.T) {
 		},
 		{
 			name: "repository error",
-			recipe: &domain.Recipe{ //nolint:exhaustruct // test struct
+			input: service.CreateRecipeInput{
 				Title:       "Test Recipe",
 				Description: "This is a valid description",
-				Ingredients: []domain.Ingredient{{Name: "Test", Amount: 1, Unit: "g"}},
-				Steps:       []domain.Step{{Order: 1, Description: "Step", Duration: 1}},
+				Ingredients: []service.IngredientInput{{Name: "Test", Amount: 1, Unit: "g"}},
+				Steps:       []service.StepInput{{Order: 1, Description: "Step", Duration: 1}},
 				CookingTime: 10,
 				Portions:    2,
 				Tags:        []string{"test"},
@@ -148,7 +148,7 @@ func TestService_Create(t *testing.T) {
 			}
 
 			svc := service.NewService(mockRepo, &logger)
-			created, err := svc.Create(context.Background(), tt.recipe)
+			created, err := svc.Create(context.Background(), tt.input)
 
 			if tt.wantErr != nil {
 				require.Error(t, err)
@@ -376,25 +376,27 @@ func TestService_Update(t *testing.T) {
 	logger := zerolog.New(nil)
 	recipeID := "id123"
 
+	validInput := service.UpdateRecipeInput{
+		Title:       "Updated Recipe",
+		Description: "This is a valid description",
+		Ingredients: []service.IngredientInput{{Name: "Test", Amount: 1, Unit: "g"}},
+		Steps:       []service.StepInput{{Order: 1, Description: "Step", Duration: 1}},
+		CookingTime: 15,
+		Portions:    4,
+		Tags:        []string{"updated"},
+	}
+
 	tests := []struct {
 		name      string
 		id        string
-		recipe    *domain.Recipe
+		input     service.UpdateRecipeInput
 		mockSetup func(*mockRepository)
 		wantErr   error
 	}{
 		{
-			name: "success",
-			id:   recipeID,
-			recipe: &domain.Recipe{ //nolint:exhaustruct // test struct
-				Title:       "Updated Recipe",
-				Description: "This is a valid description",
-				Ingredients: []domain.Ingredient{{Name: "Test", Amount: 1, Unit: "g"}},
-				Steps:       []domain.Step{{Order: 1, Description: "Step", Duration: 1}},
-				CookingTime: 15,
-				Portions:    4,
-				Tags:        []string{"updated"},
-			},
+			name:  "success",
+			id:    recipeID,
+			input: validInput,
 			mockSetup: func(m *mockRepository) {
 				m.On("FindByID", mock.Anything, recipeID).
 					Return(
@@ -413,17 +415,9 @@ func TestService_Update(t *testing.T) {
 			wantErr: nil,
 		},
 		{
-			name: "not found",
-			id:   recipeID,
-			recipe: &domain.Recipe{ //nolint:exhaustruct // test struct
-				Title:       "Updated Recipe",
-				Description: "This is a valid description",
-				Ingredients: []domain.Ingredient{{Name: "Test", Amount: 1, Unit: "g"}},
-				Steps:       []domain.Step{{Order: 1, Description: "Step", Duration: 1}},
-				CookingTime: 15,
-				Portions:    4,
-				Tags:        []string{"updated"},
-			},
+			name:  "not found",
+			id:    recipeID,
+			input: validInput,
 			mockSetup: func(m *mockRepository) {
 				m.On("FindByID", mock.Anything, recipeID).
 					Return(nil, domain.ErrNotFound)
@@ -433,11 +427,11 @@ func TestService_Update(t *testing.T) {
 		{
 			name: "validation error",
 			id:   recipeID,
-			recipe: &domain.Recipe{ //nolint:exhaustruct // test struct
+			input: service.UpdateRecipeInput{
 				Title:       "", // Invalid - empty title
 				Description: "Valid description",
-				Ingredients: []domain.Ingredient{{Name: "Test", Amount: 1, Unit: "g"}},
-				Steps:       []domain.Step{{Order: 1, Description: "Step", Duration: 1}},
+				Ingredients: []service.IngredientInput{{Name: "Test", Amount: 1, Unit: "g"}},
+				Steps:       []service.StepInput{{Order: 1, Description: "Step", Duration: 1}},
 				CookingTime: 15,
 				Portions:    4,
 				Tags:        []string{"updated"},
@@ -456,17 +450,9 @@ func TestService_Update(t *testing.T) {
 			wantErr: domain.ErrEmptyTitle,
 		},
 		{
-			name: "repository update error",
-			id:   recipeID,
-			recipe: &domain.Recipe{ //nolint:exhaustruct // test struct
-				Title:       "Updated Recipe",
-				Description: "This is a valid description",
-				Ingredients: []domain.Ingredient{{Name: "Test", Amount: 1, Unit: "g"}},
-				Steps:       []domain.Step{{Order: 1, Description: "Step", Duration: 1}},
-				CookingTime: 15,
-				Portions:    4,
-				Tags:        []string{"updated"},
-			},
+			name:  "repository update error",
+			id:    recipeID,
+			input: validInput,
 			mockSetup: func(m *mockRepository) {
 				m.On("FindByID", mock.Anything, recipeID).
 					Return(
@@ -489,7 +475,7 @@ func TestService_Update(t *testing.T) {
 			tt.mockSetup(mockRepo)
 
 			svc := service.NewService(mockRepo, &logger)
-			updated, err := svc.Update(context.Background(), tt.id, tt.recipe)
+			updated, err := svc.Update(context.Background(), tt.id, tt.input)
 
 			if tt.wantErr != nil {
 				require.Error(t, err)
