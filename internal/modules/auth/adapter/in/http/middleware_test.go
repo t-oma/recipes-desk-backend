@@ -1,4 +1,4 @@
-package handler_test
+package httphandler_test
 
 import (
 	"encoding/json"
@@ -11,9 +11,9 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
 
+	httphandler "recipes-desk/internal/modules/auth/adapter/in/http"
 	"recipes-desk/internal/modules/auth/application/dto"
 	"recipes-desk/internal/modules/auth/domain"
-	"recipes-desk/internal/modules/auth/handler"
 )
 
 // mockTokenValidator is a mock implementation of tokenService for middleware testing.
@@ -183,7 +183,7 @@ func TestAuthMiddleware(t *testing.T) {
 
 			// Create router with middleware
 			router := gin.New()
-			router.Use(handler.AuthMiddleware(mockValidator))
+			router.Use(httphandler.AuthMiddleware(mockValidator))
 
 			nextCalled := false
 			router.GET("/test", func(c *gin.Context) {

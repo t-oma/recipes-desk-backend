@@ -1,4 +1,4 @@
-package handler_test
+package httphandler_test
 
 import (
 	"bytes"
@@ -16,13 +16,13 @@ import (
 	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
 
+	httphandler "recipes-desk/internal/modules/auth/adapter/in/http"
 	"recipes-desk/internal/modules/auth/application/dto"
 	"recipes-desk/internal/modules/auth/application/ports/in"
 	"recipes-desk/internal/modules/auth/domain"
-	"recipes-desk/internal/modules/auth/handler"
 )
 
-// mockAuthService is a mock implementation of handler.AuthService.
+// mockAuthService is a mock implementation of httphandler.AuthService.
 type mockAuthService struct {
 	mock.Mock
 }
@@ -78,12 +78,12 @@ func (m *mockAuthService) RefreshTokens(
 	return args.Get(0).(*dto.RefreshTokensResult), args.Error(1)
 }
 
-func setupTest() (*gin.Engine, *mockAuthService, *handler.Handler) {
+func setupTest() (*gin.Engine, *mockAuthService, *httphandler.Handler) {
 	gin.SetMode(gin.TestMode)
 	logger := zerolog.New(nil)
 
 	mockSvc := new(mockAuthService)
-	h := handler.NewHandler(mockSvc, &logger)
+	h := httphandler.NewHandler(mockSvc, &logger)
 
 	router := gin.New()
 
@@ -205,7 +205,7 @@ func TestHandler_Register(t *testing.T) {
 			assert.Equal(t, tt.wantStatusCode, w.Code)
 
 			if tt.wantStatusCode == http.StatusCreated {
-				var response handler.AuthResponse
+				var response httphandler.AuthResponse
 				err := json.Unmarshal(w.Body.Bytes(), &response)
 				require.NoError(t, err)
 				assert.Equal(t, userID, response.User.ID)
@@ -328,7 +328,7 @@ func TestHandler_Login(t *testing.T) {
 			assert.Equal(t, tt.wantStatusCode, w.Code)
 
 			if tt.wantStatusCode == http.StatusOK {
-				var response handler.AuthResponse
+				var response httphandler.AuthResponse
 				err := json.Unmarshal(w.Body.Bytes(), &response)
 				require.NoError(t, err)
 				assert.Equal(t, userID, response.User.ID)
@@ -538,7 +538,7 @@ func TestHandler_Me(t *testing.T) {
 			assert.Equal(t, tt.wantStatusCode, w.Code)
 
 			if tt.wantUser {
-				var response handler.UserResponse
+				var response httphandler.UserResponse
 				err := json.Unmarshal(w.Body.Bytes(), &response)
 				require.NoError(t, err)
 				assert.Equal(t, userID, response.ID)

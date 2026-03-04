@@ -8,14 +8,14 @@ import (
 	"github.com/rs/zerolog"
 	"go.mongodb.org/mongo-driver/mongo"
 
+	httphandler "recipes-desk/internal/modules/auth/adapter/in/http"
+	"recipes-desk/internal/modules/auth/adapter/out/mongorepo"
 	"recipes-desk/internal/modules/auth/application"
-	"recipes-desk/internal/modules/auth/handler"
-	"recipes-desk/internal/modules/auth/repository/mongorepo"
 )
 
 // Module represents the authentication module.
 type Module struct {
-	handler    *handler.Handler
+	handler    *httphandler.Handler
 	middleware gin.HandlerFunc
 }
 
@@ -44,11 +44,11 @@ func NewModule(
 	tokenService := application.NewTokenService(refreshRepo, secret, accessExpiry, refreshExpiry)
 	authService := application.NewService(authRepo, log, passwordService, tokenService)
 
-	authHandler := handler.NewHandler(authService, log)
+	authHandler := httphandler.NewHandler(authService, log)
 
 	return &Module{
 		handler:    authHandler,
-		middleware: handler.AuthMiddleware(tokenService),
+		middleware: httphandler.AuthMiddleware(tokenService),
 	}
 }
 
