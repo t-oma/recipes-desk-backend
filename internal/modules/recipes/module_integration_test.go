@@ -5,7 +5,6 @@ package recipes_test
 
 import (
 	"bytes"
-	"context"
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
@@ -16,46 +15,17 @@ import (
 	"github.com/rs/zerolog"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"github.com/testcontainers/testcontainers-go"
-	"github.com/testcontainers/testcontainers-go/modules/mongodb"
-	"github.com/testcontainers/testcontainers-go/wait"
 	"go.mongodb.org/mongo-driver/bson/primitive"
-	"go.mongodb.org/mongo-driver/mongo"
-	"go.mongodb.org/mongo-driver/mongo/options"
 
 	"recipes-desk/internal/modules/recipes"
-	"recipes-desk/internal/modules/recipes/handler"
+	"recipes-desk/internal/modules/recipes/application/dto"
+	"recipes-desk/pkg/testutils"
 )
 
-func setupTestContainer(t *testing.T) (*mongo.Database, func()) {
-	ctx := context.Background()
-
-	mongoContainer, err := mongodb.Run(ctx, "mongo:8",
-		testcontainers.WithWaitStrategy(wait.ForListeningPort("27017/tcp")),
-	)
-	require.NoError(t, err)
-
-	connStr, err := mongoContainer.ConnectionString(ctx)
-	require.NoError(t, err)
-
-	client, err := mongo.Connect(ctx, options.Client().ApplyURI(connStr))
-	require.NoError(t, err)
-
-	err = client.Ping(ctx, nil)
-	require.NoError(t, err)
-
-	db := client.Database("test_recipes_integration")
-
-	cleanup := func() {
-		client.Disconnect(ctx)
-		mongoContainer.Terminate(ctx)
-	}
-
-	return db, cleanup
-}
+const _testDBName = "test_recipes_module_integration"
 
 func setupModuleTest(t *testing.T) (*gin.Engine, *recipes.Module, func()) {
-	db, cleanup := setupTestContainer(t)
+	db, cleanup := testutils.SetupMongoContainer(t, _testDBName)
 
 	logger := zerolog.New(nil)
 	module := recipes.NewModule(db, &logger)
@@ -81,7 +51,7 @@ func TestIntegration_Module_FullCRUD(t *testing.T) {
 	router, _, cleanup := setupModuleTest(t)
 	defer cleanup()
 
-	var createdRecipe handler.RecipeResponse
+	var createdRecipe dto.Recipe
 	recipeID := ""
 
 	t.Run("create recipe", func(t *testing.T) {
@@ -133,7 +103,7 @@ func TestIntegration_Module_FullCRUD(t *testing.T) {
 
 		assert.Equal(t, http.StatusOK, w.Code)
 
-		var fetchedRecipe handler.RecipeResponse
+		var fetchedRecipe dto.Recipe
 		err := json.Unmarshal(w.Body.Bytes(), &fetchedRecipe)
 		require.NoError(t, err)
 
@@ -171,7 +141,7 @@ func TestIntegration_Module_FullCRUD(t *testing.T) {
 
 		assert.Equal(t, http.StatusOK, w.Code)
 
-		var updatedRecipe handler.RecipeResponse
+		var updatedRecipe dto.Recipe
 		err := json.Unmarshal(w.Body.Bytes(), &updatedRecipe)
 		require.NoError(t, err)
 
@@ -189,13 +159,12 @@ func TestIntegration_Module_FullCRUD(t *testing.T) {
 
 		assert.Equal(t, http.StatusOK, w.Code)
 
-		var listResponse handler.ListResponse
+		var listResponse []dto.Recipe
 		err := json.Unmarshal(w.Body.Bytes(), &listResponse)
 		require.NoError(t, err)
 
-		assert.Equal(t, 1, listResponse.Count)
-		assert.Len(t, listResponse.Recipes, 1)
-		assert.Equal(t, "Updated Integration Recipe", listResponse.Recipes[0].Title)
+		assert.Len(t, listResponse, 1)
+		assert.Equal(t, "Updated Integration Recipe", listResponse[0].Title)
 	})
 
 	t.Run("delete recipe", func(t *testing.T) {
@@ -283,12 +252,11 @@ func TestIntegration_Module_Search(t *testing.T) {
 
 		assert.Equal(t, http.StatusOK, w.Code)
 
-		var response handler.ListResponse
+		var response []dto.Recipe
 		err := json.Unmarshal(w.Body.Bytes(), &response)
 		require.NoError(t, err)
 
-		assert.Equal(t, 2, response.Count)
-		assert.Len(t, response.Recipes, 2)
+		assert.Len(t, response, 2)
 	})
 
 	t.Run("search with uppercase query", func(t *testing.T) {
@@ -298,11 +266,11 @@ func TestIntegration_Module_Search(t *testing.T) {
 
 		assert.Equal(t, http.StatusOK, w.Code)
 
-		var response handler.ListResponse
+		var response []dto.Recipe
 		err := json.Unmarshal(w.Body.Bytes(), &response)
 		require.NoError(t, err)
 
-		assert.Equal(t, 2, response.Count)
+		assert.Len(t, response, 2)
 	})
 
 	t.Run("search with no matches", func(t *testing.T) {
@@ -312,12 +280,11 @@ func TestIntegration_Module_Search(t *testing.T) {
 
 		assert.Equal(t, http.StatusOK, w.Code)
 
-		var response handler.ListResponse
+		var response []dto.Recipe
 		err := json.Unmarshal(w.Body.Bytes(), &response)
 		require.NoError(t, err)
 
-		assert.Equal(t, 0, response.Count)
-		assert.Len(t, response.Recipes, 0)
+		assert.Len(t, response, 0)
 	})
 
 	t.Run("search partial match", func(t *testing.T) {
@@ -327,12 +294,12 @@ func TestIntegration_Module_Search(t *testing.T) {
 
 		assert.Equal(t, http.StatusOK, w.Code)
 
-		var response handler.ListResponse
+		var response []dto.Recipe
 		err := json.Unmarshal(w.Body.Bytes(), &response)
 		require.NoError(t, err)
 
-		assert.Equal(t, 1, response.Count)
-		assert.Equal(t, "Pasta Carbonara", response.Recipes[0].Title)
+		assert.Len(t, response, 1)
+		assert.Equal(t, "Pasta Carbonara", response[0].Title)
 	})
 }
 
@@ -497,7 +464,7 @@ func TestIntegration_Module_ErrorCases(t *testing.T) {
 		router.ServeHTTP(w, req)
 		require.Equal(t, http.StatusCreated, w.Code)
 
-		var created handler.RecipeResponse
+		var created dto.Recipe
 		err := json.Unmarshal(w.Body.Bytes(), &created)
 		require.NoError(t, err)
 
