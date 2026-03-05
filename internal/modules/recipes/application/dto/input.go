@@ -5,7 +5,7 @@ type CreateRecipeInput struct {
 	Description string
 	Ingredients []IngredientInput
 	Steps       []StepInput
-	CookingTime int
+	CookingTime int64
 	Portions    int
 	Tags        []string
 }
@@ -19,7 +19,7 @@ type IngredientInput struct {
 type StepInput struct {
 	Order       int
 	Description string
-	Duration    int
+	Duration    int64
 }
 
 type UpdateRecipeInput struct {
@@ -27,7 +27,7 @@ type UpdateRecipeInput struct {
 	Description string
 	Ingredients []IngredientInput
 	Steps       []StepInput
-	CookingTime int
+	CookingTime int64
 	Portions    int
 	Tags        []string
 }

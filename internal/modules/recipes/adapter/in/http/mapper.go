@@ -45,7 +45,7 @@ func toRecipeResponse(recipe *dto.Recipe) *RecipeResponse {
 		steps[i] = StepResponse{
 			Order:       step.Order,
 			Description: step.Description,
-			Duration:    step.Duration,
+			Duration:    int64(step.Duration.Seconds()),
 		}
 	}
 

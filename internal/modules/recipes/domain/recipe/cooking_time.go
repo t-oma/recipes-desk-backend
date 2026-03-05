@@ -9,7 +9,7 @@ type CookingTime struct {
 	value time.Duration
 }
 
-func NewCookingTime(seconds int) (CookingTime, error) {
+func NewCookingTime(seconds int64) (CookingTime, error) {
 	if seconds < 0 {
 		return CookingTime{}, ErrCookingNegativeTime
 	}
@@ -20,6 +20,10 @@ func NewCookingTime(seconds int) (CookingTime, error) {
 
 func (c CookingTime) Duration() time.Duration {
 	return c.value
+}
+
+func (c CookingTime) SecondsInt64() int64 {
+	return int64(c.value.Seconds())
 }
 
 func (c CookingTime) String() string {

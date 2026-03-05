@@ -16,7 +16,7 @@ type Step struct {
 	duration    time.Duration // in minutes
 }
 
-func NewStep(order int, description string, durationMin int) (Step, error) {
+func NewStep(order int, description string, durationSec int64) (Step, error) {
 	if order < 1 {
 		return Step{}, ErrInvalidStepOrder
 	}
@@ -26,14 +26,14 @@ func NewStep(order int, description string, durationMin int) (Step, error) {
 	if len(description) > StepMaxDescriptionLength {
 		return Step{}, ErrStepDescriptionTooLong
 	}
-	if durationMin < 0 {
+	if durationSec < 0 {
 		return Step{}, ErrNegativeDuration
 	}
 
 	return Step{
 		order:       order,
 		description: description,
-		duration:    time.Duration(durationMin) * time.Minute,
+		duration:    time.Duration(durationSec) * time.Second,
 	}, nil
 }
 
@@ -47,6 +47,10 @@ func (s Step) Description() string {
 
 func (s Step) Duration() time.Duration {
 	return s.duration
+}
+
+func (s Step) SecondsInt64() int64 {
+	return int64(s.duration.Seconds())
 }
 
 func (s Step) String() string {

@@ -11,12 +11,12 @@ import (
 func TestNewCookingTime(t *testing.T) {
 	tests := []struct {
 		name    string
-		seconds int
+		seconds int64
 		wantErr error
 	}{
 		{
 			name:    "valid time",
-			seconds: 10 * 60,
+			seconds: 60,
 			wantErr: nil,
 		},
 		{

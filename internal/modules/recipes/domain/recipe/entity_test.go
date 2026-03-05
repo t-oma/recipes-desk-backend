@@ -28,7 +28,7 @@ func TestNewEntity(t *testing.T) {
 		desc        string
 		ingredients []recipe.Ingredient
 		steps       []recipe.Step
-		cookingTime int
+		cookingTime int64
 		portions    int
 		tags        []recipe.Tag
 		authorID    string

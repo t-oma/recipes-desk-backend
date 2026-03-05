@@ -28,7 +28,7 @@ func NewEntity(
 	description string,
 	ingredientsVO []Ingredient,
 	stepsVO []Step,
-	cookingTime int,
+	cookingTime int64,
 	portions int,
 	tagsVO []Tag,
 	authorID string,
@@ -161,6 +161,14 @@ func (r Entity) CreatedAt() time.Time {
 	return r.createdAt
 }
 
+func (r Entity) HasID() bool {
+	return r.ID().Value() != ""
+}
+
+func (r *Entity) AssignID(id EntityID) {
+	r.id = id
+}
+
 func (r Entity) Equals(other *Entity) bool {
 	if other == nil {
 		return false
@@ -169,8 +177,7 @@ func (r Entity) Equals(other *Entity) bool {
 	return r.ID().Value() == other.ID().Value()
 }
 
-func (r *Entity) RestoreFromPersistence(id EntityID, updatedAt time.Time, createdAt time.Time) {
-	r.id = id
+func (r *Entity) RestoreFromPersistence(updatedAt time.Time, createdAt time.Time) {
 	r.updatedAt = updatedAt
 	r.createdAt = createdAt
 }
