@@ -31,10 +31,6 @@ func NewDescription(desc string) (Description, error) {
 	}, nil
 }
 
-func (d Description) Value() string {
-	return d.value
-}
-
 func (d Description) String() string {
 	return d.value
 }

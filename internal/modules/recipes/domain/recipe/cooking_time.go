@@ -27,7 +27,7 @@ func (c CookingTime) SecondsInt64() int64 {
 }
 
 func (c CookingTime) String() string {
-	return fmt.Sprintf("%f sec", c.value.Seconds())
+	return fmt.Sprintf("%f", c.value.Seconds())
 }
 
 var ErrCookingNegativeTime = fmt.Errorf(

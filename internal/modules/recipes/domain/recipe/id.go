@@ -20,10 +20,6 @@ func NewEntityID(id string) (EntityID, error) {
 	}, nil
 }
 
-func (r EntityID) Value() string {
-	return r.value
-}
-
 func (r EntityID) String() string {
 	return r.value
 }

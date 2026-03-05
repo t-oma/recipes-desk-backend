@@ -83,7 +83,7 @@ func recipeModelFromDomain(recipe *recipe.Entity) *recipeModel {
 	var id primitive.ObjectID
 	if recipe.HasID() {
 		var err error
-		id, err = primitive.ObjectIDFromHex(recipe.ID().Value())
+		id, err = primitive.ObjectIDFromHex(recipe.ID().String())
 		if err != nil {
 			id = primitive.NewObjectID()
 		}

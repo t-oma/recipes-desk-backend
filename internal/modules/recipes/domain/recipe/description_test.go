@@ -50,7 +50,6 @@ func TestNewDescription(t *testing.T) {
 			} else {
 				require.NoError(t, gotErr)
 				require.NotEmpty(t, got.String())
-				require.NotEmpty(t, got.Value())
 			}
 		})
 	}

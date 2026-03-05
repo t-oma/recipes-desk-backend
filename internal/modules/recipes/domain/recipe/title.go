@@ -31,10 +31,6 @@ func NewTitle(title string) (Title, error) {
 	}, nil
 }
 
-func (t Title) Value() string {
-	return t.value
-}
-
 func (t Title) String() string {
 	return t.value
 }

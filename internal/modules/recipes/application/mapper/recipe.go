@@ -33,9 +33,9 @@ func ToRecipeDTO(recipe *recipe.Entity) *dto.Recipe {
 	}
 
 	return &dto.Recipe{
-		ID:          recipe.ID().Value(),
-		Title:       recipe.Title().Value(),
-		Description: recipe.Description().Value(),
+		ID:          recipe.ID().String(),
+		Title:       recipe.Title().String(),
+		Description: recipe.Description().String(),
 		Ingredients: ingredients,
 		Steps:       steps,
 		CookingTime: recipe.CookingTime().SecondsInt64(),

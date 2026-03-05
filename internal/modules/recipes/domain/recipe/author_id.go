@@ -20,10 +20,6 @@ func NewAuthorID(id string) (AuthorID, error) {
 	}, nil
 }
 
-func (a AuthorID) Value() string {
-	return a.value
-}
-
 func (a AuthorID) String() string {
 	return a.value
 }

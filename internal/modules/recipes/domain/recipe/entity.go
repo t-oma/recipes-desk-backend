@@ -162,7 +162,7 @@ func (r Entity) CreatedAt() time.Time {
 }
 
 func (r Entity) HasID() bool {
-	return r.ID().Value() != ""
+	return r.ID().String() != ""
 }
 
 func (r *Entity) AssignID(id EntityID) {
@@ -174,7 +174,7 @@ func (r Entity) Equals(other *Entity) bool {
 		return false
 	}
 
-	return r.ID().Value() == other.ID().Value()
+	return r.ID().String() == other.ID().String()
 }
 
 func (r *Entity) RestoreFromPersistence(updatedAt time.Time, createdAt time.Time) {

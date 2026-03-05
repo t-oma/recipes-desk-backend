@@ -185,7 +185,7 @@ func (s *Service) Update(
 		input.CookingTime,
 		input.Portions,
 		tags,
-		existing.AuthorID().Value(),
+		existing.AuthorID().String(),
 	)
 	if err != nil {
 		return nil, err

@@ -33,7 +33,6 @@ func TestNewAuthorID(t *testing.T) {
 				require.ErrorIs(t, gotErr, tt.wantErr)
 			} else {
 				require.NoError(t, gotErr)
-				require.NotEmpty(t, got.Value())
 				require.NotEmpty(t, got.String())
 			}
 		})

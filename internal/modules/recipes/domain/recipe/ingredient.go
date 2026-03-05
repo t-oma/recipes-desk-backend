@@ -51,9 +51,9 @@ func (i Ingredient) Equals(other *Ingredient) bool {
 		return false
 	}
 
-	return i.name == other.name &&
-		i.amount.Value() == other.amount.Value() &&
-		i.unit.Name() == other.unit.Name()
+	return i.Name() == other.Name() &&
+		i.Amount().String() == other.Amount().String() &&
+		i.Unit().Name() == other.Unit().Name()
 }
 
 func (i Ingredient) String() string {
