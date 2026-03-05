@@ -9,7 +9,8 @@ import (
 
 	"recipes-desk/internal/modules/recipes/application/dto"
 	"recipes-desk/internal/modules/recipes/application/ports/in"
-	"recipes-desk/internal/modules/recipes/domain"
+	"recipes-desk/internal/modules/recipes/domain/ports"
+	"recipes-desk/internal/modules/recipes/domain/recipe"
 )
 
 // Handler handles HTTP requests for recipes.
@@ -29,9 +30,9 @@ func NewHandler(service in.RecipeService, log *zerolog.Logger) *Handler {
 // handleError maps domain errors to HTTP status codes.
 func handleError(c *gin.Context, err error) {
 	switch {
-	case errors.Is(err, domain.ErrNotFound):
+	case errors.Is(err, ports.ErrNotFound):
 		c.JSON(http.StatusNotFound, gin.H{"error": "recipe not found"})
-	case errors.Is(err, domain.ErrValidation):
+	case errors.Is(err, recipe.ErrValidation):
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 	default:
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "internal server error"})
@@ -91,7 +92,6 @@ func (h *Handler) GetByID(c *gin.Context) {
 
 func (h *Handler) Create(c *gin.Context) {
 	userID := c.GetString("userID")
-	_ = userID
 
 	var req CreateRecipeRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
@@ -108,6 +108,7 @@ func (h *Handler) Create(c *gin.Context) {
 		CookingTime: req.CookingTime,
 		Portions:    req.Portions,
 		Tags:        req.Tags,
+		UserID:      userID,
 	})
 	if err != nil {
 		handleError(c, err)

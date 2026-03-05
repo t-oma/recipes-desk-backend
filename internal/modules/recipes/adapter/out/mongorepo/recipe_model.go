@@ -5,7 +5,7 @@ import (
 
 	"go.mongodb.org/mongo-driver/bson/primitive"
 
-	"recipes-desk/internal/modules/recipes/domain"
+	"recipes-desk/internal/modules/recipes/domain/recipe"
 )
 
 type recipeModel struct {
@@ -14,9 +14,10 @@ type recipeModel struct {
 	Description string             `bson:"description"`
 	Ingredients []ingredientModel  `bson:"ingredients"`
 	Steps       []stepModel        `bson:"steps"`
-	CookingTime int                `bson:"cookingTime"`
+	CookingTime int64              `bson:"cookingTime"`
 	Portions    int                `bson:"portions"`
-	Tags        []string           `bson:"tags"`
+	Tags        []tagModel         `bson:"tags"`
+	AuthorID    string             `bson:"authorId"`
 	CreatedAt   time.Time          `bson:"createdAt"`
 	UpdatedAt   time.Time          `bson:"updatedAt"`
 }
@@ -35,68 +36,88 @@ func (m *recipeModel) setID() {
 
 func (m *recipeModel) prepareForInsert() {
 	m.setTimestamps()
-	m.setID()
+	if m.ID.IsZero() {
+		m.setID()
+	}
 }
 
 func (m *recipeModel) prepareForUpdate() {
 	m.setTimestamps()
 }
 
-func (m *recipeModel) toDomain() *domain.Recipe {
-	ingredients := make([]domain.Ingredient, len(m.Ingredients))
+func (m *recipeModel) toDomain() (*recipe.Entity, error) {
+	ingredients := make([]recipe.Ingredient, len(m.Ingredients))
 	for i, ingredient := range m.Ingredients {
 		ingredients[i] = ingredient.toDomain()
 	}
 
-	steps := make([]domain.Step, len(m.Steps))
+	steps := make([]recipe.Step, len(m.Steps))
 	for i, step := range m.Steps {
 		steps[i] = step.toDomain()
 	}
 
-	return &domain.Recipe{
-		ID:          m.ID.Hex(),
-		Title:       m.Title,
-		Description: m.Description,
-		Ingredients: ingredients,
-		Steps:       steps,
-		CookingTime: m.CookingTime,
-		Portions:    m.Portions,
-		Tags:        m.Tags,
-		CreatedAt:   m.CreatedAt,
-		UpdatedAt:   m.UpdatedAt,
+	tags := make([]recipe.Tag, len(m.Tags))
+	for i, tag := range m.Tags {
+		tags[i] = tag.toDomain()
 	}
+
+	recipe, err := recipe.NewEntity(
+		m.ID.Hex(),
+		m.Title,
+		m.Description,
+		ingredients,
+		steps,
+		m.CookingTime,
+		m.Portions,
+		tags,
+		m.AuthorID,
+	)
+	if err != nil {
+		return nil, err
+	}
+	recipe.RestoreFromPersistence(m.UpdatedAt, m.CreatedAt)
+	return recipe, nil
 }
 
-func recipeModelFromDomain(recipe *domain.Recipe) *recipeModel {
+func recipeModelFromDomain(recipe *recipe.Entity) *recipeModel {
 	var id primitive.ObjectID
-	if recipe.ID != "" {
+	if recipe.HasID() {
 		var err error
-		id, err = primitive.ObjectIDFromHex(recipe.ID)
+		id, err = primitive.ObjectIDFromHex(recipe.ID().Value())
 		if err != nil {
-			id = primitive.NilObjectID
+			id = primitive.NewObjectID()
 		}
 	}
 
-	ingredients := make([]ingredientModel, len(recipe.Ingredients))
-	for i, ingredient := range recipe.Ingredients {
+	recipeIngredients := recipe.Ingredients()
+	ingredients := make([]ingredientModel, len(recipeIngredients))
+	for i, ingredient := range recipeIngredients {
 		ingredients[i] = ingredientModelFromDomain(ingredient)
 	}
 
-	steps := make([]stepModel, len(recipe.Steps))
-	for i, step := range recipe.Steps {
+	recipeSteps := recipe.Steps()
+	steps := make([]stepModel, len(recipeSteps))
+	for i, step := range recipeSteps {
 		steps[i] = stepModelFromDomain(step)
+	}
+
+	recipeTags := recipe.Tags()
+	tags := make([]tagModel, len(recipeTags))
+	for i, tag := range recipeTags {
+		tags[i] = tagModelFromDomain(tag)
 	}
 
 	return &recipeModel{
 		ID:          id,
-		Title:       recipe.Title,
-		Description: recipe.Description,
+		Title:       recipe.Title().String(),
+		Description: recipe.Description().String(),
 		Ingredients: ingredients,
 		Steps:       steps,
-		CookingTime: recipe.CookingTime,
-		Portions:    recipe.Portions,
-		Tags:        recipe.Tags,
-		CreatedAt:   recipe.CreatedAt,
-		UpdatedAt:   recipe.UpdatedAt,
+		CookingTime: recipe.CookingTime().SecondsInt64(),
+		Portions:    recipe.Portions().Value(),
+		Tags:        tags,
+		AuthorID:    recipe.AuthorID().String(),
+		CreatedAt:   recipe.CreatedAt(),
+		UpdatedAt:   recipe.UpdatedAt(),
 	}
 }

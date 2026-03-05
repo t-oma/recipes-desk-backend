@@ -1,6 +1,7 @@
 package dto
 
 type CreateRecipeInput struct {
+	UserID      string
 	Title       string
 	Description string
 	Ingredients []IngredientInput

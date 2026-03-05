@@ -15,6 +15,7 @@ import (
 
 	"recipes-desk/internal/modules/recipes/adapter/out/mongorepo"
 	"recipes-desk/internal/modules/recipes/domain"
+	"recipes-desk/internal/modules/recipes/domain/ports"
 	"recipes-desk/pkg/testutils"
 )
 
@@ -86,12 +87,12 @@ func TestIntegration_MongoRepository_FindByID(t *testing.T) {
 	t.Run("find non-existing recipe", func(t *testing.T) {
 		nonExistingID := primitive.NewObjectID().Hex()
 		_, err := repo.FindByID(ctx, nonExistingID)
-		assert.ErrorIs(t, err, domain.ErrNotFound)
+		assert.ErrorIs(t, err, ports.ErrNotFound)
 	})
 
 	t.Run("find with invalid id", func(t *testing.T) {
 		_, err := repo.FindByID(ctx, "invalid-id")
-		assert.ErrorIs(t, err, domain.ErrNotFound)
+		assert.ErrorIs(t, err, ports.ErrNotFound)
 	})
 }
 
@@ -132,7 +133,7 @@ func TestIntegration_MongoRepository_Search(t *testing.T) {
 	ctx := context.Background()
 
 	// Create recipes with different titles
-	recipes := []*domain.Recipe{
+	recipes := []domain.Recipe{
 		{
 			Title:       "Pasta Carbonara",
 			Description: "Classic Italian dish",
@@ -219,17 +220,17 @@ func TestIntegration_MongoRepository_Update(t *testing.T) {
 		require.NotZero(t, recipe.ID)
 
 		// Verify update
-		updated, err := repo.FindByID(ctx, recipe.ID)
+		updated, err := repo.FindByID(ctx, recipe.ID().String())
 		require.NoError(t, err)
 		assert.Equal(t, "Updated Title", updated.Title)
 		// Compare timestamps in UTC to avoid timezone issues
 		assert.WithinDuration(
 			t,
 			originalCreatedAt.UTC(),
-			updated.CreatedAt.UTC(),
+			updated.CreatedAt().UTC(),
 			time.Millisecond,
 		) // CreatedAt preserved
-		assert.True(t, updated.UpdatedAt.After(originalCreatedAt))
+		assert.True(t, updated.UpdatedAt().After(originalCreatedAt))
 	})
 
 	t.Run("update non-existing recipe", func(t *testing.T) {
@@ -245,7 +246,7 @@ func TestIntegration_MongoRepository_Update(t *testing.T) {
 		}
 
 		_, err := repo.Update(ctx, nonExisting)
-		assert.ErrorIs(t, err, domain.ErrNotFound)
+		assert.ErrorIs(t, err, ports.ErrNotFound)
 	})
 }
 
@@ -275,17 +276,17 @@ func TestIntegration_MongoRepository_Delete(t *testing.T) {
 
 		// Verify it's gone
 		_, err = repo.FindByID(ctx, recipe.ID)
-		assert.ErrorIs(t, err, domain.ErrNotFound)
+		assert.ErrorIs(t, err, ports.ErrNotFound)
 	})
 
 	t.Run("delete non-existing recipe", func(t *testing.T) {
 		nonExistingID := primitive.NewObjectID().Hex()
 		err := repo.Delete(ctx, nonExistingID)
-		assert.ErrorIs(t, err, domain.ErrNotFound)
+		assert.ErrorIs(t, err, ports.ErrNotFound)
 	})
 
 	t.Run("delete with invalid id", func(t *testing.T) {
 		err := repo.Delete(ctx, "invalid-id")
-		assert.ErrorIs(t, err, domain.ErrNotFound)
+		assert.ErrorIs(t, err, ports.ErrNotFound)
 	})
 }
