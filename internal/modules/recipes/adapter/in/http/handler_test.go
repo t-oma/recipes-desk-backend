@@ -18,7 +18,8 @@ import (
 	httphandler "recipes-desk/internal/modules/recipes/adapter/in/http"
 	"recipes-desk/internal/modules/recipes/application/dto"
 	"recipes-desk/internal/modules/recipes/application/ports/in"
-	"recipes-desk/internal/modules/recipes/domain"
+	"recipes-desk/internal/modules/recipes/domain/ports"
+	"recipes-desk/internal/modules/recipes/domain/valueobject"
 )
 
 // mockService is a mock implementation of handler.RecipeService for testing.
@@ -188,7 +189,7 @@ func TestHandler_GetByID(t *testing.T) {
 			id:   recipeID,
 			mockSetup: func(m *mockService) {
 				m.On("GetByID", mock.Anything, recipeID).
-					Return(nil, domain.ErrNotFound)
+					Return(nil, ports.ErrNotFound)
 			},
 			wantStatusCode: http.StatusNotFound,
 			wantRecipe:     false,
@@ -355,7 +356,7 @@ func TestHandler_Create(t *testing.T) {
 			},
 			mockSetup: func(m *mockService) {
 				m.On("Create", mock.Anything, mock.Anything).
-					Return(nil, domain.ErrInvalidTitleLength)
+					Return(nil, valueobject.ErrTitleTooShort)
 			},
 			wantStatusCode: http.StatusBadRequest,
 			wantCreated:    false,
@@ -468,7 +469,7 @@ func TestHandler_Update(t *testing.T) {
 			},
 			mockSetup: func(m *mockService) {
 				m.On("Update", mock.Anything, recipeID, mock.AnythingOfType("dto.UpdateRecipeInput")).
-					Return(nil, domain.ErrNotFound)
+					Return(nil, ports.ErrNotFound)
 			},
 			wantStatusCode: http.StatusNotFound,
 		},
@@ -510,7 +511,7 @@ func TestHandler_Update(t *testing.T) {
 			},
 			mockSetup: func(m *mockService) {
 				m.On("Update", mock.Anything, recipeID, mock.Anything).
-					Return(nil, domain.ErrInvalidTitleLength)
+					Return(nil, valueobject.ErrTitleTooShort)
 			},
 			wantStatusCode: http.StatusBadRequest,
 		},
@@ -556,7 +557,7 @@ func TestHandler_Delete(t *testing.T) {
 			name: "not found",
 			id:   recipeID,
 			mockSetup: func(m *mockService) {
-				m.On("Delete", mock.Anything, recipeID).Return(domain.ErrNotFound)
+				m.On("Delete", mock.Anything, recipeID).Return(ports.ErrNotFound)
 			},
 			wantStatusCode: http.StatusNotFound,
 		},

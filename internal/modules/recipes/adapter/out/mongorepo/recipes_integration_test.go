@@ -14,14 +14,16 @@ import (
 	"go.mongodb.org/mongo-driver/bson/primitive"
 
 	"recipes-desk/internal/modules/recipes/adapter/out/mongorepo"
-	"recipes-desk/internal/modules/recipes/domain"
+	"recipes-desk/internal/modules/recipes/domain/entity"
+	"recipes-desk/internal/modules/recipes/domain/fixtures"
 	"recipes-desk/internal/modules/recipes/domain/ports"
+	"recipes-desk/internal/modules/recipes/domain/valueobject"
 	"recipes-desk/pkg/testutils"
 )
 
 const _testDBName = "test_recipes_integration"
 
-func TestIntegration_MongoRepository_Create(t *testing.T) {
+func TestIntegration_RecipeRepository_Create(t *testing.T) {
 	db, cleanup := testutils.SetupMongoContainer(t, _testDBName)
 	defer cleanup()
 
@@ -29,34 +31,20 @@ func TestIntegration_MongoRepository_Create(t *testing.T) {
 	ctx := context.Background()
 
 	t.Run("create new recipe", func(t *testing.T) {
-		recipe := &domain.Recipe{
-			Title:       "Integration Test Recipe",
-			Description: "This is a valid description for integration test",
-			Ingredients: []domain.Ingredient{
-				{Name: "Flour", Amount: 500, Unit: "g"},
-				{Name: "Eggs", Amount: 3, Unit: "pcs"},
-			},
-			Steps: []domain.Step{
-				{Order: 1, Description: "Mix ingredients", Duration: 5},
-				{Order: 2, Description: "Bake", Duration: 30},
-			},
-			CookingTime: 35,
-			Portions:    4,
-			Tags:        []string{"test", "integration"},
-		}
+		entity := fixtures.NewRecipe(t, "Integration Test Recipe")
 
-		recipe, err := repo.Create(ctx, recipe)
+		created, err := repo.Create(ctx, entity)
 		require.NoError(t, err)
 
-		// Verify ID was set
-		assert.NotZero(t, recipe.ID)
+		// Verify ID preserved
+		assert.Equal(t, entity.ID().String(), created.ID().String())
 		// Verify timestamps were set
-		assert.NotZero(t, recipe.CreatedAt)
-		assert.NotZero(t, recipe.UpdatedAt)
+		assert.False(t, created.CreatedAt().IsZero())
+		assert.False(t, created.UpdatedAt().IsZero())
 	})
 }
 
-func TestIntegration_MongoRepository_FindByID(t *testing.T) {
+func TestIntegration_RecipeRepository_FindByID(t *testing.T) {
 	db, cleanup := testutils.SetupMongoContainer(t, _testDBName)
 	defer cleanup()
 
@@ -64,24 +52,17 @@ func TestIntegration_MongoRepository_FindByID(t *testing.T) {
 	ctx := context.Background()
 
 	// Create a recipe first
-	recipe := &domain.Recipe{
-		Title:       "Find Me",
-		Description: "This recipe will be found by ID",
-		Ingredients: []domain.Ingredient{{Name: "Test", Amount: 1, Unit: "g"}},
-		Steps:       []domain.Step{{Order: 1, Description: "Step", Duration: 1}},
-		CookingTime: 10,
-		Portions:    2,
-		Tags:        []string{"test"},
-	}
-	recipe, err := repo.Create(ctx, recipe)
+	entity := fixtures.NewRecipe(t, "Test Recipe")
+	created, err := repo.Create(ctx, entity)
 	require.NoError(t, err)
+	id := created.ID().String()
 
 	t.Run("find existing recipe", func(t *testing.T) {
-		found, err := repo.FindByID(ctx, recipe.ID)
+		found, err := repo.FindByID(ctx, id)
 		require.NoError(t, err)
-		require.NotZero(t, found.ID)
-		assert.Equal(t, recipe.ID, found.ID)
-		assert.Equal(t, recipe.Title, found.Title)
+		require.NotEmpty(t, found.ID().String())
+		assert.Equal(t, id, found.ID().String())
+		assert.Equal(t, entity.Title().String(), found.Title().String())
 	})
 
 	t.Run("find non-existing recipe", func(t *testing.T) {
@@ -96,7 +77,7 @@ func TestIntegration_MongoRepository_FindByID(t *testing.T) {
 	})
 }
 
-func TestIntegration_MongoRepository_FindAll(t *testing.T) {
+func TestIntegration_RecipeRepository_FindAll(t *testing.T) {
 	db, cleanup := testutils.SetupMongoContainer(t, _testDBName)
 	defer cleanup()
 
@@ -105,16 +86,8 @@ func TestIntegration_MongoRepository_FindAll(t *testing.T) {
 
 	// Create multiple recipes
 	for i := 0; i < 3; i++ {
-		recipe := &domain.Recipe{
-			Title:       fmt.Sprintf("Recipe %d", i),
-			Description: "Test description",
-			Ingredients: []domain.Ingredient{{Name: "Test", Amount: 1, Unit: "g"}},
-			Steps:       []domain.Step{{Order: 1, Description: "Step", Duration: 1}},
-			CookingTime: 10,
-			Portions:    2,
-			Tags:        []string{"test"},
-		}
-		recipe, err := repo.Create(ctx, recipe)
+		entity := fixtures.NewRecipe(t, fmt.Sprintf("Recipe %d", i))
+		entity, err := repo.Create(ctx, entity)
 		require.NoError(t, err)
 	}
 
@@ -125,7 +98,7 @@ func TestIntegration_MongoRepository_FindAll(t *testing.T) {
 	})
 }
 
-func TestIntegration_MongoRepository_Search(t *testing.T) {
+func TestIntegration_RecipeRepository_Search(t *testing.T) {
 	db, cleanup := testutils.SetupMongoContainer(t, _testDBName)
 	defer cleanup()
 
@@ -133,47 +106,50 @@ func TestIntegration_MongoRepository_Search(t *testing.T) {
 	ctx := context.Background()
 
 	// Create recipes with different titles
-	recipes := []domain.Recipe{
-		{
-			Title:       "Pasta Carbonara",
-			Description: "Classic Italian dish",
-			Ingredients: []domain.Ingredient{{Name: "Pasta", Amount: 400, Unit: "g"}},
-			Steps:       []domain.Step{{Order: 1, Description: "Cook", Duration: 10}},
-			CookingTime: 20,
-			Portions:    4,
-			Tags:        []string{"italian"},
-		},
-		{
-			Title:       "Pasta Bolognese",
-			Description: "Italian meat sauce",
-			Ingredients: []domain.Ingredient{{Name: "Pasta", Amount: 400, Unit: "g"}},
-			Steps:       []domain.Step{{Order: 1, Description: "Cook", Duration: 10}},
-			CookingTime: 30,
-			Portions:    4,
-			Tags:        []string{"italian"},
-		},
-		{
-			Title:       "Chicken Curry",
-			Description: "Spicy Indian dish",
-			Ingredients: []domain.Ingredient{{Name: "Chicken", Amount: 500, Unit: "g"}},
-			Steps:       []domain.Step{{Order: 1, Description: "Cook", Duration: 20}},
-			CookingTime: 45,
-			Portions:    4,
-			Tags:        []string{"indian", "spicy"},
-		},
+	testRecipes := []struct {
+		title string
+		id    string
+	}{
+		{"Pasta Carbonara", ""},
+		{"Pasta Bolognese", ""},
+		{"Chicken Curry", ""},
 	}
 
-	for i, recipe := range recipes {
-		var err error
-		recipes[i], err = repo.Create(ctx, recipe)
+	for i, tr := range testRecipes {
+		// Create a new entity with specific title
+		ingredients := []valueobject.Ingredient{
+			fixtures.MustIngredient(t, "Test", 1, "g"),
+		}
+		steps := []valueobject.Step{
+			fixtures.MustStep(t, 1, "Step", 60),
+		}
+		tags := []valueobject.Tag{
+			fixtures.MustTag(t, "test"),
+		}
+
+		customEntity, err := entity.NewRecipe(
+			primitive.NewObjectID().Hex(),
+			tr.title,
+			"Classic Italian dish with valid description",
+			ingredients,
+			steps,
+			600,
+			4,
+			tags,
+			primitive.NewObjectID().Hex(),
+		)
 		require.NoError(t, err)
+
+		created, err := repo.Create(ctx, customEntity)
+		require.NoError(t, err)
+		testRecipes[i].id = created.ID().String()
 	}
 
 	t.Run("search by title - case insensitive", func(t *testing.T) {
 		results, err := repo.Search(ctx, "pasta")
 		require.NoError(t, err)
 		for _, result := range results {
-			require.NotZero(t, result.ID)
+			require.NotEmpty(t, result.ID().String())
 		}
 		assert.Len(t, results, 2)
 	})
@@ -181,14 +157,11 @@ func TestIntegration_MongoRepository_Search(t *testing.T) {
 	t.Run("search with no matches", func(t *testing.T) {
 		results, err := repo.Search(ctx, "sushi")
 		require.NoError(t, err)
-		for _, result := range results {
-			require.NotZero(t, result.ID)
-		}
 		assert.Len(t, results, 0)
 	})
 }
 
-func TestIntegration_MongoRepository_Update(t *testing.T) {
+func TestIntegration_RecipeRepository_Update(t *testing.T) {
 	db, cleanup := testutils.SetupMongoContainer(t, _testDBName)
 	defer cleanup()
 
@@ -196,33 +169,51 @@ func TestIntegration_MongoRepository_Update(t *testing.T) {
 	ctx := context.Background()
 
 	// Create a recipe
-	recipe := &domain.Recipe{
-		Title:       "Original Title",
-		Description: "Original description",
-		Ingredients: []domain.Ingredient{{Name: "Test", Amount: 1, Unit: "g"}},
-		Steps:       []domain.Step{{Order: 1, Description: "Step", Duration: 1}},
-		CookingTime: 10,
-		Portions:    2,
-		Tags:        []string{"test"},
-	}
-	recipe, err := repo.Create(ctx, recipe)
+	recipe := fixtures.NewRecipe(t, "Original Title")
+	created, err := repo.Create(ctx, recipe)
 	require.NoError(t, err)
+	id := created.ID().String()
 
-	originalCreatedAt := recipe.CreatedAt
+	originalCreatedAt := created.CreatedAt()
 
 	t.Run("update existing recipe", func(t *testing.T) {
 		// Wait a bit to ensure UpdatedAt changes
 		time.Sleep(10 * time.Millisecond)
 
-		recipe.Title = "Updated Title"
-		recipe, err := repo.Update(ctx, recipe)
+		// Fetch the recipe first
+		recipeToUpdate, err := repo.FindByID(ctx, id)
 		require.NoError(t, err)
-		require.NotZero(t, recipe.ID)
+
+		// Create updated version with new title
+		ingredients := recipeToUpdate.Ingredients()
+		steps := recipeToUpdate.Steps()
+		tags := recipeToUpdate.Tags()
+
+		updatedEntity, err := entity.NewRecipe(
+			id,
+			"Updated Title",
+			recipeToUpdate.Description().String(),
+			ingredients,
+			steps,
+			recipeToUpdate.CookingTime().SecondsInt64(),
+			recipeToUpdate.Portions().Value(),
+			tags,
+			recipeToUpdate.AuthorID().String(),
+		)
+		require.NoError(t, err)
+		updatedEntity.RestoreFromPersistence(
+			recipeToUpdate.UpdatedAt(),
+			recipeToUpdate.CreatedAt(),
+		)
+
+		result, err := repo.Update(ctx, updatedEntity)
+		require.NoError(t, err)
+		require.NotEmpty(t, result.ID().String())
 
 		// Verify update
-		updated, err := repo.FindByID(ctx, recipe.ID().String())
+		updated, err := repo.FindByID(ctx, id)
 		require.NoError(t, err)
-		assert.Equal(t, "Updated Title", updated.Title)
+		assert.Equal(t, "Updated Title", updated.Title().String())
 		// Compare timestamps in UTC to avoid timezone issues
 		assert.WithinDuration(
 			t,
@@ -234,23 +225,35 @@ func TestIntegration_MongoRepository_Update(t *testing.T) {
 	})
 
 	t.Run("update non-existing recipe", func(t *testing.T) {
-		nonExisting := &domain.Recipe{
-			ID:          primitive.NewObjectID().Hex(),
-			Title:       "Does not exist",
-			Description: "This recipe doesn't exist",
-			Ingredients: []domain.Ingredient{{Name: "Test", Amount: 1, Unit: "g"}},
-			Steps:       []domain.Step{{Order: 1, Description: "Step", Duration: 1}},
-			CookingTime: 10,
-			Portions:    2,
-			Tags:        []string{"test"},
+		ingredients := []valueobject.Ingredient{
+			fixtures.MustIngredient(t, "Test", 1, "g"),
+		}
+		steps := []valueobject.Step{
+			fixtures.MustStep(t, 1, "Step", 60),
+		}
+		tags := []valueobject.Tag{
+			fixtures.MustTag(t, "test"),
 		}
 
-		_, err := repo.Update(ctx, nonExisting)
+		nonExisting, err := entity.NewRecipe(
+			primitive.NewObjectID().Hex(),
+			"Does not exist",
+			"This recipe does not exist description",
+			ingredients,
+			steps,
+			600,
+			2,
+			tags,
+			primitive.NewObjectID().Hex(),
+		)
+		require.NoError(t, err)
+
+		_, err = repo.Update(ctx, nonExisting)
 		assert.ErrorIs(t, err, ports.ErrNotFound)
 	})
 }
 
-func TestIntegration_MongoRepository_Delete(t *testing.T) {
+func TestIntegration_RecipeRepository_Delete(t *testing.T) {
 	db, cleanup := testutils.SetupMongoContainer(t, _testDBName)
 	defer cleanup()
 
@@ -258,24 +261,17 @@ func TestIntegration_MongoRepository_Delete(t *testing.T) {
 	ctx := context.Background()
 
 	// Create a recipe
-	recipe := &domain.Recipe{
-		Title:       "To be deleted",
-		Description: "This recipe will be deleted",
-		Ingredients: []domain.Ingredient{{Name: "Test", Amount: 1, Unit: "g"}},
-		Steps:       []domain.Step{{Order: 1, Description: "Step", Duration: 1}},
-		CookingTime: 10,
-		Portions:    2,
-		Tags:        []string{"test"},
-	}
-	recipe, err := repo.Create(ctx, recipe)
+	entity := fixtures.NewRecipe(t, "To be deleted")
+	created, err := repo.Create(ctx, entity)
 	require.NoError(t, err)
+	id := created.ID().String()
 
 	t.Run("delete existing recipe", func(t *testing.T) {
-		err := repo.Delete(ctx, recipe.ID)
+		err := repo.Delete(ctx, id)
 		require.NoError(t, err)
 
 		// Verify it's gone
-		_, err = repo.FindByID(ctx, recipe.ID)
+		_, err = repo.FindByID(ctx, id)
 		assert.ErrorIs(t, err, ports.ErrNotFound)
 	})
 
