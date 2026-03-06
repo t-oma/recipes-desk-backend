@@ -8,9 +8,9 @@ type ingredientModel struct {
 	Unit   string  `bson:"unit"`
 }
 
-func (m *ingredientModel) toDomain() valueobject.Ingredient {
-	ingredient, _ := valueobject.NewIngredient(m.Name, m.Amount, m.Unit)
-	return ingredient
+func (m *ingredientModel) toDomain() (valueobject.Ingredient, error) {
+	ingredient, err := valueobject.NewIngredient(m.Name, m.Amount, m.Unit)
+	return ingredient, err
 }
 
 func ingredientModelFromDomain(ingredient valueobject.Ingredient) ingredientModel {

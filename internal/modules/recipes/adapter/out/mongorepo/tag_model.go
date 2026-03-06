@@ -6,9 +6,9 @@ type tagModel struct {
 	Name string `bson:"name"`
 }
 
-func (m *tagModel) toDomain() valueobject.Tag {
-	tag, _ := valueobject.NewTag(m.Name)
-	return tag
+func (m *tagModel) toDomain() (valueobject.Tag, error) {
+	tag, err := valueobject.NewTag(m.Name)
+	return tag, err
 }
 
 func tagModelFromDomain(tag valueobject.Tag) tagModel {

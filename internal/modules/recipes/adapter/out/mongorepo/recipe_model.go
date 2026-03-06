@@ -47,19 +47,29 @@ func (m *recipeModel) prepareForUpdate() {
 }
 
 func (m *recipeModel) toDomain() (*entity.Recipe, error) {
+	var err error
 	ingredients := make([]valueobject.Ingredient, len(m.Ingredients))
 	for i, ingredient := range m.Ingredients {
-		ingredients[i] = ingredient.toDomain()
+		ingredients[i], err = ingredient.toDomain()
+		if err != nil {
+			return nil, err
+		}
 	}
 
 	steps := make([]valueobject.Step, len(m.Steps))
 	for i, step := range m.Steps {
-		steps[i] = step.toDomain()
+		steps[i], err = step.toDomain()
+		if err != nil {
+			return nil, err
+		}
 	}
 
 	tags := make([]valueobject.Tag, len(m.Tags))
 	for i, tag := range m.Tags {
-		tags[i] = tag.toDomain()
+		tags[i], err = tag.toDomain()
+		if err != nil {
+			return nil, err
+		}
 	}
 
 	recipe, err := entity.NewRecipe(

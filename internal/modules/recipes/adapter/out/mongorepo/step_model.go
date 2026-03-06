@@ -8,9 +8,9 @@ type stepModel struct {
 	Duration    int64  `bson:"duration"` // in minutes
 }
 
-func (m *stepModel) toDomain() valueobject.Step {
-	step, _ := valueobject.NewStep(m.Order, m.Description, m.Duration)
-	return step
+func (m *stepModel) toDomain() (valueobject.Step, error) {
+	step, err := valueobject.NewStep(m.Order, m.Description, m.Duration)
+	return step, err
 }
 
 func stepModelFromDomain(step valueobject.Step) stepModel {
