@@ -3,7 +3,6 @@ package application
 import (
 	"context"
 	"errors"
-	"time"
 
 	"github.com/rs/zerolog"
 
@@ -11,67 +10,78 @@ import (
 	"recipes-desk/internal/modules/recipes/application/mapper"
 	"recipes-desk/internal/modules/recipes/application/ports/in"
 	"recipes-desk/internal/modules/recipes/domain"
+	"recipes-desk/internal/modules/recipes/domain/entity"
+	"recipes-desk/internal/modules/recipes/domain/ports"
+	"recipes-desk/internal/modules/recipes/domain/valueobject"
+	"recipes-desk/pkg/sliceutils"
 )
 
 // Service handles business logic for recipes.
 type Service struct {
-	repo domain.RecipesRepository
-	log  *zerolog.Logger
+	repo  ports.RecipeRepository
+	idGen ports.IDGenerator
+	log   *zerolog.Logger
 }
 
 var _ in.RecipeService = (*Service)(nil)
 
-func NewService(repo domain.RecipesRepository, log *zerolog.Logger) *Service {
+func NewService(
+	repo ports.RecipeRepository,
+	idGen ports.IDGenerator,
+	log *zerolog.Logger,
+) *Service {
 	return &Service{
-		repo: repo,
-		log:  log,
+		repo:  repo,
+		idGen: idGen,
+		log:   log,
 	}
-}
-
-func toDomainIngredients(ingredients []dto.IngredientInput) []domain.Ingredient {
-	mapped := make([]domain.Ingredient, len(ingredients))
-	for i, ing := range ingredients {
-		mapped[i] = domain.Ingredient{
-			Name:   ing.Name,
-			Amount: ing.Amount,
-			Unit:   ing.Unit,
-		}
-	}
-	return mapped
-}
-
-func toDomainSteps(steps []dto.StepInput) []domain.Step {
-	mapped := make([]domain.Step, len(steps))
-	for i, step := range steps {
-		mapped[i] = domain.Step{
-			Order:       step.Order,
-			Description: step.Description,
-			Duration:    step.Duration,
-		}
-	}
-	return mapped
 }
 
 func (s *Service) Create(ctx context.Context, input dto.CreateRecipeInput) (*dto.Recipe, error) {
-	recipe := &domain.Recipe{
-		ID:          "",
-		Title:       input.Title,
-		Description: input.Description,
-		Ingredients: toDomainIngredients(input.Ingredients),
-		Steps:       toDomainSteps(input.Steps),
-		CookingTime: input.CookingTime,
-		Portions:    input.Portions,
-		Tags:        input.Tags,
-		CreatedAt:   time.Time{},
-		UpdatedAt:   time.Time{},
-	}
-
-	if err := recipe.Validate(); err != nil {
-		s.log.Debug().Err(err).Msg("Recipe validation failed")
+	ingredients, err := sliceutils.MapSliceWithErr(
+		input.Ingredients,
+		func(ing dto.IngredientInput) (valueobject.Ingredient, error) {
+			return valueobject.NewIngredient(ing.Name, ing.Amount, ing.Unit)
+		},
+	)
+	if err != nil {
 		return nil, err
 	}
 
-	recipe, err := s.repo.Create(ctx, recipe)
+	steps, err := sliceutils.MapSliceWithErr(
+		input.Steps,
+		func(step dto.StepInput) (valueobject.Step, error) {
+			return valueobject.NewStep(step.Order, step.Description, step.Duration)
+		},
+	)
+	if err != nil {
+		return nil, err
+	}
+
+	tags, err := sliceutils.MapSliceWithErr(
+		input.Tags,
+		valueobject.NewTag,
+	)
+	if err != nil {
+		return nil, err
+	}
+
+	recipe, err := entity.NewRecipe(
+		s.idGen.Generate(),
+		input.Title,
+		input.Description,
+		ingredients,
+		steps,
+		input.CookingTime,
+		input.Portions,
+		tags,
+		input.UserID,
+	)
+	if err != nil {
+		return nil, err
+	}
+
+	recipe, err = s.repo.Create(ctx, recipe)
 	if err != nil {
 		s.log.Error().Err(err).Msg("Failed to create recipe")
 		return nil, err
@@ -83,7 +93,7 @@ func (s *Service) Create(ctx context.Context, input dto.CreateRecipeInput) (*dto
 func (s *Service) GetByID(ctx context.Context, id string) (*dto.Recipe, error) {
 	recipe, err := s.repo.FindByID(ctx, id)
 	if err != nil {
-		if errors.Is(err, domain.ErrNotFound) {
+		if errors.Is(err, ports.ErrNotFound) {
 			s.log.Debug().Str("recipe_id", id).Msg("Recipe not found")
 			return nil, err
 		}
@@ -129,6 +139,7 @@ func (s *Service) Search(ctx context.Context, query string) ([]dto.Recipe, error
 
 func (s *Service) Update(
 	ctx context.Context,
+	userID string,
 	id string,
 	input dto.UpdateRecipeInput,
 ) (*dto.Recipe, error) {
@@ -136,22 +147,50 @@ func (s *Service) Update(
 	if err != nil {
 		return nil, err
 	}
-
-	recipe := &domain.Recipe{
-		ID:          existing.ID, // Preserve original ID and creation time
-		Title:       input.Title,
-		Description: input.Description,
-		Ingredients: toDomainIngredients(input.Ingredients),
-		Steps:       toDomainSteps(input.Steps),
-		CookingTime: input.CookingTime,
-		Portions:    input.Portions,
-		Tags:        input.Tags,
-		CreatedAt:   existing.CreatedAt,
-		UpdatedAt:   time.Time{},
+	if !existing.CanBeModified(userID) {
+		return nil, domain.ErrForbidden
 	}
 
-	if err = recipe.Validate(); err != nil {
-		s.log.Debug().Err(err).Msg("Recipe validation failed")
+	ingredients, err := sliceutils.MapSliceWithErr(
+		input.Ingredients,
+		func(ing dto.IngredientInput) (valueobject.Ingredient, error) {
+			return valueobject.NewIngredient(ing.Name, ing.Amount, ing.Unit)
+		},
+	)
+	if err != nil {
+		return nil, err
+	}
+
+	steps, err := sliceutils.MapSliceWithErr(
+		input.Steps,
+		func(step dto.StepInput) (valueobject.Step, error) {
+			return valueobject.NewStep(step.Order, step.Description, step.Duration)
+		},
+	)
+	if err != nil {
+		return nil, err
+	}
+
+	tags, err := sliceutils.MapSliceWithErr(
+		input.Tags,
+		valueobject.NewTag,
+	)
+	if err != nil {
+		return nil, err
+	}
+
+	recipe, err := entity.NewRecipe(
+		existing.ID().String(),
+		input.Title,
+		input.Description,
+		ingredients,
+		steps,
+		input.CookingTime,
+		input.Portions,
+		tags,
+		existing.AuthorID().String(),
+	)
+	if err != nil {
 		return nil, err
 	}
 

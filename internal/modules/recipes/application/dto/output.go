@@ -8,7 +8,7 @@ type Recipe struct {
 	Description string
 	Ingredients []Ingredient
 	Steps       []Step
-	CookingTime int
+	CookingTime int64
 	Portions    int
 	Tags        []string
 	CreatedAt   time.Time
@@ -24,5 +24,5 @@ type Ingredient struct {
 type Step struct {
 	Order       int
 	Description string
-	Duration    int
+	Duration    time.Duration
 }

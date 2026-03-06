@@ -14,6 +14,7 @@ type RecipeService interface {
 	Search(ctx context.Context, query string) ([]dto.Recipe, error)
 	Update(
 		ctx context.Context,
+		userID string,
 		id string,
 		recipe dto.UpdateRecipeInput,
 	) (*dto.Recipe, error)

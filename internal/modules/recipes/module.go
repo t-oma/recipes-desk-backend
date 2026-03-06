@@ -18,7 +18,8 @@ type Module struct {
 // NewModule creates a new recipes module.
 func NewModule(db *mongo.Database, log *zerolog.Logger) *Module {
 	recipeRepo := mongorepo.NewRecipes(db)
-	recipeService := application.NewService(recipeRepo, log)
+	idGenerator := mongorepo.ObjectIDGenerator{}
+	recipeService := application.NewService(recipeRepo, idGenerator, log)
 	recipeHandler := httphandler.NewHandler(recipeService, log)
 
 	return &Module{

@@ -3,6 +3,7 @@ package application_test
 import (
 	"context"
 	"errors"
+	"fmt"
 	"testing"
 
 	"github.com/rs/zerolog"
@@ -13,59 +14,81 @@ import (
 	"recipes-desk/internal/modules/recipes/application"
 	"recipes-desk/internal/modules/recipes/application/dto"
 	"recipes-desk/internal/modules/recipes/domain"
+	"recipes-desk/internal/modules/recipes/domain/entity"
+	"recipes-desk/internal/modules/recipes/domain/fixtures"
+	"recipes-desk/internal/modules/recipes/domain/ports"
+	"recipes-desk/internal/modules/recipes/domain/valueobject"
 )
+
+const _recipeTypeString = "*entity.Recipe"
 
 // mockRepository is a mock implementation of domain.Repository for testing.
 type mockRepository struct {
 	mock.Mock
 }
 
-var _ domain.RecipesRepository = (*mockRepository)(nil)
+var _ ports.RecipeRepository = (*mockRepository)(nil)
 
 func (m *mockRepository) Create(
 	ctx context.Context,
-	recipe *domain.Recipe,
-) (*domain.Recipe, error) {
+	recipe *entity.Recipe,
+) (*entity.Recipe, error) {
 	args := m.Called(ctx, recipe)
 	if args.Get(0) == nil {
 		return nil, args.Error(1)
 	}
-	return args.Get(0).(*domain.Recipe), args.Error(1)
+	return args.Get(0).(*entity.Recipe), args.Error(1)
 }
 
-func (m *mockRepository) FindByID(ctx context.Context, id string) (*domain.Recipe, error) {
+func (m *mockRepository) FindByID(ctx context.Context, id string) (*entity.Recipe, error) {
 	args := m.Called(ctx, id)
 	if args.Get(0) == nil {
 		return nil, args.Error(1)
 	}
-	return args.Get(0).(*domain.Recipe), args.Error(1)
+	return args.Get(0).(*entity.Recipe), args.Error(1)
 }
 
-func (m *mockRepository) FindAll(ctx context.Context) ([]domain.Recipe, error) {
+func (m *mockRepository) FindAll(ctx context.Context) ([]entity.Recipe, error) {
 	args := m.Called(ctx)
 	if args.Get(0) == nil {
 		return nil, args.Error(1)
 	}
-	return args.Get(0).([]domain.Recipe), args.Error(1)
+	return args.Get(0).([]entity.Recipe), args.Error(1)
 }
 
-func (m *mockRepository) Search(ctx context.Context, query string) ([]domain.Recipe, error) {
+func (m *mockRepository) Search(ctx context.Context, query string) ([]entity.Recipe, error) {
 	args := m.Called(ctx, query)
 	if args.Get(0) == nil {
 		return nil, args.Error(1)
 	}
-	return args.Get(0).([]domain.Recipe), args.Error(1)
+	return args.Get(0).([]entity.Recipe), args.Error(1)
 }
 
 func (m *mockRepository) Update(
 	ctx context.Context,
-	recipe *domain.Recipe,
-) (*domain.Recipe, error) {
+	recipe *entity.Recipe,
+) (*entity.Recipe, error) {
 	args := m.Called(ctx, recipe)
 	if args.Get(0) == nil {
 		return nil, args.Error(1)
 	}
-	return args.Get(0).(*domain.Recipe), args.Error(1)
+	return args.Get(0).(*entity.Recipe), args.Error(1)
+}
+
+type mockIDGenerator struct {
+	mock.Mock
+}
+
+var _ ports.IDGenerator = (*mockIDGenerator)(nil)
+
+func (m *mockIDGenerator) Generate() string {
+	args := m.Called()
+	return args.String(0)
+}
+
+func (m *mockIDGenerator) Validate(id string) error {
+	args := m.Called(id)
+	return args.Error(0)
 }
 
 func (m *mockRepository) Delete(ctx context.Context, id string) error {
@@ -79,7 +102,7 @@ func TestService_Create(t *testing.T) {
 	tests := []struct {
 		name      string
 		input     dto.CreateRecipeInput
-		mockSetup func(*mockRepository)
+		mockSetup func(*mockRepository, *mockIDGenerator)
 		wantErr   error
 		wantID    bool
 	}{
@@ -93,13 +116,13 @@ func TestService_Create(t *testing.T) {
 				CookingTime: 10,
 				Portions:    2,
 				Tags:        []string{"test"},
+				UserID:      "user-id",
 			},
-			mockSetup: func(m *mockRepository) {
-				m.On("Create", mock.Anything, mock.AnythingOfType("*domain.Recipe")).
-					Return(&domain.Recipe{ //nolint:exhaustruct // test struct
-						ID:    "id123",
-						Title: "Test Recipe",
-					}, nil)
+			mockSetup: func(m *mockRepository, mID *mockIDGenerator) {
+				mID.On("Generate").Return("id123")
+
+				m.On("Create", mock.Anything, mock.AnythingOfType(_recipeTypeString)).
+					Return(fixtures.NewRecipe(t, "id123", "author123", "Test Recipe"), nil)
 			},
 			wantErr: nil,
 			wantID:  true,
@@ -114,11 +137,74 @@ func TestService_Create(t *testing.T) {
 				CookingTime: 10,
 				Portions:    2,
 				Tags:        []string{"test"},
+				UserID:      "user-id",
 			},
-			mockSetup: func(_ *mockRepository) {
+			mockSetup: func(_ *mockRepository, mID *mockIDGenerator) {
+				mID.On("Generate").Return("id123")
+
 				// Repository should not be called
 			},
-			wantErr: domain.ErrEmptyTitle,
+			wantErr: valueobject.ErrTitleEmpty,
+			wantID:  false,
+		},
+		{
+			name: "validation error - empty ingridient name",
+			input: dto.CreateRecipeInput{
+				Title:       "",
+				Description: "Valid description",
+				Ingredients: []dto.IngredientInput{{Name: "", Amount: 1, Unit: "g"}},
+				Steps:       []dto.StepInput{{Order: 1, Description: "Step", Duration: 1}},
+				CookingTime: 10,
+				Portions:    2,
+				Tags:        []string{"test"},
+				UserID:      "user-id",
+			},
+			mockSetup: func(_ *mockRepository, mID *mockIDGenerator) {
+				mID.On("Generate").Return("id123")
+
+				// Repository should not be called
+			},
+			wantErr: valueobject.ErrIngredientEmptyName,
+			wantID:  false,
+		},
+		{
+			name: "validation error - negative step duration",
+			input: dto.CreateRecipeInput{
+				Title:       "",
+				Description: "Valid description",
+				Ingredients: []dto.IngredientInput{{Name: "Test", Amount: 1, Unit: "g"}},
+				Steps:       []dto.StepInput{{Order: 1, Description: "Step", Duration: -1}},
+				CookingTime: 10,
+				Portions:    2,
+				Tags:        []string{"test"},
+				UserID:      "user-id",
+			},
+			mockSetup: func(_ *mockRepository, mID *mockIDGenerator) {
+				mID.On("Generate").Return("id123")
+
+				// Repository should not be called
+			},
+			wantErr: valueobject.ErrStepNegativeDuration,
+			wantID:  false,
+		},
+		{
+			name: "validation error - empty tag name",
+			input: dto.CreateRecipeInput{
+				Title:       "",
+				Description: "Valid description",
+				Ingredients: []dto.IngredientInput{{Name: "Test", Amount: 1, Unit: "g"}},
+				Steps:       []dto.StepInput{{Order: 1, Description: "Step", Duration: 1}},
+				CookingTime: 10,
+				Portions:    2,
+				Tags:        []string{""},
+				UserID:      "user-id",
+			},
+			mockSetup: func(_ *mockRepository, mID *mockIDGenerator) {
+				mID.On("Generate").Return("id123")
+
+				// Repository should not be called
+			},
+			wantErr: valueobject.ErrTagEmptyName,
 			wantID:  false,
 		},
 		{
@@ -131,9 +217,12 @@ func TestService_Create(t *testing.T) {
 				CookingTime: 10,
 				Portions:    2,
 				Tags:        []string{"test"},
+				UserID:      "user-id",
 			},
-			mockSetup: func(m *mockRepository) {
-				m.On("Create", mock.Anything, mock.AnythingOfType("*domain.Recipe")).
+			mockSetup: func(m *mockRepository, mID *mockIDGenerator) {
+				mID.On("Generate").Return("id123")
+
+				m.On("Create", mock.Anything, mock.AnythingOfType(_recipeTypeString)).
 					Return(nil, errors.New("database error"))
 			},
 			wantErr: errors.New("database error"),
@@ -144,11 +233,12 @@ func TestService_Create(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			mockRepo := new(mockRepository)
+			mockIDGen := new(mockIDGenerator)
 			if tt.mockSetup != nil {
-				tt.mockSetup(mockRepo)
+				tt.mockSetup(mockRepo, mockIDGen)
 			}
 
-			svc := application.NewService(mockRepo, &logger)
+			svc := application.NewService(mockRepo, mockIDGen, &logger)
 			created, err := svc.Create(context.Background(), tt.input)
 
 			if tt.wantErr != nil {
@@ -167,7 +257,8 @@ func TestService_Create(t *testing.T) {
 
 func TestService_GetByID(t *testing.T) {
 	logger := zerolog.New(nil)
-	recipeID := "id123"
+	recipe := fixtures.NewRecipe(t, "id123", "author123", "Test Recipe")
+	recipeID := recipe.ID().String()
 
 	tests := []struct {
 		name       string
@@ -181,13 +272,7 @@ func TestService_GetByID(t *testing.T) {
 			id:   recipeID,
 			mockSetup: func(m *mockRepository) {
 				m.On("FindByID", mock.Anything, recipeID).
-					Return(
-						&domain.Recipe{ //nolint:exhaustruct // test struct
-							ID:    recipeID,
-							Title: "Test",
-						},
-						nil,
-					)
+					Return(recipe, nil)
 			},
 			wantErr:    nil,
 			wantRecipe: true,
@@ -197,9 +282,9 @@ func TestService_GetByID(t *testing.T) {
 			id:   recipeID,
 			mockSetup: func(m *mockRepository) {
 				m.On("FindByID", mock.Anything, recipeID).
-					Return(nil, domain.ErrNotFound)
+					Return(nil, ports.ErrNotFound)
 			},
-			wantErr:    domain.ErrNotFound,
+			wantErr:    ports.ErrNotFound,
 			wantRecipe: false,
 		},
 		{
@@ -219,13 +304,14 @@ func TestService_GetByID(t *testing.T) {
 			mockRepo := new(mockRepository)
 			tt.mockSetup(mockRepo)
 
-			svc := application.NewService(mockRepo, &logger)
+			idGen := new(mockIDGenerator)
+			svc := application.NewService(mockRepo, idGen, &logger)
 			recipe, err := svc.GetByID(context.Background(), tt.id)
 
 			if tt.wantErr != nil {
 				require.Error(t, err)
-				if errors.Is(tt.wantErr, domain.ErrNotFound) {
-					assert.ErrorIs(t, err, domain.ErrNotFound)
+				if errors.Is(tt.wantErr, ports.ErrNotFound) {
+					assert.ErrorIs(t, err, ports.ErrNotFound)
 				}
 				assert.Nil(t, recipe)
 			} else {
@@ -244,6 +330,12 @@ func TestService_GetByID(t *testing.T) {
 func TestService_GetAll(t *testing.T) {
 	logger := zerolog.New(nil)
 
+	recipesCount := 3
+	recipes := make([]entity.Recipe, recipesCount)
+	for i := range recipes {
+		recipes[i] = *fixtures.NewRecipe(t, "id123", "author123", fmt.Sprintf("Recipe %d", i))
+	}
+
 	tests := []struct {
 		name      string
 		mockSetup func(*mockRepository)
@@ -254,19 +346,16 @@ func TestService_GetAll(t *testing.T) {
 			name: "success with recipes",
 			mockSetup: func(m *mockRepository) {
 				m.On("FindAll", mock.Anything).
-					Return([]domain.Recipe{
-						{Title: "Recipe 1"}, //nolint:exhaustruct // test struct
-						{Title: "Recipe 2"}, //nolint:exhaustruct // test struct
-					}, nil)
+					Return(recipes, nil)
 			},
 			wantErr:   nil,
-			wantCount: 2,
+			wantCount: recipesCount,
 		},
 		{
 			name: "success empty",
 			mockSetup: func(m *mockRepository) {
 				m.On("FindAll", mock.Anything).
-					Return([]domain.Recipe{}, nil)
+					Return([]entity.Recipe{}, nil)
 			},
 			wantErr:   nil,
 			wantCount: 0,
@@ -287,7 +376,8 @@ func TestService_GetAll(t *testing.T) {
 			mockRepo := new(mockRepository)
 			tt.mockSetup(mockRepo)
 
-			svc := application.NewService(mockRepo, &logger)
+			idGen := new(mockIDGenerator)
+			svc := application.NewService(mockRepo, idGen, &logger)
 			recipes, err := svc.GetAll(context.Background())
 
 			if tt.wantErr != nil {
@@ -306,6 +396,13 @@ func TestService_GetAll(t *testing.T) {
 func TestService_Search(t *testing.T) {
 	logger := zerolog.New(nil)
 
+	recipes := []entity.Recipe{
+		*fixtures.NewRecipe(t, "id123", "author123", "Pasta Carbonara"),
+		*fixtures.NewRecipe(t, "id456", "author123", "Pasta Bolognese"),
+		*fixtures.NewRecipe(t, "id789", "author123", "Chicken Curry"),
+	}
+	recipesCount := len(recipes)
+
 	tests := []struct {
 		name      string
 		query     string
@@ -318,10 +415,7 @@ func TestService_Search(t *testing.T) {
 			query: "pasta",
 			mockSetup: func(m *mockRepository) {
 				m.On("Search", mock.Anything, "pasta").
-					Return([]domain.Recipe{
-						{Title: "Pasta Carbonara"}, //nolint:exhaustruct // test struct
-						{Title: "Pasta Bolognese"}, //nolint:exhaustruct // test struct
-					}, nil)
+					Return(recipes[0:2], nil)
 			},
 			wantErr:   nil,
 			wantCount: 2,
@@ -331,14 +425,10 @@ func TestService_Search(t *testing.T) {
 			query: "",
 			mockSetup: func(m *mockRepository) {
 				m.On("FindAll", mock.Anything).
-					Return([]domain.Recipe{
-						{Title: "Recipe 1"}, //nolint:exhaustruct // test struct
-						{Title: "Recipe 2"}, //nolint:exhaustruct // test struct
-						{Title: "Recipe 3"}, //nolint:exhaustruct // test struct
-					}, nil)
+					Return(recipes, nil)
 			},
 			wantErr:   nil,
-			wantCount: 3,
+			wantCount: recipesCount,
 		},
 		{
 			name:  "search error",
@@ -357,7 +447,8 @@ func TestService_Search(t *testing.T) {
 			mockRepo := new(mockRepository)
 			tt.mockSetup(mockRepo)
 
-			svc := application.NewService(mockRepo, &logger)
+			idGen := new(mockIDGenerator)
+			svc := application.NewService(mockRepo, idGen, &logger)
 			recipes, err := svc.Search(context.Background(), tt.query)
 
 			if tt.wantErr != nil {
@@ -375,7 +466,9 @@ func TestService_Search(t *testing.T) {
 
 func TestService_Update(t *testing.T) {
 	logger := zerolog.New(nil)
-	recipeID := "id123"
+	recipe := fixtures.NewRecipe(t, "id123", "author123", "Original Title")
+	recipeID := recipe.ID().String()
+	authorID := recipe.AuthorID().String()
 
 	validInput := dto.UpdateRecipeInput{
 		Title:       "Updated Recipe",
@@ -389,45 +482,45 @@ func TestService_Update(t *testing.T) {
 
 	tests := []struct {
 		name      string
+		userID    string
 		id        string
 		input     dto.UpdateRecipeInput
 		mockSetup func(*mockRepository)
 		wantErr   error
 	}{
 		{
-			name:  "success",
-			id:    recipeID,
-			input: validInput,
+			name:   "success",
+			userID: authorID,
+			id:     recipeID,
+			input:  validInput,
 			mockSetup: func(m *mockRepository) {
 				m.On("FindByID", mock.Anything, recipeID).
-					Return(
-						&domain.Recipe{ //nolint:exhaustruct // test struct
-							ID:    recipeID,
-							Title: "Old",
-						},
-						nil,
-					)
-				m.On("Update", mock.Anything, mock.AnythingOfType("*domain.Recipe")).
-					Return(&domain.Recipe{ //nolint:exhaustruct // test struct
-						ID:    recipeID,
-						Title: "Updated Recipe",
-					}, nil)
+					Return(recipe, nil)
+
+				newTitle, err := valueobject.NewTitle("Updated Title")
+				require.NoError(t, err)
+				recipe.UpdateTitle(newTitle)
+
+				m.On("Update", mock.Anything, mock.AnythingOfType(_recipeTypeString)).
+					Return(recipe, nil)
 			},
 			wantErr: nil,
 		},
 		{
-			name:  "not found",
-			id:    recipeID,
-			input: validInput,
+			name:   "not found",
+			userID: authorID,
+			id:     recipeID,
+			input:  validInput,
 			mockSetup: func(m *mockRepository) {
 				m.On("FindByID", mock.Anything, recipeID).
-					Return(nil, domain.ErrNotFound)
+					Return(nil, ports.ErrNotFound)
 			},
-			wantErr: domain.ErrNotFound,
+			wantErr: ports.ErrNotFound,
 		},
 		{
-			name: "validation error",
-			id:   recipeID,
+			name:   "validation error - empty title",
+			userID: authorID,
+			id:     recipeID,
 			input: dto.UpdateRecipeInput{
 				Title:       "", // Invalid - empty title
 				Description: "Valid description",
@@ -440,33 +533,93 @@ func TestService_Update(t *testing.T) {
 			mockSetup: func(m *mockRepository) {
 				// FindByID is called first
 				m.On("FindByID", mock.Anything, recipeID).
-					Return(
-						&domain.Recipe{ //nolint:exhaustruct // test struct
-							ID:    recipeID,
-							Title: "Old",
-						},
-						nil,
-					)
+					Return(recipe, nil)
 			},
-			wantErr: domain.ErrEmptyTitle,
+			wantErr: valueobject.ErrTitleEmpty,
 		},
 		{
-			name:  "repository update error",
-			id:    recipeID,
-			input: validInput,
+			name:   "validation error - empty ingridient name",
+			userID: authorID,
+			id:     recipeID,
+			input: dto.UpdateRecipeInput{
+				Title:       "Test", // Invalid - empty title
+				Description: "Valid description",
+				Ingredients: []dto.IngredientInput{{Name: "", Amount: 1, Unit: "g"}},
+				Steps:       []dto.StepInput{{Order: 1, Description: "Step", Duration: 1}},
+				CookingTime: 15,
+				Portions:    4,
+				Tags:        []string{"updated"},
+			},
+			mockSetup: func(m *mockRepository) {
+				// FindByID is called first
+				m.On("FindByID", mock.Anything, recipeID).
+					Return(recipe, nil)
+			},
+			wantErr: valueobject.ErrIngredientEmptyName,
+		},
+		{
+			name:   "validation error - empty tag name",
+			userID: authorID,
+			id:     recipeID,
+			input: dto.UpdateRecipeInput{
+				Title:       "Test", // Invalid - empty title
+				Description: "Valid description",
+				Ingredients: []dto.IngredientInput{{Name: "Test", Amount: 1, Unit: "g"}},
+				Steps:       []dto.StepInput{{Order: 1, Description: "Step", Duration: 1}},
+				CookingTime: 15,
+				Portions:    4,
+				Tags:        []string{""},
+			},
+			mockSetup: func(m *mockRepository) {
+				// FindByID is called first
+				m.On("FindByID", mock.Anything, recipeID).
+					Return(recipe, nil)
+			},
+			wantErr: valueobject.ErrTagEmptyName,
+		},
+		{
+			name:   "validation error - negative step duration",
+			userID: authorID,
+			id:     recipeID,
+			input: dto.UpdateRecipeInput{
+				Title:       "Test", // Invalid - empty title
+				Description: "Valid description",
+				Ingredients: []dto.IngredientInput{{Name: "Test", Amount: 1, Unit: "g"}},
+				Steps:       []dto.StepInput{{Order: 1, Description: "Step", Duration: -1}},
+				CookingTime: 15,
+				Portions:    4,
+				Tags:        []string{"testtag"},
+			},
+			mockSetup: func(m *mockRepository) {
+				// FindByID is called first
+				m.On("FindByID", mock.Anything, recipeID).
+					Return(recipe, nil)
+			},
+			wantErr: valueobject.ErrStepNegativeDuration,
+		},
+		{
+			name:   "repository update error",
+			userID: authorID,
+			id:     recipeID,
+			input:  validInput,
 			mockSetup: func(m *mockRepository) {
 				m.On("FindByID", mock.Anything, recipeID).
-					Return(
-						&domain.Recipe{ //nolint:exhaustruct // test struct
-							ID:    recipeID,
-							Title: "Old",
-						},
-						nil,
-					)
-				m.On("Update", mock.Anything, mock.AnythingOfType("*domain.Recipe")).
+					Return(recipe, nil)
+				m.On("Update", mock.Anything, mock.AnythingOfType(_recipeTypeString)).
 					Return(nil, errors.New("update failed"))
 			},
 			wantErr: errors.New("update failed"),
+		},
+		{
+			name:   "forbidden",
+			userID: "not-author",
+			id:     recipeID,
+			input:  validInput,
+			mockSetup: func(m *mockRepository) {
+				m.On("FindByID", mock.Anything, recipeID).
+					Return(recipe, nil)
+			},
+			wantErr: domain.ErrForbidden,
 		},
 	}
 
@@ -475,13 +628,15 @@ func TestService_Update(t *testing.T) {
 			mockRepo := new(mockRepository)
 			tt.mockSetup(mockRepo)
 
-			svc := application.NewService(mockRepo, &logger)
-			updated, err := svc.Update(context.Background(), tt.id, tt.input)
+			idGen := new(mockIDGenerator)
+			svc := application.NewService(mockRepo, idGen, &logger)
+			updated, err := svc.Update(context.Background(), tt.userID, tt.id, tt.input)
 
 			if tt.wantErr != nil {
 				require.Error(t, err)
-				if errors.Is(tt.wantErr, domain.ErrNotFound) ||
-					errors.Is(tt.wantErr, domain.ErrValidation) {
+				if errors.Is(tt.wantErr, ports.ErrNotFound) ||
+					errors.Is(tt.wantErr, domain.ErrValidation) ||
+					errors.Is(tt.wantErr, domain.ErrForbidden) {
 					require.ErrorIs(t, err, tt.wantErr)
 				}
 				assert.Nil(t, updated)
@@ -498,7 +653,8 @@ func TestService_Update(t *testing.T) {
 
 func TestService_Delete(t *testing.T) {
 	logger := zerolog.New(nil)
-	recipeID := "id123"
+	recipe := fixtures.NewRecipe(t, "id123", "author123", "Test Recipe")
+	recipeID := recipe.ID().String()
 
 	tests := []struct {
 		name      string
@@ -511,12 +667,7 @@ func TestService_Delete(t *testing.T) {
 			id:   recipeID,
 			mockSetup: func(m *mockRepository) {
 				m.On("FindByID", mock.Anything, recipeID).
-					Return(
-						&domain.Recipe{ //nolint:exhaustruct // test struct
-							ID:    recipeID,
-							Title: "Test",
-						},
-						nil)
+					Return(recipe, nil)
 				m.On("Delete", mock.Anything, recipeID).
 					Return(nil)
 			},
@@ -527,22 +678,16 @@ func TestService_Delete(t *testing.T) {
 			id:   recipeID,
 			mockSetup: func(m *mockRepository) {
 				m.On("FindByID", mock.Anything, recipeID).
-					Return(nil, domain.ErrNotFound)
+					Return(nil, ports.ErrNotFound)
 			},
-			wantErr: domain.ErrNotFound,
+			wantErr: ports.ErrNotFound,
 		},
 		{
 			name: "delete error",
 			id:   recipeID,
 			mockSetup: func(m *mockRepository) {
 				m.On("FindByID", mock.Anything, recipeID).
-					Return(
-						&domain.Recipe{ //nolint:exhaustruct // test struct
-							ID:    recipeID,
-							Title: "Test",
-						},
-						nil,
-					)
+					Return(recipe, nil)
 				m.On("Delete", mock.Anything, recipeID).
 					Return(errors.New("delete error"))
 			},
@@ -555,13 +700,14 @@ func TestService_Delete(t *testing.T) {
 			mockRepo := new(mockRepository)
 			tt.mockSetup(mockRepo)
 
-			svc := application.NewService(mockRepo, &logger)
+			idGen := new(mockIDGenerator)
+			svc := application.NewService(mockRepo, idGen, &logger)
 			err := svc.Delete(context.Background(), tt.id)
 
 			if tt.wantErr != nil {
 				require.Error(t, err)
-				if errors.Is(tt.wantErr, domain.ErrNotFound) {
-					assert.ErrorIs(t, err, domain.ErrNotFound)
+				if errors.Is(tt.wantErr, ports.ErrNotFound) {
+					assert.ErrorIs(t, err, ports.ErrNotFound)
 				}
 			} else {
 				require.NoError(t, err)

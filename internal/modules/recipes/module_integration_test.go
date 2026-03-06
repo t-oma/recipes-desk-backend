@@ -64,11 +64,11 @@ func TestIntegration_Module_FullCRUD(t *testing.T) {
 				{"name": "Milk", "amount": 250, "unit": "ml"},
 			},
 			"steps": []map[string]any{
-				{"order": 1, "description": "Mix dry ingredients", "duration": 5},
-				{"order": 2, "description": "Add wet ingredients", "duration": 3},
-				{"order": 3, "description": "Bake in oven", "duration": 30},
+				{"order": 1, "description": "Mix dry ingredients", "duration": int64(5 * 60)},
+				{"order": 2, "description": "Add wet ingredients", "duration": int64(3 * 60)},
+				{"order": 3, "description": "Bake in oven", "duration": int64(30 * 60)},
 			},
-			"cookingTime": 45,
+			"cookingTime": int64(45 * 60),
 			"portions":    6,
 			"tags":        []string{"integration", "test", "golang"},
 		}
@@ -88,7 +88,7 @@ func TestIntegration_Module_FullCRUD(t *testing.T) {
 		recipeID = createdRecipe.ID
 		assert.NotEmpty(t, recipeID)
 		assert.Equal(t, "Integration Test Recipe", createdRecipe.Title)
-		assert.Equal(t, 45, createdRecipe.CookingTime)
+		assert.Equal(t, int64(45*60), createdRecipe.CookingTime)
 		assert.Equal(t, 6, createdRecipe.Portions)
 		assert.Len(t, createdRecipe.Ingredients, 3)
 		assert.Len(t, createdRecipe.Steps, 3)
@@ -124,10 +124,10 @@ func TestIntegration_Module_FullCRUD(t *testing.T) {
 				{"name": "Eggs", "amount": 4, "unit": "pcs"},
 			},
 			"steps": []map[string]any{
-				{"order": 1, "description": "Mix all ingredients", "duration": 10},
-				{"order": 2, "description": "Bake", "duration": 35},
+				{"order": 1, "description": "Mix all ingredients", "duration": int64(10 * 60)},
+				{"order": 2, "description": "Bake", "duration": int64(35 * 60)},
 			},
-			"cookingTime": 50,
+			"cookingTime": int64(50 * 60),
 			"portions":    8,
 			"tags":        []string{"updated", "integration"},
 		}
@@ -147,7 +147,7 @@ func TestIntegration_Module_FullCRUD(t *testing.T) {
 
 		assert.Equal(t, recipeID, updatedRecipe.ID)
 		assert.Equal(t, "Updated Integration Recipe", updatedRecipe.Title)
-		assert.Equal(t, 50, updatedRecipe.CookingTime)
+		assert.Equal(t, int64(50*60), updatedRecipe.CookingTime)
 		assert.Equal(t, 8, updatedRecipe.Portions)
 	})
 
@@ -203,9 +203,9 @@ func TestIntegration_Module_Search(t *testing.T) {
 			"description": "Classic Italian pasta dish with eggs and cheese",
 			"ingredients": []map[string]any{{"name": "Pasta", "amount": 400, "unit": "g"}},
 			"steps": []map[string]any{
-				{"order": 1, "description": "Cook", "duration": 10},
+				{"order": 1, "description": "Cook", "duration": int64(10 * 60)},
 			},
-			"cookingTime": 20,
+			"cookingTime": int64(20 * 60),
 			"portions":    4,
 			"tags":        []string{"italian"},
 		},
@@ -214,9 +214,9 @@ func TestIntegration_Module_Search(t *testing.T) {
 			"description": "Italian pasta with meat sauce",
 			"ingredients": []map[string]any{{"name": "Pasta", "amount": 400, "unit": "g"}},
 			"steps": []map[string]any{
-				{"order": 1, "description": "Cook", "duration": 15},
+				{"order": 1, "description": "Cook", "duration": int64(15 * 60)},
 			},
-			"cookingTime": 30,
+			"cookingTime": int64(30 * 60),
 			"portions":    4,
 			"tags":        []string{"italian"},
 		},
@@ -227,9 +227,9 @@ func TestIntegration_Module_Search(t *testing.T) {
 				{"name": "Chicken", "amount": 500, "unit": "g"},
 			},
 			"steps": []map[string]any{
-				{"order": 1, "description": "Cook", "duration": 20},
+				{"order": 1, "description": "Cook", "duration": int64(5 * 60)},
 			},
-			"cookingTime": 45,
+			"cookingTime": int64(45 * 60),
 			"portions":    4,
 			"tags":        []string{"indian", "spicy"},
 		},
@@ -343,9 +343,9 @@ func TestIntegration_Module_ErrorCases(t *testing.T) {
 				{"name": "Test", "amount": 1, "unit": "g"},
 			},
 			"steps": []map[string]interface{}{
-				{"order": 1, "description": "Step", "duration": 1},
+				{"order": 1, "description": "Step", "duration": int64(2 * 60)},
 			},
-			"cookingTime": 10,
+			"cookingTime": int64(10 * 60),
 			"portions":    2,
 			"tags":        []string{"test"},
 		}
@@ -390,9 +390,9 @@ func TestIntegration_Module_ErrorCases(t *testing.T) {
 				{"name": "Test", "amount": 1, "unit": "g"},
 			},
 			"steps": []map[string]interface{}{
-				{"order": 1, "description": "Step", "duration": 1},
+				{"order": 1, "description": "Step", "duration": int64(2 * 60)},
 			},
-			"cookingTime": 10,
+			"cookingTime": int64(10 * 60),
 			"portions":    2,
 			"tags":        []string{"test"},
 		}
@@ -412,9 +412,9 @@ func TestIntegration_Module_ErrorCases(t *testing.T) {
 			"description": "Valid description that is long enough",
 			"ingredients": []map[string]interface{}{},
 			"steps": []map[string]interface{}{
-				{"order": 1, "description": "Step", "duration": 1},
+				{"order": 1, "description": "Step", "duration": int64(2 * 60)},
 			},
-			"cookingTime": 10,
+			"cookingTime": int64(10 * 60),
 			"portions":    2,
 			"tags":        []string{"test"},
 		}
@@ -450,9 +450,9 @@ func TestIntegration_Module_ErrorCases(t *testing.T) {
 				{"name": "Test", "amount": 1, "unit": "g"},
 			},
 			"steps": []map[string]interface{}{
-				{"order": 1, "description": "Step", "duration": 1},
+				{"order": 1, "description": "Step", "duration": int64(2 * 60)},
 			},
-			"cookingTime": 10,
+			"cookingTime": int64(10 * 60),
 			"portions":    2,
 			"tags":        []string{"test"},
 		}
@@ -476,9 +476,9 @@ func TestIntegration_Module_ErrorCases(t *testing.T) {
 				{"name": "Test", "amount": 1, "unit": "g"},
 			},
 			"steps": []map[string]interface{}{
-				{"order": 1, "description": "Step", "duration": 1},
+				{"order": 1, "description": "Step", "duration": int64(2 * 60)},
 			},
-			"cookingTime": 10,
+			"cookingTime": int64(10 * 60),
 			"portions":    2,
 			"tags":        []string{"test"},
 		}

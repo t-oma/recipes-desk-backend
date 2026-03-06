@@ -6,7 +6,7 @@ type RecipeResponse struct {
 	Description string               `json:"description"`
 	Ingredients []IngredientResponse `json:"ingredients"`
 	Steps       []StepResponse       `json:"steps"`
-	CookingTime int                  `json:"cookingTime"`
+	CookingTime int64                `json:"cookingTime"`
 	Portions    int                  `json:"portions"`
 	Tags        []string             `json:"tags"`
 	CreatedAt   string               `json:"createdAt"`
@@ -22,5 +22,5 @@ type IngredientResponse struct {
 type StepResponse struct {
 	Order       int    `json:"order"`
 	Description string `json:"description"`
-	Duration    int    `json:"duration"`
+	Duration    int64  `json:"duration"`
 }

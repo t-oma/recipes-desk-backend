@@ -1,25 +1,22 @@
 package mongorepo
 
-import "recipes-desk/internal/modules/recipes/domain"
+import "recipes-desk/internal/modules/recipes/domain/valueobject"
 
 type stepModel struct {
 	Order       int    `bson:"order"`
 	Description string `bson:"description"`
-	Duration    int    `bson:"duration"` // in minutes
+	Duration    int64  `bson:"duration"` // in minutes
 }
 
-func (m *stepModel) toDomain() domain.Step {
-	return domain.Step{
-		Order:       m.Order,
-		Description: m.Description,
-		Duration:    m.Duration,
-	}
+func (m *stepModel) toDomain() (valueobject.Step, error) {
+	step, err := valueobject.NewStep(m.Order, m.Description, m.Duration)
+	return step, err
 }
 
-func stepModelFromDomain(step domain.Step) stepModel {
+func stepModelFromDomain(step valueobject.Step) stepModel {
 	return stepModel{
-		Order:       step.Order,
-		Description: step.Description,
-		Duration:    step.Duration,
+		Order:       step.Order(),
+		Description: step.Description(),
+		Duration:    step.SecondsInt64(),
 	}
 }

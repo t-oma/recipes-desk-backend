@@ -9,54 +9,58 @@ import (
 	"go.mongodb.org/mongo-driver/bson/primitive"
 	"go.mongodb.org/mongo-driver/mongo"
 
-	"recipes-desk/internal/modules/recipes/domain"
+	"recipes-desk/internal/modules/recipes/domain/entity"
+	"recipes-desk/internal/modules/recipes/domain/ports"
 )
 
 const collectionName = "recipes"
 
-// Verify MongoRepository implements domain.Repository.
-var _ domain.RecipesRepository = (*RecipesRepository)(nil)
+// Verify MongoRepository implements ports.RecipeRepository.
+var _ ports.RecipeRepository = (*RecipeRepository)(nil)
 
-type RecipesRepository struct {
+type RecipeRepository struct {
 	collection *mongo.Collection
 }
 
-func NewRecipes(db *mongo.Database) *RecipesRepository {
-	return &RecipesRepository{
+func NewRecipes(db *mongo.Database) *RecipeRepository {
+	return &RecipeRepository{
 		collection: db.Collection(collectionName),
 	}
 }
 
-func (r *RecipesRepository) Create(
+func (r *RecipeRepository) Create(
 	ctx context.Context,
-	recipe *domain.Recipe,
-) (*domain.Recipe, error) {
+	recipe *entity.Recipe,
+) (*entity.Recipe, error) {
 	recipeModel := recipeModelFromDomain(recipe)
 	recipeModel.prepareForInsert()
 
 	_, err := r.collection.InsertOne(ctx, recipeModel)
-	return recipeModel.toDomain(), err
+	if err != nil {
+		return nil, err
+	}
+	return recipeModel.toDomain()
 }
 
-func (r *RecipesRepository) FindByID(ctx context.Context, id string) (*domain.Recipe, error) {
+func (r *RecipeRepository) FindByID(ctx context.Context, id string) (*entity.Recipe, error) {
 	objectID, err := primitive.ObjectIDFromHex(id)
 	if err != nil {
-		return nil, domain.ErrNotFound
+		return nil, ports.ErrNotFound
 	}
 
 	var model recipeModel
 	err = r.collection.FindOne(ctx, bson.M{"_id": objectID}).Decode(&model)
 	if err != nil {
 		if errors.Is(err, mongo.ErrNoDocuments) {
-			return nil, domain.ErrNotFound
+			return nil, ports.ErrNotFound
 		}
 		return nil, err
 	}
 
-	return model.toDomain(), nil
+	return model.toDomain()
 }
 
-func (r *RecipesRepository) FindAll(ctx context.Context) ([]domain.Recipe, error) {
+func (r *RecipeRepository) FindAll(ctx context.Context) ([]entity.Recipe, error) {
 	cursor, err := r.collection.Find(ctx, bson.M{})
 	if err != nil {
 		return nil, err
@@ -68,16 +72,21 @@ func (r *RecipesRepository) FindAll(ctx context.Context) ([]domain.Recipe, error
 		return nil, err
 	}
 
-	recipes := make([]domain.Recipe, len(recipeModels))
+	recipes := make([]entity.Recipe, len(recipeModels))
 	for i, recipeModel := range recipeModels {
-		recipes[i] = *recipeModel.toDomain()
+		var recipe *entity.Recipe
+		recipe, err = recipeModel.toDomain()
+		if err != nil {
+			return nil, err
+		}
+		recipes[i] = *recipe
 	}
 
 	return recipes, nil
 }
 
 // Search searches recipes by title (case-insensitive).
-func (r *RecipesRepository) Search(ctx context.Context, query string) ([]domain.Recipe, error) {
+func (r *RecipeRepository) Search(ctx context.Context, query string) ([]entity.Recipe, error) {
 	filter := bson.M{
 		"title": bson.M{
 			"$regex":   query,
@@ -96,18 +105,23 @@ func (r *RecipesRepository) Search(ctx context.Context, query string) ([]domain.
 		return nil, err
 	}
 
-	recipes := make([]domain.Recipe, len(recipeModels))
+	recipes := make([]entity.Recipe, len(recipeModels))
 	for i, recipeModel := range recipeModels {
-		recipes[i] = *recipeModel.toDomain()
+		var recipe *entity.Recipe
+		recipe, err = recipeModel.toDomain()
+		if err != nil {
+			return nil, err
+		}
+		recipes[i] = *recipe
 	}
 
 	return recipes, nil
 }
 
-func (r *RecipesRepository) Update(
+func (r *RecipeRepository) Update(
 	ctx context.Context,
-	recipe *domain.Recipe,
-) (*domain.Recipe, error) {
+	recipe *entity.Recipe,
+) (*entity.Recipe, error) {
 	recipeModel := recipeModelFromDomain(recipe)
 	recipeModel.prepareForUpdate()
 
@@ -120,20 +134,20 @@ func (r *RecipesRepository) Update(
 	}
 
 	if result.MatchedCount == 0 {
-		return nil, domain.ErrNotFound
+		return nil, ports.ErrNotFound
 	}
 
-	return recipeModel.toDomain(), nil
+	return recipeModel.toDomain()
 }
 
 // Delete removes a recipe by its ID.
-func (r *RecipesRepository) Delete(ctx context.Context, id string) error {
+func (r *RecipeRepository) Delete(ctx context.Context, id string) error {
 	ctx, cancel := context.WithTimeout(ctx, 5*time.Second)
 	defer cancel()
 
 	objectID, err := primitive.ObjectIDFromHex(id)
 	if err != nil {
-		return domain.ErrNotFound
+		return ports.ErrNotFound
 	}
 
 	result, err := r.collection.DeleteOne(ctx, bson.M{"_id": objectID})
@@ -142,7 +156,7 @@ func (r *RecipesRepository) Delete(ctx context.Context, id string) error {
 	}
 
 	if result.DeletedCount == 0 {
-		return domain.ErrNotFound
+		return ports.ErrNotFound
 	}
 
 	return nil
