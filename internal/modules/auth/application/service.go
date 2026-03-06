@@ -11,37 +11,43 @@ import (
 	"recipes-desk/internal/modules/auth/application/mapper"
 	"recipes-desk/internal/modules/auth/application/ports/in"
 	"recipes-desk/internal/modules/auth/domain"
+	"recipes-desk/internal/modules/auth/domain/entity"
+	"recipes-desk/internal/modules/auth/domain/ports"
+	"recipes-desk/internal/modules/auth/domain/valueobject"
 )
 
 // Service handles authentication business logic.
 type Service struct {
-	repo     domain.UsersRepository
+	repo     ports.UserRepository
 	log      *zerolog.Logger
 	password in.PasswordService
 	token    in.TokenService
+	idGen    ports.IDGenerator
 }
 
 var _ in.AuthService = (*Service)(nil)
 
 // NewService creates a new auth service.
 func NewService(
-	repo domain.UsersRepository,
+	repo ports.UserRepository,
 	log *zerolog.Logger,
 	password in.PasswordService,
 	token in.TokenService,
+	idGen ports.IDGenerator,
 ) *Service {
 	return &Service{
 		repo:     repo,
 		log:      log,
 		password: password,
 		token:    token,
+		idGen:    idGen,
 	}
 }
 
 func (s *Service) GetByID(ctx context.Context, id string) (*dto.User, error) {
 	user, err := s.repo.FindByID(ctx, id)
 	if err != nil {
-		if errors.Is(err, domain.ErrNotFound) {
+		if errors.Is(err, ports.ErrUserNotFound) {
 			s.log.Debug().Str("user_id", id).Msg("User not found")
 			return nil, err
 		}
@@ -52,51 +58,58 @@ func (s *Service) GetByID(ctx context.Context, id string) (*dto.User, error) {
 	return mapper.ToUserDTO(user), nil
 }
 
-func (s *Service) GetByEmail(ctx context.Context, email string) (*dto.User, error) {
-	user, err := s.repo.FindByEmail(ctx, email)
-	if err != nil {
-		if errors.Is(err, domain.ErrNotFound) {
-			s.log.Debug().Str("user_email", email).Msg("User not found")
-			return nil, err
-		}
-		s.log.Error().Err(err).Str("user_email", email).Msg("Failed to get user")
-		return nil, err
-	}
-
-	return mapper.ToUserDTO(user), nil
-}
-
 func (s *Service) Register(ctx context.Context, params dto.RegisterInput) (*dto.AuthResult, error) {
-	user := &domain.User{ //nolint:exhaustruct // fields set below
-		ID:        "",
-		Email:     params.Email,
-		FirstName: params.FirstName,
-		LastName:  params.LastName,
-		Password:  params.Password,
-	}
-
-	if err := user.Validate(); err != nil {
-		s.log.Debug().Err(err).Msg("User validation failed")
+	emailVO, err := valueobject.NewEmail(params.Email)
+	if err != nil {
 		return nil, err
 	}
 
-	if exists, err := s.repo.ExistsByEmail(ctx, params.Email); err != nil {
+	var exists bool
+	if exists, err = s.repo.ExistsByEmail(ctx, emailVO.String()); err != nil {
 		s.log.Error().Err(err).Msg("Failed to check if user exists")
 		return nil, err
 	} else if exists {
-		s.log.Debug().Str("email", params.Email).Msg("User already exists")
-		return nil, domain.ErrAlreadyExists
+		s.log.Debug().Str("email", emailVO.String()).Msg("User already exists")
+		return nil, domain.ErrUserAlreadyExists
 	}
 
-	hash, err := s.password.Hash(params.Password)
+	passwordVO, err := valueobject.NewPassword(params.Password)
+	if err != nil {
+		return nil, err
+	}
+
+	hash, err := s.password.Hash(passwordVO.String())
 	if err != nil {
 		s.log.Error().Err(err).Msg("Failed to hash password")
 		if errors.Is(err, bcrypt.ErrPasswordTooLong) {
-			return nil, domain.ErrPasswordTooLong
+			return nil, valueobject.ErrPasswordTooLong
 		}
 		return nil, err
 	}
-	user.Password = hash
+
+	idVO, err := valueobject.NewUserID(s.idGen.Generate())
+	if err != nil {
+		return nil, err
+	}
+	firstNameVO, err := valueobject.NewFirstName(params.FirstName)
+	if err != nil {
+		return nil, err
+	}
+	lastNameVO, err := valueobject.NewLastName(params.LastName)
+	if err != nil {
+		return nil, err
+	}
+
+	user, err := entity.NewUser(
+		idVO,
+		emailVO,
+		firstNameVO,
+		lastNameVO,
+		valueobject.PasswordHash(hash),
+	)
+	if err != nil {
+		return nil, err
+	}
 
 	user, err = s.repo.Create(ctx, user)
 	if err != nil {
@@ -104,13 +117,13 @@ func (s *Service) Register(ctx context.Context, params dto.RegisterInput) (*dto.
 		return nil, err
 	}
 
-	accessResult, err := s.token.GenerateAccessToken(user.ID)
+	accessResult, err := s.token.GenerateAccessToken(user.ID().String())
 	if err != nil {
 		s.log.Error().Err(err).Msg("Failed to generate access token")
 		return nil, err
 	}
 
-	refreshResult, err := s.token.GenerateRefreshToken(ctx, user.ID)
+	refreshResult, err := s.token.GenerateRefreshToken(ctx, user.ID().String())
 	if err != nil {
 		s.log.Error().Err(err).Msg("Failed to generate refresh token")
 		return nil, err
@@ -128,7 +141,7 @@ func (s *Service) Register(ctx context.Context, params dto.RegisterInput) (*dto.
 func (s *Service) Login(ctx context.Context, params dto.LoginInput) (*dto.AuthResult, error) {
 	user, err := s.repo.FindByEmail(ctx, params.Email)
 	if err != nil {
-		if errors.Is(err, domain.ErrNotFound) {
+		if errors.Is(err, ports.ErrUserNotFound) {
 			s.log.Debug().Str("email", params.Email).Msg("User not found")
 			return nil, err
 		}
@@ -136,18 +149,18 @@ func (s *Service) Login(ctx context.Context, params dto.LoginInput) (*dto.AuthRe
 		return nil, err
 	}
 
-	if !s.password.Verify(params.Password, user.Password) {
+	if !s.password.Verify(params.Password, string(user.PasswordHash())) {
 		s.log.Debug().Str("email", params.Email).Msg("Invalid password")
 		return nil, domain.ErrInvalidCredentials
 	}
 
-	accessResult, err := s.token.GenerateAccessToken(user.ID)
+	accessResult, err := s.token.GenerateAccessToken(user.ID().String())
 	if err != nil {
 		s.log.Error().Err(err).Msg("Failed to generate access token")
 		return nil, err
 	}
 
-	refreshResult, err := s.token.GenerateRefreshToken(ctx, user.ID)
+	refreshResult, err := s.token.GenerateRefreshToken(ctx, user.ID().String())
 	if err != nil {
 		s.log.Error().Err(err).Msg("Failed to generate refresh token")
 		return nil, err

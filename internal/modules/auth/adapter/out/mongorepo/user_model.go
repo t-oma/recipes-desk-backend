@@ -5,7 +5,8 @@ import (
 
 	"go.mongodb.org/mongo-driver/bson/primitive"
 
-	"recipes-desk/internal/modules/auth/domain"
+	"recipes-desk/internal/modules/auth/domain/entity"
+	"recipes-desk/internal/modules/auth/domain/valueobject"
 )
 
 // userModel represents a user in MongoDB.
@@ -39,24 +40,45 @@ func (m *userModel) prepareForInsert() {
 }
 
 // toDomain converts a MongoDB user model to a domain user.
-func (m *userModel) toDomain() *domain.User {
-	return &domain.User{
-		ID:                m.ID.Hex(),
-		Email:             m.Email,
-		FirstName:         m.FirstName,
-		LastName:          m.LastName,
-		Password:          m.Password,
-		CreatedAt:         m.CreatedAt,
-		PasswordUpdatedAt: m.PasswordUpdatedAt,
+func (m *userModel) toDomain() (*entity.User, error) {
+	idVO, err := valueobject.NewUserID(m.ID.Hex())
+	if err != nil {
+		return nil, err
 	}
+	emailVO, err := valueobject.NewEmail(m.Email)
+	if err != nil {
+		return nil, err
+	}
+	firstNameVO, err := valueobject.NewFirstName(m.FirstName)
+	if err != nil {
+		return nil, err
+	}
+	lastNameVO, err := valueobject.NewLastName(m.LastName)
+	if err != nil {
+		return nil, err
+	}
+
+	user, err := entity.NewUser(
+		idVO,
+		emailVO,
+		firstNameVO,
+		lastNameVO,
+		valueobject.PasswordHash(m.Password),
+	)
+	if err != nil {
+		return nil, err
+	}
+
+	user.RestoreFromPersistence(m.CreatedAt, m.PasswordUpdatedAt)
+	return user, nil
 }
 
 // UserModelFromDomain converts a domain user to a MongoDB user model.
-func userModelFromDomain(user *domain.User) *userModel {
+func userModelFromDomain(user *entity.User) *userModel {
 	var id primitive.ObjectID
-	if user.ID != "" {
+	if user.HasID() {
 		var err error
-		id, err = primitive.ObjectIDFromHex(user.ID)
+		id, err = primitive.ObjectIDFromHex(user.ID().String())
 		if err != nil {
 			id = primitive.NilObjectID
 		}
@@ -64,11 +86,11 @@ func userModelFromDomain(user *domain.User) *userModel {
 
 	return &userModel{
 		ID:                id,
-		Email:             user.Email,
-		FirstName:         user.FirstName,
-		LastName:          user.LastName,
-		Password:          user.Password,
-		CreatedAt:         user.CreatedAt,
-		PasswordUpdatedAt: user.PasswordUpdatedAt,
+		Email:             user.Email().String(),
+		FirstName:         user.FirstName().String(),
+		LastName:          user.LastName().String(),
+		Password:          string(user.PasswordHash()),
+		CreatedAt:         user.CreatedAt(),
+		PasswordUpdatedAt: user.PasswordUpdatedAt(),
 	}
 }
