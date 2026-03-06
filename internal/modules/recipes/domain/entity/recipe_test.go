@@ -313,7 +313,7 @@ func TestEntity_Equals(t *testing.T) {
 }
 
 func TestRecipe_UpdateTitle(t *testing.T) {
-	recipe := fixtures.NewRecipe(t, "Test Recipe")
+	recipe := fixtures.NewRecipe(t, "id123", "author123", "Test Recipe")
 
 	t.Run("new title", func(t *testing.T) {
 		newTitle, _ := valueobject.NewTitle("")
@@ -324,7 +324,7 @@ func TestRecipe_UpdateTitle(t *testing.T) {
 }
 
 func TestRecipe_UpdateDescription(t *testing.T) {
-	recipe := fixtures.NewRecipe(t, "Test Recipe")
+	recipe := fixtures.NewRecipe(t, "id123", "author123", "Test Recipe")
 
 	t.Run("new description", func(t *testing.T) {
 		newDescription, _ := valueobject.NewDescription("")
@@ -335,7 +335,7 @@ func TestRecipe_UpdateDescription(t *testing.T) {
 }
 
 func TestRecipe_AddIngredient(t *testing.T) {
-	recipe := fixtures.NewRecipe(t, "Test Recipe")
+	recipe := fixtures.NewRecipe(t, "id123", "author123", "Test Recipe")
 	ingredients := recipe.Ingredients()
 
 	t.Run("existing ingredient", func(t *testing.T) {
@@ -356,7 +356,7 @@ func TestRecipe_AddIngredient(t *testing.T) {
 }
 
 func TestRecipe_AddStep(t *testing.T) {
-	recipe := fixtures.NewRecipe(t, "Test Recipe")
+	recipe := fixtures.NewRecipe(t, "id123", "author123", "Test Recipe")
 	steps := recipe.Steps()
 
 	t.Run("wrong order", func(t *testing.T) {

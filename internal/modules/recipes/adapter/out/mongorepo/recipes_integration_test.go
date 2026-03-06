@@ -31,7 +31,12 @@ func TestIntegration_RecipeRepository_Create(t *testing.T) {
 	ctx := context.Background()
 
 	t.Run("create new recipe", func(t *testing.T) {
-		entity := fixtures.NewRecipe(t, "Integration Test Recipe")
+		entity := fixtures.NewRecipe(
+			t,
+			primitive.NewObjectID().Hex(),
+			"authorID",
+			"Integration Test Recipe",
+		)
 
 		created, err := repo.Create(ctx, entity)
 		require.NoError(t, err)
@@ -52,7 +57,7 @@ func TestIntegration_RecipeRepository_FindByID(t *testing.T) {
 	ctx := context.Background()
 
 	// Create a recipe first
-	entity := fixtures.NewRecipe(t, "Test Recipe")
+	entity := fixtures.NewRecipe(t, primitive.NewObjectID().Hex(), "authorID", "Test Recipe")
 	created, err := repo.Create(ctx, entity)
 	require.NoError(t, err)
 	id := created.ID().String()
@@ -86,7 +91,12 @@ func TestIntegration_RecipeRepository_FindAll(t *testing.T) {
 
 	// Create multiple recipes
 	for i := 0; i < 3; i++ {
-		entity := fixtures.NewRecipe(t, fmt.Sprintf("Recipe %d", i))
+		entity := fixtures.NewRecipe(
+			t,
+			primitive.NewObjectID().Hex(),
+			"authorID",
+			fmt.Sprintf("Recipe %d", i),
+		)
 		entity, err := repo.Create(ctx, entity)
 		require.NoError(t, err)
 	}
@@ -169,7 +179,7 @@ func TestIntegration_RecipeRepository_Update(t *testing.T) {
 	ctx := context.Background()
 
 	// Create a recipe
-	recipe := fixtures.NewRecipe(t, "Original Title")
+	recipe := fixtures.NewRecipe(t, primitive.NewObjectID().Hex(), "authorID", "Original Title")
 	created, err := repo.Create(ctx, recipe)
 	require.NoError(t, err)
 	id := created.ID().String()
@@ -261,7 +271,7 @@ func TestIntegration_RecipeRepository_Delete(t *testing.T) {
 	ctx := context.Background()
 
 	// Create a recipe
-	entity := fixtures.NewRecipe(t, "To be deleted")
+	entity := fixtures.NewRecipe(t, primitive.NewObjectID().Hex(), "authorID", "To be deleted")
 	created, err := repo.Create(ctx, entity)
 	require.NoError(t, err)
 	id := created.ID().String()

@@ -4,14 +4,13 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/require"
-	"go.mongodb.org/mongo-driver/bson/primitive"
 
 	"recipes-desk/internal/modules/recipes/domain/entity"
 	"recipes-desk/internal/modules/recipes/domain/valueobject"
 )
 
 // NewRecipe creates a recipe with valid test data.
-func NewRecipe(t *testing.T, title string) *entity.Recipe {
+func NewRecipe(t *testing.T, id, authorID, title string) *entity.Recipe {
 	t.Helper()
 
 	ingredients := []valueobject.Ingredient{
@@ -28,7 +27,7 @@ func NewRecipe(t *testing.T, title string) *entity.Recipe {
 	}
 
 	entity, err := entity.NewRecipe(
-		primitive.NewObjectID().Hex(), // Generate a temporary ID
+		id,
 		title,
 		"This is a valid description for integration test with at least 10 characters",
 		ingredients,
@@ -36,7 +35,7 @@ func NewRecipe(t *testing.T, title string) *entity.Recipe {
 		35*60, // 35 minutes in seconds
 		4,
 		tags,
-		primitive.NewObjectID().Hex(), // Author ID
+		authorID,
 	)
 	require.NoError(t, err)
 
