@@ -1,8 +1,10 @@
-package recipe
+package valueobject
 
 import (
 	"fmt"
 	"strings"
+
+	"recipes-desk/internal/modules/recipes/domain"
 )
 
 const (
@@ -36,16 +38,16 @@ func (d Description) String() string {
 }
 
 var (
-	ErrDescriptionEmpty    = fmt.Errorf("%w: description cannot be empty", ErrValidation)
+	ErrDescriptionEmpty    = fmt.Errorf("%w: description cannot be empty", domain.ErrValidation)
 	ErrDescriptionTooShort = fmt.Errorf(
 		"%w: recipe description must be at least %d characters",
-		ErrValidation,
+		domain.ErrValidation,
 		DescriptionMinLength,
 	)
 
 	ErrDescriptionTooLong = fmt.Errorf(
 		"%w: recipe description must be at most %d characters",
-		ErrValidation,
+		domain.ErrValidation,
 		DescriptionMaxLength,
 	)
 )

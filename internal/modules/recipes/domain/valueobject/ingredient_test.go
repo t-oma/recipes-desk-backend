@@ -1,4 +1,4 @@
-package recipe_test
+package valueobject_test
 
 import (
 	"fmt"
@@ -6,7 +6,7 @@ import (
 
 	"github.com/stretchr/testify/require"
 
-	"recipes-desk/internal/modules/recipes/domain/recipe"
+	"recipes-desk/internal/modules/recipes/domain/valueobject"
 )
 
 func TestNewIngredient(t *testing.T) {
@@ -21,34 +21,34 @@ func TestNewIngredient(t *testing.T) {
 			name:           "valid ingredient",
 			ingredientName: "Flour",
 			amount:         500.0,
-			unit:           recipe.UnitGram,
+			unit:           valueobject.UnitGram,
 			wantErr:        nil,
 		},
 		{
 			name:           "empty ingredient name",
 			ingredientName: "",
 			amount:         500.0,
-			unit:           recipe.UnitGram,
-			wantErr:        recipe.ErrIngredientEmptyName,
+			unit:           valueobject.UnitGram,
+			wantErr:        valueobject.ErrIngredientEmptyName,
 		},
 		{
 			name:           "invalid amount",
 			ingredientName: "Flour",
 			amount:         -1.0,
-			unit:           recipe.UnitGram,
-			wantErr:        recipe.ErrAmountToFew,
+			unit:           valueobject.UnitGram,
+			wantErr:        valueobject.ErrAmountToFew,
 		},
 		{
 			name:           "invalid unit",
 			ingredientName: "Flour",
 			amount:         500.0,
 			unit:           "not-a-unit",
-			wantErr:        recipe.ErrUnitUnknown,
+			wantErr:        valueobject.ErrUnitUnknown,
 		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got, gotErr := recipe.NewIngredient(tt.ingredientName, tt.amount, tt.unit)
+			got, gotErr := valueobject.NewIngredient(tt.ingredientName, tt.amount, tt.unit)
 			if tt.wantErr != nil {
 				require.Error(t, gotErr)
 				require.ErrorIs(t, gotErr, tt.wantErr)
@@ -68,13 +68,13 @@ func TestNewIngredient(t *testing.T) {
 }
 
 func TestIngredient_Equals(t *testing.T) {
-	ingredient1, err := recipe.NewIngredient("Flour", 500, recipe.UnitGram)
+	ingredient1, err := valueobject.NewIngredient("Flour", 500, valueobject.UnitGram)
 	require.NoError(t, err)
 
-	ingredient2, err := recipe.NewIngredient("Flour", 500, recipe.UnitGram)
+	ingredient2, err := valueobject.NewIngredient("Flour", 500, valueobject.UnitGram)
 	require.NoError(t, err)
 
-	ingredient3, err := recipe.NewIngredient("Eggs", 3, recipe.UnitPcs)
+	ingredient3, err := valueobject.NewIngredient("Eggs", 3, valueobject.UnitPcs)
 	require.NoError(t, err)
 
 	require.False(t, ingredient1.Equals(nil))

@@ -1,11 +1,11 @@
-package recipe_test
+package valueobject_test
 
 import (
 	"testing"
 
 	"github.com/stretchr/testify/require"
 
-	"recipes-desk/internal/modules/recipes/domain/recipe"
+	"recipes-desk/internal/modules/recipes/domain/valueobject"
 	"recipes-desk/pkg/stringutil"
 )
 
@@ -29,26 +29,26 @@ func TestNewStep(t *testing.T) {
 			order:       0,
 			description: "Mix ingredients",
 			durationSec: 60,
-			wantErr:     recipe.ErrInvalidStepOrder,
+			wantErr:     valueobject.ErrStepInvalidOrder,
 		},
 		{
 			name:        "step description too short",
 			order:       1,
-			description: stringutil.RandomString(recipe.StepMinDescriptionLength - 1),
+			description: stringutil.RandomString(valueobject.StepMinDescriptionLength - 1),
 			durationSec: 60,
-			wantErr:     recipe.ErrStepDescriptionTooShort,
+			wantErr:     valueobject.ErrStepDescriptionTooShort,
 		},
 		{
 			name:        "step description too long",
 			order:       1,
-			description: stringutil.RandomString(recipe.StepMaxDescriptionLength + 1),
+			description: stringutil.RandomString(valueobject.StepMaxDescriptionLength + 1),
 			durationSec: 60,
-			wantErr:     recipe.ErrStepDescriptionTooLong,
+			wantErr:     valueobject.ErrStepDescriptionTooLong,
 		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got, gotErr := recipe.NewStep(tt.order, tt.description, tt.durationSec)
+			got, gotErr := valueobject.NewStep(tt.order, tt.description, tt.durationSec)
 			if tt.wantErr != nil {
 				require.Error(t, gotErr)
 				require.ErrorIs(t, gotErr, tt.wantErr)

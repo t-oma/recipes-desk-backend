@@ -5,7 +5,8 @@ import (
 
 	"go.mongodb.org/mongo-driver/bson/primitive"
 
-	"recipes-desk/internal/modules/recipes/domain/recipe"
+	"recipes-desk/internal/modules/recipes/domain/entity"
+	"recipes-desk/internal/modules/recipes/domain/valueobject"
 )
 
 type recipeModel struct {
@@ -45,23 +46,23 @@ func (m *recipeModel) prepareForUpdate() {
 	m.setTimestamps()
 }
 
-func (m *recipeModel) toDomain() (*recipe.Entity, error) {
-	ingredients := make([]recipe.Ingredient, len(m.Ingredients))
+func (m *recipeModel) toDomain() (*entity.Recipe, error) {
+	ingredients := make([]valueobject.Ingredient, len(m.Ingredients))
 	for i, ingredient := range m.Ingredients {
 		ingredients[i] = ingredient.toDomain()
 	}
 
-	steps := make([]recipe.Step, len(m.Steps))
+	steps := make([]valueobject.Step, len(m.Steps))
 	for i, step := range m.Steps {
 		steps[i] = step.toDomain()
 	}
 
-	tags := make([]recipe.Tag, len(m.Tags))
+	tags := make([]valueobject.Tag, len(m.Tags))
 	for i, tag := range m.Tags {
 		tags[i] = tag.toDomain()
 	}
 
-	recipe, err := recipe.NewEntity(
+	recipe, err := entity.NewRecipe(
 		m.ID.Hex(),
 		m.Title,
 		m.Description,
@@ -79,7 +80,7 @@ func (m *recipeModel) toDomain() (*recipe.Entity, error) {
 	return recipe, nil
 }
 
-func recipeModelFromDomain(recipe *recipe.Entity) *recipeModel {
+func recipeModelFromDomain(recipe *entity.Recipe) *recipeModel {
 	var id primitive.ObjectID
 	if recipe.HasID() {
 		var err error

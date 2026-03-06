@@ -1,8 +1,10 @@
-package recipe
+package valueobject
 
 import (
 	"fmt"
 	"strings"
+
+	"recipes-desk/internal/modules/recipes/domain"
 )
 
 const (
@@ -37,11 +39,11 @@ func (t Tag) String() string {
 var (
 	ErrTagEmptyName = fmt.Errorf(
 		"%w: tag name cannot be empty",
-		ErrValidation,
+		domain.ErrValidation,
 	)
 	ErrTagNameTooLong = fmt.Errorf(
 		"%w: tag name must be at most %d characters",
-		ErrValidation,
+		domain.ErrValidation,
 		TagMaxLength,
 	)
 )

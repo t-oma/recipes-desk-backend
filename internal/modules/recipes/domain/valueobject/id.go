@@ -1,8 +1,10 @@
-package recipe
+package valueobject
 
 import (
 	"fmt"
 	"strings"
+
+	"recipes-desk/internal/modules/recipes/domain"
 )
 
 type EntityID struct {
@@ -26,5 +28,5 @@ func (r EntityID) String() string {
 
 var ErrRecipeIDEmpty = fmt.Errorf(
 	"%w: recipe ID cannot be empty",
-	ErrValidation,
+	domain.ErrValidation,
 )

@@ -1,8 +1,10 @@
-package recipe
+package valueobject
 
 import (
 	"fmt"
 	"time"
+
+	"recipes-desk/internal/modules/recipes/domain"
 )
 
 type CookingTime struct {
@@ -32,5 +34,5 @@ func (c CookingTime) String() string {
 
 var ErrCookingNegativeTime = fmt.Errorf(
 	"%w: cooking time cannot be negative",
-	ErrValidation,
+	domain.ErrValidation,
 )

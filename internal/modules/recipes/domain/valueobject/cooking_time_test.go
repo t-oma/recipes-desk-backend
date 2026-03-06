@@ -1,11 +1,11 @@
-package recipe_test
+package valueobject_test
 
 import (
 	"testing"
 
 	"github.com/stretchr/testify/require"
 
-	"recipes-desk/internal/modules/recipes/domain/recipe"
+	"recipes-desk/internal/modules/recipes/domain/valueobject"
 )
 
 func TestNewCookingTime(t *testing.T) {
@@ -22,12 +22,12 @@ func TestNewCookingTime(t *testing.T) {
 		{
 			name:    "invalid time",
 			seconds: -1,
-			wantErr: recipe.ErrCookingNegativeTime,
+			wantErr: valueobject.ErrCookingNegativeTime,
 		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got, gotErr := recipe.NewCookingTime(tt.seconds)
+			got, gotErr := valueobject.NewCookingTime(tt.seconds)
 			if tt.wantErr != nil {
 				require.Error(t, gotErr)
 				require.ErrorIs(t, gotErr, tt.wantErr)

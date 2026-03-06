@@ -1,8 +1,10 @@
-package recipe
+package valueobject
 
 import (
 	"fmt"
 	"strconv"
+
+	"recipes-desk/internal/modules/recipes/domain"
 )
 
 const (
@@ -37,12 +39,12 @@ func (p Portions) String() string {
 var (
 	ErrPortionsTooFew = fmt.Errorf(
 		"%w: portions must be greater than %d",
-		ErrValidation,
+		domain.ErrValidation,
 		PortionsMin,
 	)
 	ErrPortionsTooMany = fmt.Errorf(
 		"%w: portions must be at most %d",
-		ErrValidation,
+		domain.ErrValidation,
 		PortionsMax,
 	)
 )

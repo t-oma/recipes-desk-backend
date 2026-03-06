@@ -2,10 +2,11 @@ package mapper
 
 import (
 	"recipes-desk/internal/modules/recipes/application/dto"
-	"recipes-desk/internal/modules/recipes/domain/recipe"
+	"recipes-desk/internal/modules/recipes/domain/entity"
+	"recipes-desk/internal/modules/recipes/domain/valueobject"
 )
 
-func ToRecipeDTO(recipe *recipe.Entity) *dto.Recipe {
+func ToRecipeDTO(recipe *entity.Recipe) *dto.Recipe {
 	recipeIngredients := recipe.Ingredients()
 	ingredients := make([]dto.Ingredient, len(recipeIngredients))
 	for i, ing := range recipeIngredients {
@@ -46,16 +47,16 @@ func ToRecipeDTO(recipe *recipe.Entity) *dto.Recipe {
 	}
 }
 
-func ToDomainIngredient(ingredient dto.Ingredient) (recipe.Ingredient, error) {
-	ingr, err := recipe.NewIngredient(ingredient.Name, ingredient.Amount, ingredient.Unit)
+func ToDomainIngredient(ingredient dto.Ingredient) (valueobject.Ingredient, error) {
+	ingr, err := valueobject.NewIngredient(ingredient.Name, ingredient.Amount, ingredient.Unit)
 	if err != nil {
 		return ingr, err
 	}
 	return ingr, nil
 }
 
-func ToDomainStep(step dto.Step) (recipe.Step, error) {
-	stepVO, err := recipe.NewStep(step.Order, step.Description, int64(step.Duration.Seconds()))
+func ToDomainStep(step dto.Step) (valueobject.Step, error) {
+	stepVO, err := valueobject.NewStep(step.Order, step.Description, int64(step.Duration.Seconds()))
 	if err != nil {
 		return stepVO, err
 	}

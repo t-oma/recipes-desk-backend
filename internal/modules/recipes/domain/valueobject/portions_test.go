@@ -1,11 +1,11 @@
-package recipe_test
+package valueobject_test
 
 import (
 	"testing"
 
 	"github.com/stretchr/testify/require"
 
-	"recipes-desk/internal/modules/recipes/domain/recipe"
+	"recipes-desk/internal/modules/recipes/domain/valueobject"
 )
 
 func TestNewPortions(t *testing.T) {
@@ -16,23 +16,23 @@ func TestNewPortions(t *testing.T) {
 	}{
 		{
 			name:     "valid portions",
-			portions: recipe.PortionsMax - 1,
+			portions: valueobject.PortionsMax - 1,
 			wantErr:  nil,
 		},
 		{
 			name:     "too few portions",
-			portions: recipe.PortionsMin - 1,
-			wantErr:  recipe.ErrPortionsTooFew,
+			portions: valueobject.PortionsMin - 1,
+			wantErr:  valueobject.ErrPortionsTooFew,
 		},
 		{
 			name:     "too many portions",
-			portions: recipe.PortionsMax + 1,
-			wantErr:  recipe.ErrPortionsTooMany,
+			portions: valueobject.PortionsMax + 1,
+			wantErr:  valueobject.ErrPortionsTooMany,
 		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got, gotErr := recipe.NewPortions(tt.portions)
+			got, gotErr := valueobject.NewPortions(tt.portions)
 			if tt.wantErr != nil {
 				require.Error(t, gotErr)
 				require.ErrorIs(t, gotErr, tt.wantErr)

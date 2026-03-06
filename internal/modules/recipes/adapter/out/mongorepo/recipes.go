@@ -9,8 +9,8 @@ import (
 	"go.mongodb.org/mongo-driver/bson/primitive"
 	"go.mongodb.org/mongo-driver/mongo"
 
+	"recipes-desk/internal/modules/recipes/domain/entity"
 	"recipes-desk/internal/modules/recipes/domain/ports"
-	"recipes-desk/internal/modules/recipes/domain/recipe"
 )
 
 const collectionName = "recipes"
@@ -30,8 +30,8 @@ func NewRecipes(db *mongo.Database) *RecipeRepository {
 
 func (r *RecipeRepository) Create(
 	ctx context.Context,
-	recipe *recipe.Entity,
-) (*recipe.Entity, error) {
+	recipe *entity.Recipe,
+) (*entity.Recipe, error) {
 	recipeModel := recipeModelFromDomain(recipe)
 	recipeModel.prepareForInsert()
 
@@ -42,7 +42,7 @@ func (r *RecipeRepository) Create(
 	return recipeModel.toDomain()
 }
 
-func (r *RecipeRepository) FindByID(ctx context.Context, id string) (*recipe.Entity, error) {
+func (r *RecipeRepository) FindByID(ctx context.Context, id string) (*entity.Recipe, error) {
 	objectID, err := primitive.ObjectIDFromHex(id)
 	if err != nil {
 		return nil, ports.ErrNotFound
@@ -60,7 +60,7 @@ func (r *RecipeRepository) FindByID(ctx context.Context, id string) (*recipe.Ent
 	return model.toDomain()
 }
 
-func (r *RecipeRepository) FindAll(ctx context.Context) ([]recipe.Entity, error) {
+func (r *RecipeRepository) FindAll(ctx context.Context) ([]entity.Recipe, error) {
 	cursor, err := r.collection.Find(ctx, bson.M{})
 	if err != nil {
 		return nil, err
@@ -72,9 +72,9 @@ func (r *RecipeRepository) FindAll(ctx context.Context) ([]recipe.Entity, error)
 		return nil, err
 	}
 
-	recipes := make([]recipe.Entity, len(recipeModels))
+	recipes := make([]entity.Recipe, len(recipeModels))
 	for i, recipeModel := range recipeModels {
-		var recipe *recipe.Entity
+		var recipe *entity.Recipe
 		recipe, err = recipeModel.toDomain()
 		if err != nil {
 			return nil, err
@@ -86,7 +86,7 @@ func (r *RecipeRepository) FindAll(ctx context.Context) ([]recipe.Entity, error)
 }
 
 // Search searches recipes by title (case-insensitive).
-func (r *RecipeRepository) Search(ctx context.Context, query string) ([]recipe.Entity, error) {
+func (r *RecipeRepository) Search(ctx context.Context, query string) ([]entity.Recipe, error) {
 	filter := bson.M{
 		"title": bson.M{
 			"$regex":   query,
@@ -105,9 +105,9 @@ func (r *RecipeRepository) Search(ctx context.Context, query string) ([]recipe.E
 		return nil, err
 	}
 
-	recipes := make([]recipe.Entity, len(recipeModels))
+	recipes := make([]entity.Recipe, len(recipeModels))
 	for i, recipeModel := range recipeModels {
-		var recipe *recipe.Entity
+		var recipe *entity.Recipe
 		recipe, err = recipeModel.toDomain()
 		if err != nil {
 			return nil, err
@@ -120,8 +120,8 @@ func (r *RecipeRepository) Search(ctx context.Context, query string) ([]recipe.E
 
 func (r *RecipeRepository) Update(
 	ctx context.Context,
-	recipe *recipe.Entity,
-) (*recipe.Entity, error) {
+	recipe *entity.Recipe,
+) (*entity.Recipe, error) {
 	recipeModel := recipeModelFromDomain(recipe)
 	recipeModel.prepareForUpdate()
 

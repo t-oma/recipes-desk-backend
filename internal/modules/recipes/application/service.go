@@ -9,8 +9,9 @@ import (
 	"recipes-desk/internal/modules/recipes/application/dto"
 	"recipes-desk/internal/modules/recipes/application/mapper"
 	"recipes-desk/internal/modules/recipes/application/ports/in"
+	"recipes-desk/internal/modules/recipes/domain/entity"
 	"recipes-desk/internal/modules/recipes/domain/ports"
-	"recipes-desk/internal/modules/recipes/domain/recipe"
+	"recipes-desk/internal/modules/recipes/domain/valueobject"
 	"recipes-desk/pkg/sliceutils"
 )
 
@@ -38,8 +39,8 @@ func NewService(
 func (s *Service) Create(ctx context.Context, input dto.CreateRecipeInput) (*dto.Recipe, error) {
 	ingredients, err := sliceutils.MapSliceWithErr(
 		input.Ingredients,
-		func(ing dto.IngredientInput) (recipe.Ingredient, error) {
-			return recipe.NewIngredient(ing.Name, ing.Amount, ing.Unit)
+		func(ing dto.IngredientInput) (valueobject.Ingredient, error) {
+			return valueobject.NewIngredient(ing.Name, ing.Amount, ing.Unit)
 		},
 	)
 	if err != nil {
@@ -48,8 +49,8 @@ func (s *Service) Create(ctx context.Context, input dto.CreateRecipeInput) (*dto
 
 	steps, err := sliceutils.MapSliceWithErr(
 		input.Steps,
-		func(step dto.StepInput) (recipe.Step, error) {
-			return recipe.NewStep(step.Order, step.Description, step.Duration)
+		func(step dto.StepInput) (valueobject.Step, error) {
+			return valueobject.NewStep(step.Order, step.Description, step.Duration)
 		},
 	)
 	if err != nil {
@@ -58,15 +59,13 @@ func (s *Service) Create(ctx context.Context, input dto.CreateRecipeInput) (*dto
 
 	tags, err := sliceutils.MapSliceWithErr(
 		input.Tags,
-		func(tag string) (recipe.Tag, error) {
-			return recipe.NewTag(tag)
-		},
+		valueobject.NewTag,
 	)
 	if err != nil {
 		return nil, err
 	}
 
-	recipe, err := recipe.NewEntity(
+	recipe, err := entity.NewRecipe(
 		s.idGen.Generate(),
 		input.Title,
 		input.Description,
@@ -149,8 +148,8 @@ func (s *Service) Update(
 
 	ingredients, err := sliceutils.MapSliceWithErr(
 		input.Ingredients,
-		func(ing dto.IngredientInput) (recipe.Ingredient, error) {
-			return recipe.NewIngredient(ing.Name, ing.Amount, ing.Unit)
+		func(ing dto.IngredientInput) (valueobject.Ingredient, error) {
+			return valueobject.NewIngredient(ing.Name, ing.Amount, ing.Unit)
 		},
 	)
 	if err != nil {
@@ -159,25 +158,24 @@ func (s *Service) Update(
 
 	steps, err := sliceutils.MapSliceWithErr(
 		input.Steps,
-		func(step dto.StepInput) (recipe.Step, error) {
-			return recipe.NewStep(step.Order, step.Description, step.Duration)
-		},
-	)
-	if err != nil {
-		return nil, err
-	}
-	tags, err := sliceutils.MapSliceWithErr(
-		input.Tags,
-		func(tag string) (recipe.Tag, error) {
-			return recipe.NewTag(tag)
+		func(step dto.StepInput) (valueobject.Step, error) {
+			return valueobject.NewStep(step.Order, step.Description, step.Duration)
 		},
 	)
 	if err != nil {
 		return nil, err
 	}
 
-	recipe, err := recipe.NewEntity(
-		s.idGen.Generate(),
+	tags, err := sliceutils.MapSliceWithErr(
+		input.Tags,
+		valueobject.NewTag,
+	)
+	if err != nil {
+		return nil, err
+	}
+
+	recipe, err := entity.NewRecipe(
+		existing.ID().String(),
 		input.Title,
 		input.Description,
 		ingredients,

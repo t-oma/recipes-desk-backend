@@ -1,8 +1,10 @@
-package recipe
+package valueobject
 
 import (
 	"fmt"
 	"strings"
+
+	"recipes-desk/internal/modules/recipes/domain"
 )
 
 const (
@@ -38,16 +40,16 @@ func (t Title) String() string {
 var (
 	ErrTitleEmpty = fmt.Errorf(
 		"%w: recipe title cannot be empty",
-		ErrValidation,
+		domain.ErrValidation,
 	)
 	ErrTitleTooShort = fmt.Errorf(
 		"%w: recipe title must be at least %d characters",
-		ErrValidation,
+		domain.ErrValidation,
 		TitleMinLength,
 	)
 	ErrTitleTooLong = fmt.Errorf(
 		"%w: recipe title must be at most %d characters",
-		ErrValidation,
+		domain.ErrValidation,
 		TitleMaxLength,
 	)
 )

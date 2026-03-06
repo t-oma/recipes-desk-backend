@@ -1,8 +1,10 @@
-package recipe
+package valueobject
 
 import (
 	"fmt"
 	"strings"
+
+	"recipes-desk/internal/modules/recipes/domain"
 )
 
 type AuthorID struct {
@@ -26,5 +28,5 @@ func (a AuthorID) String() string {
 
 var ErrAuthorIDEmpty = fmt.Errorf(
 	"%w: author ID cannot be empty",
-	ErrValidation,
+	domain.ErrValidation,
 )

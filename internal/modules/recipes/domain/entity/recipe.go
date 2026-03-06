@@ -1,38 +1,40 @@
-// Package recipe contains recipe entity, repository, value objects and domain errors.
-package recipe
+// Package entity contains recipe entity, repository, value objects and domain errors.
+package entity
 
 import (
-	"errors"
 	"fmt"
 	"time"
+
+	"recipes-desk/internal/modules/recipes/domain"
+	vo "recipes-desk/internal/modules/recipes/domain/valueobject"
 )
 
-// Entity represents a cooking recipe.
-type Entity struct { //nolint:recvcheck // intentionally mixed pointer and value receivers
-	id          EntityID
-	title       Title
-	description Description
-	ingredients []Ingredient
-	steps       []Step
-	cookingTime CookingTime
-	portions    Portions
-	tags        []Tag
-	authorID    AuthorID
+// Recipe represents a cooking recipe.
+type Recipe struct { //nolint:recvcheck // intentionally mixed pointer and value receivers
+	id          vo.EntityID
+	title       vo.Title
+	description vo.Description
+	ingredients []vo.Ingredient
+	steps       []vo.Step
+	cookingTime vo.CookingTime
+	portions    vo.Portions
+	tags        []vo.Tag
+	authorID    vo.AuthorID
 	createdAt   time.Time
 	updatedAt   time.Time
 }
 
-func NewEntity(
+func NewRecipe(
 	id string,
 	title string,
 	description string,
-	ingredientsVO []Ingredient,
-	stepsVO []Step,
+	ingredientsVO []vo.Ingredient,
+	stepsVO []vo.Step,
 	cookingTime int64,
 	portions int,
-	tagsVO []Tag,
+	tagsVO []vo.Tag,
 	authorID string,
-) (*Entity, error) {
+) (*Recipe, error) {
 	if len(ingredientsVO) == 0 {
 		return nil, ErrNoIngredients
 	}
@@ -43,37 +45,37 @@ func NewEntity(
 		return nil, ErrNoTags
 	}
 
-	idVO, err := NewEntityID(id)
+	idVO, err := vo.NewEntityID(id)
 	if err != nil {
 		return nil, err
 	}
 
-	titleVO, err := NewTitle(title)
+	titleVO, err := vo.NewTitle(title)
 	if err != nil {
 		return nil, err
 	}
 
-	descVO, err := NewDescription(description)
+	descVO, err := vo.NewDescription(description)
 	if err != nil {
 		return nil, err
 	}
 
-	cookingTimeVO, err := NewCookingTime(cookingTime)
+	cookingTimeVO, err := vo.NewCookingTime(cookingTime)
 	if err != nil {
 		return nil, err
 	}
 
-	portionsVO, err := NewPortions(portions)
+	portionsVO, err := vo.NewPortions(portions)
 	if err != nil {
 		return nil, err
 	}
 
-	authorIDVO, err := NewAuthorID(authorID)
+	authorIDVO, err := vo.NewAuthorID(authorID)
 	if err != nil {
 		return nil, err
 	}
 
-	return &Entity{
+	return &Recipe{
 		id:          idVO,
 		title:       titleVO,
 		description: descVO,
@@ -88,7 +90,15 @@ func NewEntity(
 	}, nil
 }
 
-func (r *Entity) AddIngredient(ingredient Ingredient) error {
+func (r *Recipe) UpdateTitle(title vo.Title) {
+	r.title = title
+}
+
+func (r *Recipe) UpdateDescription(description vo.Description) {
+	r.description = description
+}
+
+func (r *Recipe) AddIngredient(ingredient vo.Ingredient) error {
 	for _, existing := range r.ingredients {
 		if existing.Name() == ingredient.Name() {
 			return ErrDuplicateIngredient
@@ -98,7 +108,7 @@ func (r *Entity) AddIngredient(ingredient Ingredient) error {
 	return nil
 }
 
-func (r *Entity) AddStep(step Step) error {
+func (r *Recipe) AddStep(step vo.Step) error {
 	expectedOrder := len(r.steps) + 1
 	if step.Order() != expectedOrder {
 		return ErrInvalidStepOrderf(expectedOrder, step.Order())
@@ -107,69 +117,69 @@ func (r *Entity) AddStep(step Step) error {
 	return nil
 }
 
-func (r *Entity) AddTag(tag Tag) {
+func (r *Recipe) AddTag(tag vo.Tag) {
 	r.tags = append(r.tags, tag)
 }
 
-func (r Entity) ID() EntityID {
+func (r Recipe) ID() vo.EntityID {
 	return r.id
 }
 
-func (r Entity) AuthorID() AuthorID {
+func (r Recipe) AuthorID() vo.AuthorID {
 	return r.authorID
 }
 
-func (r Entity) Title() Title {
+func (r Recipe) Title() vo.Title {
 	return r.title
 }
 
-func (r Entity) Description() Description {
+func (r Recipe) Description() vo.Description {
 	return r.description
 }
 
-func (r Entity) Ingredients() []Ingredient {
-	copied := make([]Ingredient, len(r.ingredients))
+func (r Recipe) Ingredients() []vo.Ingredient {
+	copied := make([]vo.Ingredient, len(r.ingredients))
 	copy(copied, r.ingredients)
 	return copied
 }
 
-func (r Entity) Steps() []Step {
-	copied := make([]Step, len(r.steps))
+func (r Recipe) Steps() []vo.Step {
+	copied := make([]vo.Step, len(r.steps))
 	copy(copied, r.steps)
 	return copied
 }
 
-func (r Entity) CookingTime() CookingTime {
+func (r Recipe) CookingTime() vo.CookingTime {
 	return r.cookingTime
 }
 
-func (r Entity) Portions() Portions {
+func (r Recipe) Portions() vo.Portions {
 	return r.portions
 }
 
-func (r Entity) Tags() []Tag {
-	copied := make([]Tag, len(r.tags))
+func (r Recipe) Tags() []vo.Tag {
+	copied := make([]vo.Tag, len(r.tags))
 	copy(copied, r.tags)
 	return copied
 }
 
-func (r Entity) UpdatedAt() time.Time {
+func (r Recipe) UpdatedAt() time.Time {
 	return r.updatedAt
 }
 
-func (r Entity) CreatedAt() time.Time {
+func (r Recipe) CreatedAt() time.Time {
 	return r.createdAt
 }
 
-func (r Entity) HasID() bool {
+func (r Recipe) HasID() bool {
 	return r.ID().String() != ""
 }
 
-func (r *Entity) AssignID(id EntityID) {
+func (r *Recipe) AssignID(id vo.EntityID) {
 	r.id = id
 }
 
-func (r Entity) Equals(other *Entity) bool {
+func (r Recipe) Equals(other *Recipe) bool {
 	if other == nil {
 		return false
 	}
@@ -177,34 +187,35 @@ func (r Entity) Equals(other *Entity) bool {
 	return r.ID().String() == other.ID().String()
 }
 
-func (r *Entity) RestoreFromPersistence(updatedAt time.Time, createdAt time.Time) {
+func (r *Recipe) RestoreFromPersistence(updatedAt time.Time, createdAt time.Time) {
 	r.updatedAt = updatedAt
 	r.createdAt = createdAt
 }
-
-var ErrValidation = errors.New("validation error")
 
 // Validation errors - wrapped with ErrValidation category.
 var (
 	ErrNoIngredients = fmt.Errorf(
 		"%w: recipe must have at least one ingredient",
-		ErrValidation,
+		domain.ErrValidation,
 	)
 	ErrNoSteps = fmt.Errorf(
 		"%w: recipe must have at least one step",
-		ErrValidation,
+		domain.ErrValidation,
 	)
-	ErrNoTags              = fmt.Errorf("%w: recipe must have at least one tag", ErrValidation)
+	ErrNoTags = fmt.Errorf(
+		"%w: recipe must have at least one tag",
+		domain.ErrValidation,
+	)
 	ErrDuplicateIngredient = fmt.Errorf(
 		"%w: recipe cannot have duplicate ingredients",
-		ErrValidation,
+		domain.ErrValidation,
 	)
 )
 
 func ErrInvalidStepOrderf(expectedOrder int, actualOrder int) error {
 	return fmt.Errorf(
 		"%w: step order must be %d got %d",
-		ErrValidation,
+		domain.ErrValidation,
 		expectedOrder,
 		actualOrder,
 	)

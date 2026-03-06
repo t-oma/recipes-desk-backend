@@ -1,8 +1,6 @@
 package mongorepo
 
-import (
-	"recipes-desk/internal/modules/recipes/domain/recipe"
-)
+import "recipes-desk/internal/modules/recipes/domain/valueobject"
 
 type ingredientModel struct {
 	Name   string  `bson:"name"`
@@ -10,12 +8,12 @@ type ingredientModel struct {
 	Unit   string  `bson:"unit"`
 }
 
-func (m *ingredientModel) toDomain() recipe.Ingredient {
-	ingredient, _ := recipe.NewIngredient(m.Name, m.Amount, m.Unit)
+func (m *ingredientModel) toDomain() valueobject.Ingredient {
+	ingredient, _ := valueobject.NewIngredient(m.Name, m.Amount, m.Unit)
 	return ingredient
 }
 
-func ingredientModelFromDomain(ingredient recipe.Ingredient) ingredientModel {
+func ingredientModelFromDomain(ingredient valueobject.Ingredient) ingredientModel {
 	return ingredientModel{
 		Name:   ingredient.Name(),
 		Amount: ingredient.Amount().Value(),

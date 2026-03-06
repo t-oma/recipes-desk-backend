@@ -1,6 +1,10 @@
-package recipe
+package valueobject
 
-import "fmt"
+import (
+	"fmt"
+
+	"recipes-desk/internal/modules/recipes/domain"
+)
 
 const (
 	AmountMin = 0
@@ -30,6 +34,6 @@ func (a Amount) String() string {
 
 var ErrAmountToFew = fmt.Errorf(
 	"%w: ingredient amount cannot be less than %d",
-	ErrValidation,
+	domain.ErrValidation,
 	AmountMin,
 )

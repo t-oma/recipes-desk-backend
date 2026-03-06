@@ -1,14 +1,15 @@
-package recipe_test
+package valueobject_test
 
 import (
 	"testing"
 
 	"github.com/stretchr/testify/require"
 
-	"recipes-desk/internal/modules/recipes/domain/recipe"
+	"recipes-desk/internal/modules/recipes/domain/valueobject"
+	"recipes-desk/pkg/stringutil"
 )
 
-func TestNewAuthorID(t *testing.T) {
+func TestNewRecipeID(t *testing.T) {
 	tests := []struct {
 		name    string
 		id      string
@@ -16,18 +17,23 @@ func TestNewAuthorID(t *testing.T) {
 	}{
 		{
 			name:    "valid id",
-			id:      "author123",
+			id:      stringutil.RandomString(10),
 			wantErr: nil,
 		},
 		{
 			name:    "empty id",
 			id:      "",
-			wantErr: recipe.ErrAuthorIDEmpty,
+			wantErr: valueobject.ErrRecipeIDEmpty,
+		},
+		{
+			name:    "only whitespaces",
+			id:      "         ",
+			wantErr: valueobject.ErrRecipeIDEmpty,
 		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got, gotErr := recipe.NewAuthorID(tt.id)
+			got, gotErr := valueobject.NewEntityID(tt.id)
 			if tt.wantErr != nil {
 				require.Error(t, gotErr)
 				require.ErrorIs(t, gotErr, tt.wantErr)

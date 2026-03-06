@@ -1,8 +1,10 @@
-package recipe
+package valueobject
 
 import (
 	"fmt"
 	"time"
+
+	"recipes-desk/internal/modules/recipes/domain"
 )
 
 const (
@@ -18,7 +20,7 @@ type Step struct {
 
 func NewStep(order int, description string, durationSec int64) (Step, error) {
 	if order < 1 {
-		return Step{}, ErrInvalidStepOrder
+		return Step{}, ErrStepInvalidOrder
 	}
 	if len(description) < StepMinDescriptionLength {
 		return Step{}, ErrStepDescriptionTooShort
@@ -27,7 +29,7 @@ func NewStep(order int, description string, durationSec int64) (Step, error) {
 		return Step{}, ErrStepDescriptionTooLong
 	}
 	if durationSec < 0 {
-		return Step{}, ErrNegativeDuration
+		return Step{}, ErrStepNegativeDuration
 	}
 
 	return Step{
@@ -58,22 +60,22 @@ func (s Step) String() string {
 }
 
 var (
-	ErrInvalidStepOrder = fmt.Errorf(
+	ErrStepInvalidOrder = fmt.Errorf(
 		"%w: step order must be greater than 0",
-		ErrValidation,
+		domain.ErrValidation,
 	)
-	ErrNegativeDuration = fmt.Errorf(
+	ErrStepNegativeDuration = fmt.Errorf(
 		"%w: step duration cannot be negative",
-		ErrValidation,
+		domain.ErrValidation,
 	)
 	ErrStepDescriptionTooShort = fmt.Errorf(
 		"%w: step description must be at least %d characters",
-		ErrValidation,
+		domain.ErrValidation,
 		StepMinDescriptionLength,
 	)
 	ErrStepDescriptionTooLong = fmt.Errorf(
 		"%w: step description must be at most %d characters",
-		ErrValidation,
+		domain.ErrValidation,
 		StepMaxDescriptionLength,
 	)
 )

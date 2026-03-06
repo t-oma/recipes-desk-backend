@@ -1,8 +1,10 @@
-package recipe
+package valueobject
 
 import (
 	"fmt"
 	"strings"
+
+	"recipes-desk/internal/modules/recipes/domain"
 )
 
 type Ingredient struct {
@@ -62,5 +64,5 @@ func (i Ingredient) String() string {
 
 var ErrIngredientEmptyName = fmt.Errorf(
 	"%w: ingredient name cannot be empty",
-	ErrValidation,
+	domain.ErrValidation,
 )

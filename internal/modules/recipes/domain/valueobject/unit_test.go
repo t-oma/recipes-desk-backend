@@ -1,11 +1,11 @@
-package recipe_test
+package valueobject_test
 
 import (
 	"testing"
 
 	"github.com/stretchr/testify/require"
 
-	"recipes-desk/internal/modules/recipes/domain/recipe"
+	"recipes-desk/internal/modules/recipes/domain/valueobject"
 )
 
 func TestNewUnit(t *testing.T) {
@@ -16,23 +16,23 @@ func TestNewUnit(t *testing.T) {
 	}{
 		{
 			name:     "valid unit",
-			unitName: recipe.UnitCup,
+			unitName: valueobject.UnitCup,
 			wantErr:  nil,
 		},
 		{
 			name:     "empty unit",
 			unitName: "",
-			wantErr:  recipe.ErrUnitEmptyName,
+			wantErr:  valueobject.ErrUnitEmptyName,
 		},
 		{
 			name:     "unit too short",
 			unitName: "not-a-unit",
-			wantErr:  recipe.ErrUnitUnknown,
+			wantErr:  valueobject.ErrUnitUnknown,
 		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got, gotErr := recipe.NewUnit(tt.unitName)
+			got, gotErr := valueobject.NewUnit(tt.unitName)
 			if tt.wantErr != nil {
 				require.Error(t, gotErr)
 				require.ErrorIs(t, gotErr, tt.wantErr)

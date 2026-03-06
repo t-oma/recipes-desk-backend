@@ -9,8 +9,8 @@ import (
 
 	"recipes-desk/internal/modules/recipes/application/dto"
 	"recipes-desk/internal/modules/recipes/application/ports/in"
+	"recipes-desk/internal/modules/recipes/domain"
 	"recipes-desk/internal/modules/recipes/domain/ports"
-	"recipes-desk/internal/modules/recipes/domain/recipe"
 )
 
 // Handler handles HTTP requests for recipes.
@@ -32,7 +32,7 @@ func handleError(c *gin.Context, err error) {
 	switch {
 	case errors.Is(err, ports.ErrNotFound):
 		c.JSON(http.StatusNotFound, gin.H{"error": "recipe not found"})
-	case errors.Is(err, recipe.ErrValidation):
+	case errors.Is(err, domain.ErrValidation):
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 	default:
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "internal server error"})

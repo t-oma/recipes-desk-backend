@@ -1,20 +1,24 @@
-package recipe
+package valueobject
 
 import (
 	"fmt"
 	"strings"
+
+	"recipes-desk/internal/modules/recipes/domain"
 )
 
 const (
 	UnitCup  = "cup"
 	UnitGram = "g"
 	UnitPcs  = "pcs"
+	UnitMl   = "ml"
 )
 
 var availableUnits = map[string]bool{ //nolint:gochecknoglobals // constant
 	UnitCup:  true,
 	UnitGram: true,
 	UnitPcs:  true,
+	UnitMl:   true,
 }
 
 type Unit struct {
@@ -46,10 +50,10 @@ func (u Unit) String() string {
 var (
 	ErrUnitEmptyName = fmt.Errorf(
 		"%w: unit name cannot be empty",
-		ErrValidation,
+		domain.ErrValidation,
 	)
 	ErrUnitUnknown = fmt.Errorf(
 		"%w: unit is unknown",
-		ErrValidation,
+		domain.ErrValidation,
 	)
 )
