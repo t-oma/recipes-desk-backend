@@ -9,6 +9,7 @@ import (
 	"recipes-desk/internal/modules/recipes/application/dto"
 	"recipes-desk/internal/modules/recipes/application/mapper"
 	"recipes-desk/internal/modules/recipes/application/ports/in"
+	"recipes-desk/internal/modules/recipes/domain"
 	"recipes-desk/internal/modules/recipes/domain/entity"
 	"recipes-desk/internal/modules/recipes/domain/ports"
 	"recipes-desk/internal/modules/recipes/domain/valueobject"
@@ -138,12 +139,16 @@ func (s *Service) Search(ctx context.Context, query string) ([]dto.Recipe, error
 
 func (s *Service) Update(
 	ctx context.Context,
+	userID string,
 	id string,
 	input dto.UpdateRecipeInput,
 ) (*dto.Recipe, error) {
 	existing, err := s.repo.FindByID(ctx, id)
 	if err != nil {
 		return nil, err
+	}
+	if !existing.CanBeModified(userID) {
+		return nil, domain.ErrForbidden
 	}
 
 	ingredients, err := sliceutils.MapSliceWithErr(

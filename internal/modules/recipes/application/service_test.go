@@ -11,9 +11,9 @@ import (
 	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
 
-	"recipes-desk/internal/modules/auth/domain"
 	"recipes-desk/internal/modules/recipes/application"
 	"recipes-desk/internal/modules/recipes/application/dto"
+	"recipes-desk/internal/modules/recipes/domain"
 	"recipes-desk/internal/modules/recipes/domain/entity"
 	"recipes-desk/internal/modules/recipes/domain/fixtures"
 	"recipes-desk/internal/modules/recipes/domain/ports"
@@ -122,7 +122,7 @@ func TestService_Create(t *testing.T) {
 				mID.On("Generate").Return("id123")
 
 				m.On("Create", mock.Anything, mock.AnythingOfType(_recipeTypeString)).
-					Return(fixtures.NewRecipe(t, "Test Recipe"), nil)
+					Return(fixtures.NewRecipe(t, "id123", "author123", "Test Recipe"), nil)
 			},
 			wantErr: nil,
 			wantID:  true,
@@ -257,7 +257,7 @@ func TestService_Create(t *testing.T) {
 
 func TestService_GetByID(t *testing.T) {
 	logger := zerolog.New(nil)
-	recipe := fixtures.NewRecipe(t, "Test Recipe")
+	recipe := fixtures.NewRecipe(t, "id123", "author123", "Test Recipe")
 	recipeID := recipe.ID().String()
 
 	tests := []struct {
@@ -333,7 +333,7 @@ func TestService_GetAll(t *testing.T) {
 	recipesCount := 3
 	recipes := make([]entity.Recipe, recipesCount)
 	for i := range recipes {
-		recipes[i] = *fixtures.NewRecipe(t, fmt.Sprintf("Recipe %d", i))
+		recipes[i] = *fixtures.NewRecipe(t, "id123", "author123", fmt.Sprintf("Recipe %d", i))
 	}
 
 	tests := []struct {
@@ -397,9 +397,9 @@ func TestService_Search(t *testing.T) {
 	logger := zerolog.New(nil)
 
 	recipes := []entity.Recipe{
-		*fixtures.NewRecipe(t, "Pasta Carbonara"),
-		*fixtures.NewRecipe(t, "Pasta Bolognese"),
-		*fixtures.NewRecipe(t, "Chicken Curry"),
+		*fixtures.NewRecipe(t, "id123", "author123", "Pasta Carbonara"),
+		*fixtures.NewRecipe(t, "id456", "author123", "Pasta Bolognese"),
+		*fixtures.NewRecipe(t, "id789", "author123", "Chicken Curry"),
 	}
 	recipesCount := len(recipes)
 
@@ -466,8 +466,9 @@ func TestService_Search(t *testing.T) {
 
 func TestService_Update(t *testing.T) {
 	logger := zerolog.New(nil)
-	recipe := fixtures.NewRecipe(t, "Original Title")
+	recipe := fixtures.NewRecipe(t, "id123", "author123", "Original Title")
 	recipeID := recipe.ID().String()
+	authorID := recipe.AuthorID().String()
 
 	validInput := dto.UpdateRecipeInput{
 		Title:       "Updated Recipe",
@@ -481,32 +482,35 @@ func TestService_Update(t *testing.T) {
 
 	tests := []struct {
 		name      string
+		userID    string
 		id        string
 		input     dto.UpdateRecipeInput
 		mockSetup func(*mockRepository)
 		wantErr   error
 	}{
 		{
-			name:  "success",
-			id:    recipeID,
-			input: validInput,
+			name:   "success",
+			userID: authorID,
+			id:     recipeID,
+			input:  validInput,
 			mockSetup: func(m *mockRepository) {
 				m.On("FindByID", mock.Anything, recipeID).
 					Return(recipe, nil)
 
 				newTitle, err := valueobject.NewTitle("Updated Title")
 				require.NoError(t, err)
-
 				recipe.UpdateTitle(newTitle)
+
 				m.On("Update", mock.Anything, mock.AnythingOfType(_recipeTypeString)).
 					Return(recipe, nil)
 			},
 			wantErr: nil,
 		},
 		{
-			name:  "not found",
-			id:    recipeID,
-			input: validInput,
+			name:   "not found",
+			userID: authorID,
+			id:     recipeID,
+			input:  validInput,
 			mockSetup: func(m *mockRepository) {
 				m.On("FindByID", mock.Anything, recipeID).
 					Return(nil, ports.ErrNotFound)
@@ -514,8 +518,9 @@ func TestService_Update(t *testing.T) {
 			wantErr: ports.ErrNotFound,
 		},
 		{
-			name: "validation error - empty title",
-			id:   recipeID,
+			name:   "validation error - empty title",
+			userID: authorID,
+			id:     recipeID,
 			input: dto.UpdateRecipeInput{
 				Title:       "", // Invalid - empty title
 				Description: "Valid description",
@@ -533,8 +538,9 @@ func TestService_Update(t *testing.T) {
 			wantErr: valueobject.ErrTitleEmpty,
 		},
 		{
-			name: "validation error - empty ingridient name",
-			id:   recipeID,
+			name:   "validation error - empty ingridient name",
+			userID: authorID,
+			id:     recipeID,
 			input: dto.UpdateRecipeInput{
 				Title:       "Test", // Invalid - empty title
 				Description: "Valid description",
@@ -552,8 +558,9 @@ func TestService_Update(t *testing.T) {
 			wantErr: valueobject.ErrIngredientEmptyName,
 		},
 		{
-			name: "validation error - empty tag name",
-			id:   recipeID,
+			name:   "validation error - empty tag name",
+			userID: authorID,
+			id:     recipeID,
 			input: dto.UpdateRecipeInput{
 				Title:       "Test", // Invalid - empty title
 				Description: "Valid description",
@@ -571,8 +578,9 @@ func TestService_Update(t *testing.T) {
 			wantErr: valueobject.ErrTagEmptyName,
 		},
 		{
-			name: "validation error - negative step duration",
-			id:   recipeID,
+			name:   "validation error - negative step duration",
+			userID: authorID,
+			id:     recipeID,
 			input: dto.UpdateRecipeInput{
 				Title:       "Test", // Invalid - empty title
 				Description: "Valid description",
@@ -590,9 +598,10 @@ func TestService_Update(t *testing.T) {
 			wantErr: valueobject.ErrStepNegativeDuration,
 		},
 		{
-			name:  "repository update error",
-			id:    recipeID,
-			input: validInput,
+			name:   "repository update error",
+			userID: authorID,
+			id:     recipeID,
+			input:  validInput,
 			mockSetup: func(m *mockRepository) {
 				m.On("FindByID", mock.Anything, recipeID).
 					Return(recipe, nil)
@@ -600,6 +609,17 @@ func TestService_Update(t *testing.T) {
 					Return(nil, errors.New("update failed"))
 			},
 			wantErr: errors.New("update failed"),
+		},
+		{
+			name:   "forbidden",
+			userID: "not-author",
+			id:     recipeID,
+			input:  validInput,
+			mockSetup: func(m *mockRepository) {
+				m.On("FindByID", mock.Anything, recipeID).
+					Return(recipe, nil)
+			},
+			wantErr: domain.ErrForbidden,
 		},
 	}
 
@@ -610,12 +630,13 @@ func TestService_Update(t *testing.T) {
 
 			idGen := new(mockIDGenerator)
 			svc := application.NewService(mockRepo, idGen, &logger)
-			updated, err := svc.Update(context.Background(), tt.id, tt.input)
+			updated, err := svc.Update(context.Background(), tt.userID, tt.id, tt.input)
 
 			if tt.wantErr != nil {
 				require.Error(t, err)
-				if errors.Is(tt.wantErr, domain.ErrNotFound) ||
-					errors.Is(tt.wantErr, domain.ErrValidation) {
+				if errors.Is(tt.wantErr, ports.ErrNotFound) ||
+					errors.Is(tt.wantErr, domain.ErrValidation) ||
+					errors.Is(tt.wantErr, domain.ErrForbidden) {
 					require.ErrorIs(t, err, tt.wantErr)
 				}
 				assert.Nil(t, updated)
@@ -632,7 +653,7 @@ func TestService_Update(t *testing.T) {
 
 func TestService_Delete(t *testing.T) {
 	logger := zerolog.New(nil)
-	recipe := fixtures.NewRecipe(t, "Test Recipe")
+	recipe := fixtures.NewRecipe(t, "id123", "author123", "Test Recipe")
 	recipeID := recipe.ID().String()
 
 	tests := []struct {
@@ -685,8 +706,8 @@ func TestService_Delete(t *testing.T) {
 
 			if tt.wantErr != nil {
 				require.Error(t, err)
-				if errors.Is(tt.wantErr, domain.ErrNotFound) {
-					assert.ErrorIs(t, err, domain.ErrNotFound)
+				if errors.Is(tt.wantErr, ports.ErrNotFound) {
+					assert.ErrorIs(t, err, ports.ErrNotFound)
 				}
 			} else {
 				require.NoError(t, err)

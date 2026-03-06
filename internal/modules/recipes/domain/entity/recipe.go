@@ -175,6 +175,10 @@ func (r Recipe) HasID() bool {
 	return r.ID().String() != ""
 }
 
+func (r Recipe) CanBeModified(userID string) bool {
+	return r.authorID.String() == userID
+}
+
 func (r *Recipe) AssignID(id vo.EntityID) {
 	r.id = id
 }

@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"testing"
+	"time"
 
 	"github.com/gin-gonic/gin"
 	"github.com/rs/zerolog"
@@ -18,6 +19,7 @@ import (
 	httphandler "recipes-desk/internal/modules/recipes/adapter/in/http"
 	"recipes-desk/internal/modules/recipes/application/dto"
 	"recipes-desk/internal/modules/recipes/application/ports/in"
+	"recipes-desk/internal/modules/recipes/domain"
 	"recipes-desk/internal/modules/recipes/domain/ports"
 	"recipes-desk/internal/modules/recipes/domain/valueobject"
 )
@@ -66,10 +68,11 @@ func (m *mockService) Search(ctx context.Context, query string) ([]dto.Recipe, e
 
 func (m *mockService) Update(
 	ctx context.Context,
+	userID string,
 	id string,
 	input dto.UpdateRecipeInput,
 ) (*dto.Recipe, error) {
-	args := m.Called(ctx, id, input)
+	args := m.Called(ctx, userID, id, input)
 	if args.Get(0) == nil {
 		return nil, args.Error(1)
 	}
@@ -414,18 +417,34 @@ func TestHandler_Create(t *testing.T) {
 }
 
 func TestHandler_Update(t *testing.T) {
-	recipeID := "abc123"
+	recipe := &dto.Recipe{
+		ID:          "abc123",
+		Title:       "Updated Recipe",
+		Description: "This is a valid description that is long enough",
+		Ingredients: []dto.Ingredient{
+			{Name: "Ingredient 1", Amount: 100, Unit: "g"},
+		},
+		Steps: []dto.Step{
+			{Order: 1, Description: "Step 1", Duration: 10},
+		},
+		CookingTime: 30,
+		Portions:    4,
+		Tags:        []string{"updated"},
+		CreatedAt:   time.Now(),
+		UpdatedAt:   time.Now(),
+	}
+	authorID := "author123"
 
 	tests := []struct {
 		name           string
-		id             string
+		userID         string
 		body           map[string]any
 		mockSetup      func(*mockService)
 		wantStatusCode int
 	}{
 		{
-			name: "success",
-			id:   recipeID,
+			name:   "success",
+			userID: authorID,
 			body: map[string]any{
 				"title":       "Updated Recipe",
 				"description": "This is a valid description that is long enough",
@@ -440,20 +459,14 @@ func TestHandler_Update(t *testing.T) {
 				"tags":        []string{"updated"},
 			},
 			mockSetup: func(m *mockService) {
-				m.On("Update", mock.Anything, recipeID, mock.AnythingOfType("dto.UpdateRecipeInput")).
-					Return(
-						&dto.Recipe{ //nolint:exhaustruct // test struct
-							ID:    "id123",
-							Title: "Updated Recipe",
-						},
-						nil,
-					)
+				m.On("Update", mock.Anything, mock.AnythingOfType("string"), mock.AnythingOfType("string"), mock.AnythingOfType("dto.UpdateRecipeInput")).
+					Return(recipe, nil)
 			},
 			wantStatusCode: http.StatusOK,
 		},
 		{
-			name: "not found",
-			id:   recipeID,
+			name:   "not found",
+			userID: authorID,
 			body: map[string]any{
 				"title":       "Updated Recipe",
 				"description": "This is a valid description that is long enough",
@@ -468,14 +481,14 @@ func TestHandler_Update(t *testing.T) {
 				"tags":        []string{"updated"},
 			},
 			mockSetup: func(m *mockService) {
-				m.On("Update", mock.Anything, recipeID, mock.AnythingOfType("dto.UpdateRecipeInput")).
+				m.On("Update", mock.Anything, mock.AnythingOfType("string"), mock.AnythingOfType("string"), mock.AnythingOfType("dto.UpdateRecipeInput")).
 					Return(nil, ports.ErrNotFound)
 			},
 			wantStatusCode: http.StatusNotFound,
 		},
 		{
-			name: "http validation error",
-			id:   recipeID,
+			name:   "http validation error",
+			userID: authorID,
 			body: map[string]any{
 				"title":       "", // empty title
 				"description": "This is a valid description that is long enough",
@@ -494,8 +507,8 @@ func TestHandler_Update(t *testing.T) {
 			wantStatusCode: http.StatusBadRequest,
 		},
 		{
-			name: "validation error",
-			id:   recipeID,
+			name:   "validation error",
+			userID: authorID,
 			body: map[string]any{
 				"title":       "AB", // Title too short
 				"description": "Valid description",
@@ -510,10 +523,32 @@ func TestHandler_Update(t *testing.T) {
 				"tags":        []string{"updated"},
 			},
 			mockSetup: func(m *mockService) {
-				m.On("Update", mock.Anything, recipeID, mock.Anything).
+				m.On("Update", mock.Anything, mock.AnythingOfType("string"), mock.AnythingOfType("string"), mock.Anything).
 					Return(nil, valueobject.ErrTitleTooShort)
 			},
 			wantStatusCode: http.StatusBadRequest,
+		},
+		{
+			name:   "forbidden",
+			userID: "not-author",
+			body: map[string]any{
+				"title":       "Updated Recipe",
+				"description": "This is a valid description",
+				"ingredients": []map[string]any{
+					{"name": "Ingredient 1", "amount": 100, "unit": "g"},
+				},
+				"steps": []map[string]any{
+					{"order": 1, "description": "Step 1", "duration": 10},
+				},
+				"cookingTime": 30,
+				"portions":    4,
+				"tags":        []string{"updated"},
+			},
+			mockSetup: func(m *mockService) {
+				m.On("Update", mock.Anything, mock.AnythingOfType("string"), mock.AnythingOfType("string"), mock.Anything).
+					Return(nil, domain.ErrForbidden)
+			},
+			wantStatusCode: http.StatusForbidden,
 		},
 	}
 
@@ -522,11 +557,16 @@ func TestHandler_Update(t *testing.T) {
 			router, mockSvc, h := setupTest()
 			tt.mockSetup(mockSvc)
 
-			router.PUT("/recipes/:id", h.Update)
+			router.PUT("/recipes/:id", func(c *gin.Context) {
+				if tt.userID != "" {
+					c.Set("userID", tt.userID)
+				}
+				h.Update(c)
+			})
 
 			body, _ := json.Marshal(tt.body)
 			w := httptest.NewRecorder()
-			req, _ := http.NewRequest(http.MethodPut, "/recipes/"+tt.id, bytes.NewBuffer(body))
+			req, _ := http.NewRequest(http.MethodPut, "/recipes/"+recipe.ID, bytes.NewBuffer(body))
 			req.Header.Set("Content-Type", "application/json")
 			router.ServeHTTP(w, req)
 

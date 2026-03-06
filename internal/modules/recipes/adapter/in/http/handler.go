@@ -34,6 +34,8 @@ func handleError(c *gin.Context, err error) {
 		c.JSON(http.StatusNotFound, gin.H{"error": "recipe not found"})
 	case errors.Is(err, domain.ErrValidation):
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+	case errors.Is(err, domain.ErrForbidden):
+		c.JSON(http.StatusForbidden, gin.H{"error": err.Error()})
 	default:
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "internal server error"})
 	}
@@ -120,7 +122,6 @@ func (h *Handler) Create(c *gin.Context) {
 
 func (h *Handler) Update(c *gin.Context) {
 	userID := c.GetString("userID")
-	_ = userID
 
 	id := c.Param("id")
 
@@ -133,7 +134,7 @@ func (h *Handler) Update(c *gin.Context) {
 
 	h.log.Debug().Str("recipe_id", id).Msg("Updating recipe")
 
-	result, err := h.service.Update(c.Request.Context(), id, dto.UpdateRecipeInput{
+	result, err := h.service.Update(c.Request.Context(), userID, id, dto.UpdateRecipeInput{
 		Title:       req.Title,
 		Description: req.Description,
 		Ingredients: mapIngredients(req.Ingredients),
