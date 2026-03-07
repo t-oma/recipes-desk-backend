@@ -9,6 +9,7 @@ import (
 	"go.mongodb.org/mongo-driver/bson/primitive"
 	"go.mongodb.org/mongo-driver/mongo"
 
+	"recipes-desk/internal/modules/recipes/domain"
 	"recipes-desk/internal/modules/recipes/domain/entity"
 	"recipes-desk/internal/modules/recipes/domain/ports"
 )
@@ -45,14 +46,14 @@ func (r *RecipeRepository) Create(
 func (r *RecipeRepository) FindByID(ctx context.Context, id string) (*entity.Recipe, error) {
 	objectID, err := primitive.ObjectIDFromHex(id)
 	if err != nil {
-		return nil, ports.ErrNotFound
+		return nil, domain.ErrNotFound
 	}
 
 	var model recipeModel
 	err = r.collection.FindOne(ctx, bson.M{"_id": objectID}).Decode(&model)
 	if err != nil {
 		if errors.Is(err, mongo.ErrNoDocuments) {
-			return nil, ports.ErrNotFound
+			return nil, domain.ErrNotFound
 		}
 		return nil, err
 	}
@@ -134,7 +135,7 @@ func (r *RecipeRepository) Update(
 	}
 
 	if result.MatchedCount == 0 {
-		return nil, ports.ErrNotFound
+		return nil, domain.ErrNotFound
 	}
 
 	return recipeModel.toDomain()
@@ -147,7 +148,7 @@ func (r *RecipeRepository) Delete(ctx context.Context, id string) error {
 
 	objectID, err := primitive.ObjectIDFromHex(id)
 	if err != nil {
-		return ports.ErrNotFound
+		return domain.ErrNotFound
 	}
 
 	result, err := r.collection.DeleteOne(ctx, bson.M{"_id": objectID})
@@ -156,7 +157,7 @@ func (r *RecipeRepository) Delete(ctx context.Context, id string) error {
 	}
 
 	if result.DeletedCount == 0 {
-		return ports.ErrNotFound
+		return domain.ErrNotFound
 	}
 
 	return nil
