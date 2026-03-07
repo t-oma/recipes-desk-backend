@@ -2,7 +2,6 @@ package ports
 
 import (
 	"context"
-	"errors"
 
 	"recipes-desk/internal/modules/recipes/domain/entity"
 )
@@ -27,5 +26,3 @@ type RecipeRepository interface {
 	// Delete removes a recipe by its ID
 	Delete(ctx context.Context, id string) error
 }
-
-var ErrNotFound = errors.New("recipe not found")
