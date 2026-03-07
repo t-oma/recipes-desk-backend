@@ -93,9 +93,9 @@ func (s *Service) Create(ctx context.Context, input dto.CreateRecipeInput) (*dto
 func (s *Service) GetByID(ctx context.Context, id string) (*dto.Recipe, error) {
 	recipe, err := s.repo.FindByID(ctx, id)
 	if err != nil {
-		if errors.Is(err, ports.ErrNotFound) {
+		if errors.Is(err, domain.ErrNotFound) {
 			s.log.Debug().Str("recipe_id", id).Msg("Recipe not found")
-			return nil, err
+			return nil, domain.ErrRecipeNotFound
 		}
 		s.log.Error().Err(err).Str("recipe_id", id).Msg("Failed to get recipe")
 		return nil, err

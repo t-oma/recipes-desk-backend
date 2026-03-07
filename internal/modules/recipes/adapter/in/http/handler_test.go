@@ -20,7 +20,6 @@ import (
 	"recipes-desk/internal/modules/recipes/application/dto"
 	"recipes-desk/internal/modules/recipes/application/ports/in"
 	"recipes-desk/internal/modules/recipes/domain"
-	"recipes-desk/internal/modules/recipes/domain/ports"
 	"recipes-desk/internal/modules/recipes/domain/valueobject"
 )
 
@@ -192,7 +191,7 @@ func TestHandler_GetByID(t *testing.T) {
 			id:   recipeID,
 			mockSetup: func(m *mockService) {
 				m.On("GetByID", mock.Anything, recipeID).
-					Return(nil, ports.ErrNotFound)
+					Return(nil, domain.ErrNotFound)
 			},
 			wantStatusCode: http.StatusNotFound,
 			wantRecipe:     false,
@@ -482,7 +481,7 @@ func TestHandler_Update(t *testing.T) {
 			},
 			mockSetup: func(m *mockService) {
 				m.On("Update", mock.Anything, mock.AnythingOfType("string"), mock.AnythingOfType("string"), mock.AnythingOfType("dto.UpdateRecipeInput")).
-					Return(nil, ports.ErrNotFound)
+					Return(nil, domain.ErrNotFound)
 			},
 			wantStatusCode: http.StatusNotFound,
 		},
@@ -597,7 +596,7 @@ func TestHandler_Delete(t *testing.T) {
 			name: "not found",
 			id:   recipeID,
 			mockSetup: func(m *mockService) {
-				m.On("Delete", mock.Anything, recipeID).Return(ports.ErrNotFound)
+				m.On("Delete", mock.Anything, recipeID).Return(domain.ErrNotFound)
 			},
 			wantStatusCode: http.StatusNotFound,
 		},

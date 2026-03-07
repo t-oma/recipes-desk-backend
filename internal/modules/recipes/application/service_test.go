@@ -282,9 +282,9 @@ func TestService_GetByID(t *testing.T) {
 			id:   recipeID,
 			mockSetup: func(m *mockRepository) {
 				m.On("FindByID", mock.Anything, recipeID).
-					Return(nil, ports.ErrNotFound)
+					Return(nil, domain.ErrNotFound)
 			},
-			wantErr:    ports.ErrNotFound,
+			wantErr:    domain.ErrNotFound,
 			wantRecipe: false,
 		},
 		{
@@ -310,8 +310,8 @@ func TestService_GetByID(t *testing.T) {
 
 			if tt.wantErr != nil {
 				require.Error(t, err)
-				if errors.Is(tt.wantErr, ports.ErrNotFound) {
-					assert.ErrorIs(t, err, ports.ErrNotFound)
+				if errors.Is(tt.wantErr, domain.ErrNotFound) {
+					assert.ErrorIs(t, err, domain.ErrNotFound)
 				}
 				assert.Nil(t, recipe)
 			} else {
@@ -513,9 +513,9 @@ func TestService_Update(t *testing.T) {
 			input:  validInput,
 			mockSetup: func(m *mockRepository) {
 				m.On("FindByID", mock.Anything, recipeID).
-					Return(nil, ports.ErrNotFound)
+					Return(nil, domain.ErrNotFound)
 			},
-			wantErr: ports.ErrNotFound,
+			wantErr: domain.ErrNotFound,
 		},
 		{
 			name:   "validation error - empty title",
@@ -634,7 +634,7 @@ func TestService_Update(t *testing.T) {
 
 			if tt.wantErr != nil {
 				require.Error(t, err)
-				if errors.Is(tt.wantErr, ports.ErrNotFound) ||
+				if errors.Is(tt.wantErr, domain.ErrNotFound) ||
 					errors.Is(tt.wantErr, domain.ErrValidation) ||
 					errors.Is(tt.wantErr, domain.ErrForbidden) {
 					require.ErrorIs(t, err, tt.wantErr)
@@ -678,9 +678,9 @@ func TestService_Delete(t *testing.T) {
 			id:   recipeID,
 			mockSetup: func(m *mockRepository) {
 				m.On("FindByID", mock.Anything, recipeID).
-					Return(nil, ports.ErrNotFound)
+					Return(nil, domain.ErrNotFound)
 			},
-			wantErr: ports.ErrNotFound,
+			wantErr: domain.ErrNotFound,
 		},
 		{
 			name: "delete error",
@@ -706,8 +706,8 @@ func TestService_Delete(t *testing.T) {
 
 			if tt.wantErr != nil {
 				require.Error(t, err)
-				if errors.Is(tt.wantErr, ports.ErrNotFound) {
-					assert.ErrorIs(t, err, ports.ErrNotFound)
+				if errors.Is(tt.wantErr, domain.ErrNotFound) {
+					assert.ErrorIs(t, err, domain.ErrNotFound)
 				}
 			} else {
 				require.NoError(t, err)

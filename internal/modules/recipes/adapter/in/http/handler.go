@@ -7,10 +7,9 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/rs/zerolog"
 
+	"recipes-desk/internal/modules/recipes/application"
 	"recipes-desk/internal/modules/recipes/application/dto"
 	"recipes-desk/internal/modules/recipes/application/ports/in"
-	"recipes-desk/internal/modules/recipes/domain"
-	"recipes-desk/internal/modules/recipes/domain/ports"
 )
 
 // Handler handles HTTP requests for recipes.
@@ -27,14 +26,14 @@ func NewHandler(service in.RecipeService, log *zerolog.Logger) *Handler {
 	}
 }
 
-// handleError maps domain errors to HTTP status codes.
+// handleError maps application errors to HTTP status codes.
 func handleError(c *gin.Context, err error) {
 	switch {
-	case errors.Is(err, ports.ErrNotFound):
+	case errors.Is(err, application.ErrNotFound):
 		c.JSON(http.StatusNotFound, gin.H{"error": "recipe not found"})
-	case errors.Is(err, domain.ErrValidation):
+	case errors.Is(err, application.ErrValidation):
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
-	case errors.Is(err, domain.ErrForbidden):
+	case errors.Is(err, application.ErrForbidden):
 		c.JSON(http.StatusForbidden, gin.H{"error": err.Error()})
 	default:
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "internal server error"})
