@@ -451,9 +451,9 @@ func TestService_RefreshTokens(t *testing.T) {
 			},
 			mockSetup: func(tok *mockTokenService) {
 				tok.On("RotateRefreshToken", mock.Anything, "invalid-token").
-					Return(nil, "", domain.ErrInvalidToken).Once()
+					Return(nil, "", ports.ErrInvalidToken).Once()
 			},
-			wantErr:    domain.ErrInvalidToken,
+			wantErr:    ports.ErrInvalidToken,
 			wantResult: false,
 		},
 	}

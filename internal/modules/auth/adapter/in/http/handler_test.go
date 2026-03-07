@@ -379,7 +379,7 @@ func TestHandler_Refresh(t *testing.T) {
 			cookie: "invalid_token",
 			mockSetup: func(m *mockAuthService) {
 				m.On("RefreshTokens", mock.Anything, mock.AnythingOfType("dto.RefreshTokensInput")).
-					Return(nil, domain.ErrTokenNotFound)
+					Return(nil, ports.ErrTokenNotFound)
 			},
 			wantStatusCode: http.StatusUnauthorized,
 			wantCookies:    0,
@@ -389,7 +389,7 @@ func TestHandler_Refresh(t *testing.T) {
 			cookie: "expired_token",
 			mockSetup: func(m *mockAuthService) {
 				m.On("RefreshTokens", mock.Anything, mock.AnythingOfType("dto.RefreshTokensInput")).
-					Return(nil, domain.ErrExpiredToken)
+					Return(nil, ports.ErrExpiredToken)
 			},
 			wantStatusCode: http.StatusUnauthorized,
 			wantCookies:    0,

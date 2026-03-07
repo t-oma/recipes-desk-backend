@@ -40,8 +40,8 @@ func handleError(c *gin.Context, err error) {
 		c.JSON(http.StatusNotFound, gin.H{"error": "user not found"})
 	case errors.Is(err, domain.ErrValidation):
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
-	case errors.Is(err, domain.ErrInvalidToken), errors.Is(err, domain.ErrExpiredToken),
-		errors.Is(err, domain.ErrTokenNotFound):
+	case errors.Is(err, ports.ErrInvalidToken), errors.Is(err, ports.ErrExpiredToken),
+		errors.Is(err, ports.ErrTokenNotFound):
 		c.JSON(http.StatusUnauthorized, gin.H{"error": "invalid or expired token"})
 	case errors.Is(err, domain.ErrUserAlreadyExists):
 		c.JSON(http.StatusConflict, gin.H{"error": "user already exists"})
