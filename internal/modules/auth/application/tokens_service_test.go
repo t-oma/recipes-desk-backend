@@ -329,7 +329,7 @@ func TestTokenService_ValidateRefreshToken(t *testing.T) {
 			plainToken: "non-existent-token",
 			mockSetup: func(m *mockRefreshTokensRepository) {
 				m.On("FindByHash", mock.Anything, mock.AnythingOfType("string")).
-					Return(nil, domain.ErrNotFound)
+					Return(nil, domain.ErrTokenNotFound)
 			},
 			wantErr:    domain.ErrTokenNotFound,
 			wantUserID: "",
@@ -439,7 +439,7 @@ func TestTokenService_RotateRefreshToken(t *testing.T) {
 			oldToken: "invalid-token",
 			mockSetup: func(m *mockRefreshTokensRepository) {
 				m.On("FindByHash", mock.Anything, mock.AnythingOfType("string")).
-					Return(nil, domain.ErrNotFound).Once()
+					Return(nil, domain.ErrTokenNotFound).Once()
 			},
 			wantErr:       domain.ErrTokenNotFound,
 			checkNewToken: false,

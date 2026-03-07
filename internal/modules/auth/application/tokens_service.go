@@ -120,7 +120,7 @@ func (s *TokenService) ValidateRefreshToken(
 
 	storedToken, err := s.refreshRepo.FindByHash(ctx, tokenHash)
 	if err != nil {
-		if errors.Is(err, domain.ErrNotFound) {
+		if errors.Is(err, domain.ErrTokenNotFound) {
 			return "", domain.ErrTokenNotFound
 		}
 		return "", fmt.Errorf("failed to find refresh token: %w", err)

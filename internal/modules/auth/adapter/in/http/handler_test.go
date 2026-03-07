@@ -20,6 +20,7 @@ import (
 	"recipes-desk/internal/modules/auth/application/dto"
 	"recipes-desk/internal/modules/auth/application/ports/in"
 	"recipes-desk/internal/modules/auth/domain"
+	"recipes-desk/internal/modules/auth/domain/ports"
 )
 
 // mockAuthService is a mock implementation of httphandler.AuthService.
@@ -159,7 +160,7 @@ func TestHandler_Register(t *testing.T) {
 			},
 			mockSetup: func(m *mockAuthService) {
 				m.On("Register", mock.Anything, mock.AnythingOfType("dto.RegisterInput")).
-					Return(nil, domain.ErrAlreadyExists)
+					Return(nil, domain.ErrUserAlreadyExists)
 			},
 			wantStatusCode: http.StatusConflict,
 			wantCookies:    0,
@@ -271,7 +272,7 @@ func TestHandler_Login(t *testing.T) {
 			},
 			mockSetup: func(m *mockAuthService) {
 				m.On("Login", mock.Anything, mock.AnythingOfType("dto.LoginInput")).
-					Return(nil, domain.ErrNotFound)
+					Return(nil, ports.ErrUserNotFound)
 			},
 			wantStatusCode: http.StatusNotFound,
 			wantCookies:    0,
@@ -500,7 +501,7 @@ func TestHandler_Me(t *testing.T) {
 			userID: userID,
 			mockSetup: func(m *mockAuthService) {
 				m.On("GetByID", mock.Anything, userID).
-					Return(nil, domain.ErrNotFound)
+					Return(nil, ports.ErrUserNotFound)
 			},
 			wantStatusCode: http.StatusNotFound,
 			wantUser:       false,

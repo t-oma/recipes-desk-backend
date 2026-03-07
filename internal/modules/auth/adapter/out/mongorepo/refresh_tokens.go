@@ -75,7 +75,7 @@ func (r *RefreshTokensRepository) FindByHash(
 	err := r.collection.FindOne(ctx, bson.M{"tokenHash": tokenHash}).Decode(&model)
 	if err != nil {
 		if errors.Is(err, mongo.ErrNoDocuments) {
-			return nil, domain.ErrNotFound
+			return nil, domain.ErrTokenNotFound
 		}
 		return nil, err
 	}
