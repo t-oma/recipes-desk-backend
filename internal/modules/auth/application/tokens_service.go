@@ -13,14 +13,17 @@ import (
 
 	"recipes-desk/internal/modules/auth/application/dto"
 	"recipes-desk/internal/modules/auth/application/ports/in"
-	"recipes-desk/internal/modules/auth/domain"
+	"recipes-desk/internal/modules/auth/domain/entity"
+	"recipes-desk/internal/modules/auth/domain/ports"
+	"recipes-desk/internal/modules/auth/domain/valueobject"
 )
 
 var ErrSignToken = errors.New("failed to sign token")
 
 // TokenService handles JWT token generation and validation.
 type TokenService struct {
-	refreshRepo domain.RefreshTokensRepository
+	refreshRepo ports.RefreshTokenRepository
+	idGen       ports.IDGenerator
 	secret      []byte
 	accessTTL   time.Duration
 	refreshTTL  time.Duration
@@ -30,13 +33,15 @@ var _ in.TokenService = (*TokenService)(nil)
 
 // NewTokenService creates a new TokenService.
 func NewTokenService(
-	refreshRepo domain.RefreshTokensRepository,
+	refreshRepo ports.RefreshTokenRepository,
+	idGen ports.IDGenerator,
 	secret string,
 	accessTTL time.Duration,
 	refreshTTL time.Duration,
 ) *TokenService {
 	return &TokenService{
 		refreshRepo: refreshRepo,
+		idGen:       idGen,
 		secret:      []byte(secret),
 		accessTTL:   accessTTL,
 		refreshTTL:  refreshTTL,
@@ -72,16 +77,16 @@ func (s *TokenService) ValidateAccessToken(tokenString string) (*dto.Claims, err
 		})
 	if err != nil {
 		if errors.Is(err, jwt.ErrTokenExpired) {
-			return nil, domain.ErrExpiredToken
+			return nil, ports.ErrExpiredToken
 		}
-		return nil, fmt.Errorf("%w: %w", domain.ErrInvalidToken, err)
+		return nil, fmt.Errorf("%w: %w", ports.ErrInvalidToken, err)
 	}
 
 	if claims, ok := token.Claims.(*dto.Claims); ok && token.Valid {
 		return claims, nil
 	}
 
-	return nil, domain.ErrInvalidToken
+	return nil, ports.ErrInvalidToken
 }
 
 func (s *TokenService) GenerateRefreshToken(
@@ -96,19 +101,26 @@ func (s *TokenService) GenerateRefreshToken(
 	plainToken := base64.URLEncoding.EncodeToString(randomBytes)
 	tokenHash := hashToken(plainToken)
 
-	refreshToken := &domain.RefreshToken{ //nolint:exhaustruct // fields set via SetTimestamps
-		UserID:    userID,
-		TokenHash: tokenHash,
+	userIDVO, err := valueobject.NewUserID(userID)
+	if err != nil {
+		return nil, err
 	}
 
-	refreshToken, err := s.refreshRepo.Create(ctx, refreshToken, s.refreshTTL)
+	tokenIDVO, err := valueobject.NewRefreshTokenID(s.idGen.Generate())
+	if err != nil {
+		return nil, err
+	}
+	tokenHashVO := valueobject.TokenHash(tokenHash)
+	refreshToken := entity.NewRefreshToken(tokenIDVO, userIDVO, tokenHashVO)
+
+	refreshToken, err = s.refreshRepo.Create(ctx, refreshToken, s.refreshTTL)
 	if err != nil {
 		return nil, fmt.Errorf("failed to store refresh token: %w", err)
 	}
 
 	return &dto.TokenResult{
 		Token:     plainToken,
-		ExpiresAt: refreshToken.ExpiresAt,
+		ExpiresAt: refreshToken.ExpiresAt(),
 	}, nil
 }
 
@@ -120,18 +132,18 @@ func (s *TokenService) ValidateRefreshToken(
 
 	storedToken, err := s.refreshRepo.FindByHash(ctx, tokenHash)
 	if err != nil {
-		if errors.Is(err, domain.ErrNotFound) {
-			return "", domain.ErrTokenNotFound
+		if errors.Is(err, ports.ErrTokenNotFound) {
+			return "", ports.ErrTokenNotFound
 		}
 		return "", fmt.Errorf("failed to find refresh token: %w", err)
 	}
 
 	// Check if token has expired
-	if time.Now().After(storedToken.ExpiresAt) {
-		return "", domain.ErrExpiredToken
+	if time.Now().After(storedToken.ExpiresAt()) {
+		return "", ports.ErrExpiredToken
 	}
 
-	return storedToken.UserID, nil
+	return storedToken.UserID().String(), nil
 }
 
 func (s *TokenService) RotateRefreshToken(

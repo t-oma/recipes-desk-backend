@@ -11,6 +11,7 @@ import (
 	"recipes-desk/internal/modules/auth/application/dto"
 	"recipes-desk/internal/modules/auth/application/ports/in"
 	"recipes-desk/internal/modules/auth/domain"
+	"recipes-desk/internal/modules/auth/domain/ports"
 )
 
 const (
@@ -35,15 +36,17 @@ func NewHandler(service in.AuthService, log *zerolog.Logger) *Handler {
 
 func handleError(c *gin.Context, err error) {
 	switch {
-	case errors.Is(err, domain.ErrNotFound):
+	case errors.Is(err, ports.ErrUserNotFound):
 		c.JSON(http.StatusNotFound, gin.H{"error": "user not found"})
-	case errors.Is(err, domain.ErrAlreadyExists):
-		c.JSON(http.StatusConflict, gin.H{"error": "user already exists"})
 	case errors.Is(err, domain.ErrValidation):
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
-	case errors.Is(err, domain.ErrInvalidToken), errors.Is(err, domain.ErrExpiredToken),
-		errors.Is(err, domain.ErrTokenNotFound):
+	case errors.Is(err, ports.ErrInvalidToken), errors.Is(err, ports.ErrExpiredToken),
+		errors.Is(err, ports.ErrTokenNotFound):
 		c.JSON(http.StatusUnauthorized, gin.H{"error": "invalid or expired token"})
+	case errors.Is(err, domain.ErrUserAlreadyExists):
+		c.JSON(http.StatusConflict, gin.H{"error": "user already exists"})
+	case errors.Is(err, domain.ErrInvalidCredentials):
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid credentials"})
 	default:
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "internal server error"})
 	}
@@ -83,7 +86,6 @@ func (h *Handler) Login(c *gin.Context) {
 		return
 	}
 
-	h.log.Debug().Str("user_email", req.Email).Msg("Logging in user")
 	result, err := h.service.Login(c.Request.Context(), dto.LoginInput{
 		Email:    req.Email,
 		Password: req.Password,
@@ -141,7 +143,7 @@ func (h *Handler) Me(c *gin.Context) {
 		return
 	}
 
-	c.JSON(http.StatusOK, user)
+	c.JSON(http.StatusOK, toUserResponse(user))
 }
 
 // setAuthCookie sets an httpOnly cookie with the given name and token.

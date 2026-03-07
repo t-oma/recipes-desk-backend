@@ -41,8 +41,15 @@ func NewModule(
 	}
 
 	passwordService := application.NewBcryptHasher(14)
-	tokenService := application.NewTokenService(refreshRepo, secret, accessExpiry, refreshExpiry)
-	authService := application.NewService(authRepo, log, passwordService, tokenService)
+	idGen := mongorepo.ObjectIDGenerator{}
+	tokenService := application.NewTokenService(
+		refreshRepo,
+		idGen,
+		secret,
+		accessExpiry,
+		refreshExpiry,
+	)
+	authService := application.NewService(authRepo, log, passwordService, tokenService, idGen)
 
 	authHandler := httphandler.NewHandler(authService, log)
 

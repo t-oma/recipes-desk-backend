@@ -10,26 +10,27 @@ import (
 	"go.mongodb.org/mongo-driver/mongo"
 	"go.mongodb.org/mongo-driver/mongo/options"
 
-	"recipes-desk/internal/modules/auth/domain"
+	"recipes-desk/internal/modules/auth/domain/entity"
+	"recipes-desk/internal/modules/auth/domain/ports"
 )
 
 const refreshCollectionName = "refresh_tokens"
 
-// RefreshTokensRepository implements RefreshTokensRepository using MongoDB.
-type RefreshTokensRepository struct {
+// RefreshTokenRepository implements RefreshTokenRepository using MongoDB.
+type RefreshTokenRepository struct {
 	collection *mongo.Collection
 }
 
-var _ domain.RefreshTokensRepository = (*RefreshTokensRepository)(nil)
+var _ ports.RefreshTokenRepository = (*RefreshTokenRepository)(nil)
 
 // NewRefreshTokens creates a new MongoRefreshTokenRepository.
-func NewRefreshTokens(db *mongo.Database) *RefreshTokensRepository {
-	return &RefreshTokensRepository{
+func NewRefreshTokens(db *mongo.Database) *RefreshTokenRepository {
+	return &RefreshTokenRepository{
 		collection: db.Collection(refreshCollectionName),
 	}
 }
 
-func (r *RefreshTokensRepository) InitIndexes(ctx context.Context) error {
+func (r *RefreshTokenRepository) InitIndexes(ctx context.Context) error {
 	indexModel := mongo.IndexModel{
 		Keys:    bson.D{{Key: "expiresAt", Value: 1}},
 		Options: options.Index().SetExpireAfterSeconds(0),
@@ -45,12 +46,11 @@ func (r *RefreshTokensRepository) InitIndexes(ctx context.Context) error {
 }
 
 // Create stores a new refresh token in the database.
-func (r *RefreshTokensRepository) Create(
+func (r *RefreshTokenRepository) Create(
 	ctx context.Context,
-	token *domain.RefreshToken,
+	token *entity.RefreshToken,
 	ttl time.Duration,
-) (*domain.RefreshToken, error) {
-	// Convert to MongoDB model
+) (*entity.RefreshToken, error) {
 	model, err := refreshTokenModelFromDomain(token)
 	if err != nil {
 		return nil, err
@@ -62,28 +62,27 @@ func (r *RefreshTokensRepository) Create(
 		return nil, err
 	}
 
-	// Update the domain model with the generated ID
-	return model.toDomain(), nil
+	return model.toDomain()
 }
 
 // FindByHash finds a refresh token by its hash.
-func (r *RefreshTokensRepository) FindByHash(
+func (r *RefreshTokenRepository) FindByHash(
 	ctx context.Context,
 	tokenHash string,
-) (*domain.RefreshToken, error) {
+) (*entity.RefreshToken, error) {
 	var model refreshTokenModel
 	err := r.collection.FindOne(ctx, bson.M{"tokenHash": tokenHash}).Decode(&model)
 	if err != nil {
 		if errors.Is(err, mongo.ErrNoDocuments) {
-			return nil, domain.ErrNotFound
+			return nil, ports.ErrTokenNotFound
 		}
 		return nil, err
 	}
-	return model.toDomain(), nil
+	return model.toDomain()
 }
 
 // DeleteByHash deletes a refresh token by its hash.
-func (r *RefreshTokensRepository) DeleteByHash(
+func (r *RefreshTokenRepository) DeleteByHash(
 	ctx context.Context,
 	tokenHash string,
 ) error {

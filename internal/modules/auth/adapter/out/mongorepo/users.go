@@ -9,27 +9,28 @@ import (
 	"go.mongodb.org/mongo-driver/bson/primitive"
 	"go.mongodb.org/mongo-driver/mongo"
 
-	"recipes-desk/internal/modules/auth/domain"
+	"recipes-desk/internal/modules/auth/domain/entity"
+	"recipes-desk/internal/modules/auth/domain/ports"
 )
 
 const usersCollectionName = "users"
 
-// UsersRepository implements domain.Repository using MongoDB.
-type UsersRepository struct {
+// UserRepository implements domain.Repository using MongoDB.
+type UserRepository struct {
 	collection *mongo.Collection
 }
 
-var _ domain.UsersRepository = (*UsersRepository)(nil)
+var _ ports.UserRepository = (*UserRepository)(nil)
 
 // NewUsers creates a new MongoRepository.
-func NewUsers(db *mongo.Database) *UsersRepository {
-	return &UsersRepository{
+func NewUsers(db *mongo.Database) *UserRepository {
+	return &UserRepository{
 		collection: db.Collection(usersCollectionName),
 	}
 }
 
 // Create stores a new user in the database.
-func (r *UsersRepository) Create(ctx context.Context, user *domain.User) (*domain.User, error) {
+func (r *UserRepository) Create(ctx context.Context, user *entity.User) (*entity.User, error) {
 	ctx, cancel := context.WithTimeout(ctx, 5*time.Second)
 	defer cancel()
 
@@ -37,17 +38,20 @@ func (r *UsersRepository) Create(ctx context.Context, user *domain.User) (*domai
 	model.prepareForInsert()
 
 	_, err := r.collection.InsertOne(ctx, model)
-	return model.toDomain(), err
+	if err != nil {
+		return nil, err
+	}
+	return model.toDomain()
 }
 
 // FindByID finds a user by their ID.
-func (r *UsersRepository) FindByID(ctx context.Context, id string) (*domain.User, error) {
+func (r *UserRepository) FindByID(ctx context.Context, id string) (*entity.User, error) {
 	ctx, cancel := context.WithTimeout(ctx, 5*time.Second)
 	defer cancel()
 
 	objectID, err := primitive.ObjectIDFromHex(id)
 	if err != nil {
-		return nil, domain.ErrNotFound
+		return nil, ports.ErrUserNotFound
 	}
 
 	filter := bson.M{"_id": objectID}
@@ -56,19 +60,19 @@ func (r *UsersRepository) FindByID(ctx context.Context, id string) (*domain.User
 	err = r.collection.FindOne(ctx, filter).Decode(&model)
 	if err != nil {
 		if errors.Is(err, mongo.ErrNoDocuments) {
-			return nil, domain.ErrNotFound
+			return nil, ports.ErrUserNotFound
 		}
 		return nil, err
 	}
 
-	return model.toDomain(), nil
+	return model.toDomain()
 }
 
 // FindByEmail finds a user by their email.
-func (r *UsersRepository) FindByEmail(
+func (r *UserRepository) FindByEmail(
 	ctx context.Context,
 	email string,
-) (*domain.User, error) {
+) (*entity.User, error) {
 	ctx, cancel := context.WithTimeout(ctx, 5*time.Second)
 	defer cancel()
 
@@ -78,16 +82,16 @@ func (r *UsersRepository) FindByEmail(
 	err := r.collection.FindOne(ctx, filter).Decode(&model)
 	if err != nil {
 		if errors.Is(err, mongo.ErrNoDocuments) {
-			return nil, domain.ErrNotFound
+			return nil, ports.ErrUserNotFound
 		}
 		return nil, err
 	}
 
-	return model.toDomain(), nil
+	return model.toDomain()
 }
 
 // ExistsByEmail checks if a user with the given email exists.
-func (r *UsersRepository) ExistsByEmail(ctx context.Context, email string) (bool, error) {
+func (r *UserRepository) ExistsByEmail(ctx context.Context, email string) (bool, error) {
 	ctx, cancel := context.WithTimeout(ctx, 5*time.Second)
 	defer cancel()
 

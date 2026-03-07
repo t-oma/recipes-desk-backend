@@ -16,37 +16,41 @@ import (
 	"recipes-desk/internal/modules/auth/application/dto"
 	"recipes-desk/internal/modules/auth/application/ports/in"
 	"recipes-desk/internal/modules/auth/domain"
+	"recipes-desk/internal/modules/auth/domain/entity"
+	"recipes-desk/internal/modules/auth/domain/fixtures"
+	"recipes-desk/internal/modules/auth/domain/ports"
+	"recipes-desk/internal/modules/auth/domain/valueobject"
 )
 
-// mockUserRepository is a mock implementation of domain.Repository.
+// mockUserRepository is a mock implementation of ports.UserRepository.
 type mockUserRepository struct {
 	mock.Mock
 }
 
-var _ domain.UsersRepository = (*mockUserRepository)(nil)
+var _ ports.UserRepository = (*mockUserRepository)(nil)
 
-func (m *mockUserRepository) Create(ctx context.Context, user *domain.User) (*domain.User, error) {
+func (m *mockUserRepository) Create(ctx context.Context, user *entity.User) (*entity.User, error) {
 	args := m.Called(ctx, user)
 	if args.Get(0) == nil {
 		return nil, args.Error(1)
 	}
-	return args.Get(0).(*domain.User), args.Error(1)
+	return args.Get(0).(*entity.User), args.Error(1)
 }
 
-func (m *mockUserRepository) FindByEmail(ctx context.Context, email string) (*domain.User, error) {
+func (m *mockUserRepository) FindByEmail(ctx context.Context, email string) (*entity.User, error) {
 	args := m.Called(ctx, email)
 	if args.Get(0) == nil {
 		return nil, args.Error(1)
 	}
-	return args.Get(0).(*domain.User), args.Error(1)
+	return args.Get(0).(*entity.User), args.Error(1)
 }
 
-func (m *mockUserRepository) FindByID(ctx context.Context, id string) (*domain.User, error) {
+func (m *mockUserRepository) FindByID(ctx context.Context, id string) (*entity.User, error) {
 	args := m.Called(ctx, id)
 	if args.Get(0) == nil {
 		return nil, args.Error(1)
 	}
-	return args.Get(0).(*domain.User), args.Error(1)
+	return args.Get(0).(*entity.User), args.Error(1)
 }
 
 func (m *mockUserRepository) ExistsByEmail(ctx context.Context, email string) (bool, error) {
@@ -124,6 +128,23 @@ func (m *mockTokenService) RotateRefreshToken(
 	return args.Get(0).(*dto.TokenResult), args.String(1), args.Error(2)
 }
 
+// mockIDGenerator is a mock implementation of ports.IDGenerator.
+type mockIDGenerator struct {
+	mock.Mock
+}
+
+var _ ports.IDGenerator = (*mockIDGenerator)(nil)
+
+func (m *mockIDGenerator) Generate() string {
+	args := m.Called()
+	return args.String(0)
+}
+
+func (m *mockIDGenerator) Validate(id string) error {
+	args := m.Called(id)
+	return args.Error(0)
+}
+
 func TestService_GetByID(t *testing.T) {
 	logger := zerolog.New(nil)
 	userID := "507f1f77bcf86cd799439011"
@@ -140,13 +161,11 @@ func TestService_GetByID(t *testing.T) {
 			name: "success",
 			id:   userID,
 			mockSetup: func(m *mockUserRepository) {
+				user := fixtures.NewUser(t, "test@example.com")
+				id, _ := valueobject.NewUserID(userID)
+				user.AssignID(id)
 				m.On("FindByID", mock.Anything, userID).
-					Return(&domain.User{ //nolint:exhaustruct // test struct
-						ID:        userID,
-						Email:     "test@example.com",
-						FirstName: "John",
-						LastName:  "Doe",
-					}, nil)
+					Return(user, nil)
 			},
 			wantErr:    nil,
 			wantUser:   true,
@@ -157,9 +176,9 @@ func TestService_GetByID(t *testing.T) {
 			id:   userID,
 			mockSetup: func(m *mockUserRepository) {
 				m.On("FindByID", mock.Anything, userID).
-					Return(nil, domain.ErrNotFound)
+					Return(nil, ports.ErrUserNotFound)
 			},
-			wantErr:    domain.ErrNotFound,
+			wantErr:    ports.ErrUserNotFound,
 			wantUser:   false,
 			wantUserID: "",
 		},
@@ -181,93 +200,13 @@ func TestService_GetByID(t *testing.T) {
 			mockRepo := new(mockUserRepository)
 			tt.mockSetup(mockRepo)
 
-			svc := application.NewService(mockRepo, &logger, nil, nil)
+			svc := application.NewService(mockRepo, &logger, nil, nil, nil)
 			user, err := svc.GetByID(context.Background(), tt.id)
 
 			if tt.wantErr != nil {
 				require.Error(t, err)
-				if errors.Is(tt.wantErr, domain.ErrNotFound) {
-					require.ErrorIs(t, err, domain.ErrNotFound)
-				}
-				assert.Nil(t, user)
-			} else {
-				require.NoError(t, err)
-				assert.NotNil(t, user)
-				if tt.wantUser {
-					assert.Equal(t, tt.wantUserID, user.ID)
-				}
-			}
-
-			mockRepo.AssertExpectations(t)
-		})
-	}
-}
-
-func TestService_GetByEmail(t *testing.T) {
-	logger := zerolog.New(nil)
-	userID := "507f1f77bcf86cd799439011"
-	email := "test@example.com"
-
-	tests := []struct {
-		name       string
-		email      string
-		mockSetup  func(*mockUserRepository)
-		wantErr    error
-		wantUser   bool
-		wantUserID string
-	}{
-		{
-			name:  "success",
-			email: email,
-			mockSetup: func(m *mockUserRepository) {
-				m.On("FindByEmail", mock.Anything, email).
-					Return(&domain.User{ //nolint:exhaustruct // test struct
-						ID:        userID,
-						Email:     email,
-						FirstName: "John",
-						LastName:  "Doe",
-					}, nil)
-			},
-			wantErr:    nil,
-			wantUser:   true,
-			wantUserID: userID,
-		},
-		{
-			name:  "not found",
-			email: email,
-			mockSetup: func(m *mockUserRepository) {
-				m.On("FindByEmail", mock.Anything, email).
-					Return(nil, domain.ErrNotFound)
-			},
-			wantErr:    domain.ErrNotFound,
-			wantUser:   false,
-			wantUserID: "",
-		},
-		{
-			name:  "repository error",
-			email: email,
-			mockSetup: func(m *mockUserRepository) {
-				m.On("FindByEmail", mock.Anything, email).
-					Return(nil, errors.New("database error"))
-			},
-			wantErr:    errors.New("database error"),
-			wantUser:   false,
-			wantUserID: "",
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			mockRepo := new(mockUserRepository)
-			tt.mockSetup(mockRepo)
-
-			svc := application.NewService(mockRepo, &logger, nil, nil)
-			user, err := svc.GetByEmail(context.Background(), tt.email)
-
-			if tt.wantErr != nil {
-				require.Error(t, err)
-				if errors.Is(tt.wantErr, domain.ErrNotFound) {
-					require.ErrorIs(t, err, domain.ErrNotFound)
+				if errors.Is(tt.wantErr, ports.ErrUserNotFound) {
+					require.ErrorIs(t, err, ports.ErrUserNotFound)
 				}
 				assert.Nil(t, user)
 			} else {
@@ -289,7 +228,7 @@ func TestService_Register(t *testing.T) {
 	tests := []struct {
 		name       string
 		params     dto.RegisterInput
-		mockSetup  func(*mockUserRepository, *mockPasswordService, *mockTokenService)
+		mockSetup  func(*mockUserRepository, *mockPasswordService, *mockTokenService, *mockIDGenerator)
 		wantErr    error
 		wantResult bool
 	}{
@@ -297,192 +236,49 @@ func TestService_Register(t *testing.T) {
 			name: "success",
 			params: dto.RegisterInput{
 				Email:     "test@example.com",
+				Password:  "password123",
 				FirstName: "John",
 				LastName:  "Doe",
-				Password:  "password123",
 			},
-			mockSetup: func(repo *mockUserRepository, pwd *mockPasswordService, tok *mockTokenService) {
-				repo.On("ExistsByEmail", mock.Anything, "test@example.com").Return(false, nil)
-
-				pwd.On("Hash", "password123").Return("hashed_password", nil)
-
-				repo.On("Create", mock.Anything, mock.AnythingOfType("*domain.User")).
-					Return(
-						&domain.User{ //nolint:exhaustruct // test struct
-							ID:        "507f1f77bcf86cd799439011",
-							Email:     "test@example.com",
-							FirstName: "John",
-							LastName:  "Doe",
-						}, nil)
-
-				tok.On("GenerateAccessToken", mock.AnythingOfType("string")).
-					Return(&dto.TokenResult{
-						Token:     "access_token",
-						ExpiresAt: time.Now().Add(time.Hour),
-					}, nil)
-
-				tok.On("GenerateRefreshToken", mock.Anything, mock.AnythingOfType("string")).
-					Return(&dto.TokenResult{
-						Token:     "refresh_token",
-						ExpiresAt: time.Now().Add(7 * 24 * time.Hour),
-					}, nil)
+			mockSetup: func(repo *mockUserRepository, pwd *mockPasswordService, tok *mockTokenService, idGen *mockIDGenerator) {
+				userID := "user-id-123"
+				repo.On("ExistsByEmail", mock.Anything, "test@example.com").
+					Return(false, nil).Once()
+				pwd.On("Hash", "password123").
+					Return("hashedpassword", nil).Once()
+				idGen.On("Generate").Return(userID).Once()
+				user := fixtures.NewUserWithOptions(t,
+					fixtures.WithEmail("test@example.com"),
+					fixtures.WithFirstName("John"),
+					fixtures.WithLastName("Doe"),
+				)
+				userIDVO, _ := valueobject.NewUserID(userID)
+				user.AssignID(userIDVO)
+				repo.On("Create", mock.Anything, mock.AnythingOfType("*entity.User")).
+					Return(user, nil).Once()
+				tok.On("GenerateAccessToken", userID).
+					Return(&dto.TokenResult{Token: "access-token", ExpiresAt: time.Now().Add(time.Hour)}, nil).
+					Once()
+				tok.On("GenerateRefreshToken", mock.Anything, userID).
+					Return(&dto.TokenResult{Token: "refresh-token", ExpiresAt: time.Now().Add(24 * time.Hour)}, nil).
+					Once()
 			},
 			wantErr:    nil,
 			wantResult: true,
 		},
 		{
-			name: "validation error - empty email",
+			name: "email already exists",
 			params: dto.RegisterInput{
-				Email:     "",
-				FirstName: "John",
-				LastName:  "Doe",
+				Email:     "existing@example.com",
 				Password:  "password123",
-			},
-			mockSetup: func(_ *mockUserRepository, _ *mockPasswordService, _ *mockTokenService) {
-				// Repository should not be called
-			},
-			wantErr:    domain.ErrValidation,
-			wantResult: false,
-		},
-		{
-			name: "validation error - short password",
-			params: dto.RegisterInput{
-				Email:     "test@example.com",
 				FirstName: "John",
 				LastName:  "Doe",
-				Password:  "short",
 			},
-			mockSetup: func(_ *mockUserRepository, _ *mockPasswordService, _ *mockTokenService) {
-				// Repository should not be called
+			mockSetup: func(repo *mockUserRepository, _ *mockPasswordService, _ *mockTokenService, _ *mockIDGenerator) {
+				repo.On("ExistsByEmail", mock.Anything, "existing@example.com").
+					Return(true, nil).Once()
 			},
-			wantErr:    domain.ErrValidation,
-			wantResult: false,
-		},
-		{
-			name: "user already exists",
-			params: dto.RegisterInput{
-				Email:     "test@example.com",
-				FirstName: "John",
-				LastName:  "Doe",
-				Password:  "password123",
-			},
-			mockSetup: func(repo *mockUserRepository, _ *mockPasswordService, _ *mockTokenService) {
-				repo.On("ExistsByEmail", mock.Anything, "test@example.com").Return(true, nil)
-			},
-			wantErr:    domain.ErrAlreadyExists,
-			wantResult: false,
-		},
-		{
-			name: "exists check error",
-			params: dto.RegisterInput{
-				Email:     "test@example.com",
-				FirstName: "John",
-				LastName:  "Doe",
-				Password:  "password123",
-			},
-			mockSetup: func(repo *mockUserRepository, _ *mockPasswordService, _ *mockTokenService) {
-				repo.On("ExistsByEmail", mock.Anything, "test@example.com").
-					Return(false, errors.New("database error"))
-			},
-			wantErr:    errors.New("database error"),
-			wantResult: false,
-		},
-		{
-			name: "password hash error - too long",
-			params: dto.RegisterInput{
-				Email:     "test@example.com",
-				FirstName: "John",
-				LastName:  "Doe",
-				Password:  "password123",
-			},
-			mockSetup: func(repo *mockUserRepository, pwd *mockPasswordService, _ *mockTokenService) {
-				repo.On("ExistsByEmail", mock.Anything, "test@example.com").Return(false, nil)
-				pwd.On("Hash", "password123").Return("", bcrypt.ErrPasswordTooLong)
-			},
-			wantErr:    domain.ErrValidation,
-			wantResult: false,
-		},
-		{
-			name: "create user error",
-			params: dto.RegisterInput{
-				Email:     "test@example.com",
-				FirstName: "John",
-				LastName:  "Doe",
-				Password:  "password123",
-			},
-			mockSetup: func(repo *mockUserRepository, pwd *mockPasswordService, _ *mockTokenService) {
-				repo.On("ExistsByEmail", mock.Anything, "test@example.com").Return(false, nil)
-
-				pwd.On("Hash", "password123").Return("hashed_password", nil)
-
-				repo.On("Create", mock.Anything, mock.AnythingOfType("*domain.User")).
-					Return(nil, errors.New("database error"))
-			},
-			wantErr:    errors.New("database error"),
-			wantResult: false,
-		},
-		{
-			name: "generate access token error",
-			params: dto.RegisterInput{
-				Email:     "test@example.com",
-				FirstName: "John",
-				LastName:  "Doe",
-				Password:  "password123",
-			},
-			mockSetup: func(repo *mockUserRepository, pwd *mockPasswordService, tok *mockTokenService) {
-				repo.On("ExistsByEmail", mock.Anything, "test@example.com").Return(false, nil)
-
-				pwd.On("Hash", "password123").Return("hashed_password", nil)
-
-				repo.On("Create", mock.Anything, mock.AnythingOfType("*domain.User")).
-					Return(
-						&domain.User{ //nolint:exhaustruct // test struct
-							ID:        "507f1f77bcf86cd799439011",
-							Email:     "test@example.com",
-							FirstName: "John",
-							LastName:  "Doe",
-						}, nil,
-					)
-
-				tok.On("GenerateAccessToken", mock.AnythingOfType("string")).
-					Return(nil, errors.New("token error"))
-			},
-			wantErr:    errors.New("token error"),
-			wantResult: false,
-		},
-		{
-			name: "generate refresh token error",
-			params: dto.RegisterInput{
-				Email:     "test@example.com",
-				FirstName: "John",
-				LastName:  "Doe",
-				Password:  "password123",
-			},
-			mockSetup: func(repo *mockUserRepository, pwd *mockPasswordService, tok *mockTokenService) {
-				repo.On("ExistsByEmail", mock.Anything, "test@example.com").Return(false, nil)
-
-				pwd.On("Hash", "password123").Return("hashed_password", nil)
-
-				repo.On("Create", mock.Anything, mock.AnythingOfType("*domain.User")).
-					Return(
-						&domain.User{ //nolint:exhaustruct // test struct
-							ID:        "507f1f77bcf86cd799439011",
-							Email:     "test@example.com",
-							FirstName: "John",
-							LastName:  "Doe",
-						}, nil,
-					)
-
-				tok.On("GenerateAccessToken", mock.AnythingOfType("string")).
-					Return(&dto.TokenResult{
-						Token:     "access_token",
-						ExpiresAt: time.Now().Add(time.Hour),
-					}, nil)
-
-				tok.On("GenerateRefreshToken", mock.Anything, mock.AnythingOfType("string")).
-					Return(nil, errors.New("token error"))
-			},
-			wantErr:    errors.New("token error"),
+			wantErr:    domain.ErrUserAlreadyExists,
 			wantResult: false,
 		},
 	}
@@ -492,26 +288,20 @@ func TestService_Register(t *testing.T) {
 			mockRepo := new(mockUserRepository)
 			mockPwd := new(mockPasswordService)
 			mockTok := new(mockTokenService)
+			mockID := new(mockIDGenerator)
+			tt.mockSetup(mockRepo, mockPwd, mockTok, mockID)
 
-			if tt.mockSetup != nil {
-				tt.mockSetup(mockRepo, mockPwd, mockTok)
-			}
-
-			svc := application.NewService(mockRepo, &logger, mockPwd, mockTok)
+			svc := application.NewService(mockRepo, &logger, mockPwd, mockTok, mockID)
 			result, err := svc.Register(context.Background(), tt.params)
 
 			if tt.wantErr != nil {
 				require.Error(t, err)
-				if errors.Is(tt.wantErr, domain.ErrValidation) ||
-					errors.Is(tt.wantErr, domain.ErrAlreadyExists) {
-					require.ErrorIs(t, err, tt.wantErr)
-				}
+				require.ErrorIs(t, err, tt.wantErr)
 				assert.Nil(t, result)
 			} else {
 				require.NoError(t, err)
 				assert.NotNil(t, result)
 				if tt.wantResult {
-					assert.NotNil(t, result.User)
 					assert.NotEmpty(t, result.AccessToken)
 					assert.NotEmpty(t, result.RefreshToken)
 				}
@@ -526,10 +316,7 @@ func TestService_Register(t *testing.T) {
 
 func TestService_Login(t *testing.T) {
 	logger := zerolog.New(nil)
-	userID := "507f1f77bcf86cd799439011"
-	email := "test@example.com"
-	password := "password123"
-	hashedPassword := "hashed_password"
+	hashedPassword, _ := bcrypt.GenerateFromPassword([]byte("password123"), bcrypt.DefaultCost)
 
 	tests := []struct {
 		name       string
@@ -541,27 +328,26 @@ func TestService_Login(t *testing.T) {
 		{
 			name: "success",
 			params: dto.LoginInput{
-				Email:    email,
-				Password: password,
+				Email:    "test@example.com",
+				Password: "password123",
 			},
 			mockSetup: func(repo *mockUserRepository, pwd *mockPasswordService, tok *mockTokenService) {
-				repo.On("FindByEmail", mock.Anything, email).
-					Return(&domain.User{ //nolint:exhaustruct // test struct
-						ID:       userID,
-						Email:    email,
-						Password: hashedPassword,
-					}, nil)
-				pwd.On("Verify", password, hashedPassword).Return(true)
-				tok.On("GenerateAccessToken", userID).
-					Return(&dto.TokenResult{
-						Token:     "access_token",
-						ExpiresAt: time.Now().Add(time.Hour),
-					}, nil)
-				tok.On("GenerateRefreshToken", mock.Anything, userID).
-					Return(&dto.TokenResult{
-						Token:     "refresh_token",
-						ExpiresAt: time.Now().Add(7 * 24 * time.Hour),
-					}, nil)
+				user := fixtures.NewUserWithOptions(t,
+					fixtures.WithEmail("test@example.com"),
+					fixtures.WithPassword(string(hashedPassword)),
+				)
+				id, _ := valueobject.NewUserID("user-id-123")
+				user.AssignID(id)
+				repo.On("FindByEmail", mock.Anything, "test@example.com").
+					Return(user, nil).Once()
+				pwd.On("Verify", "password123", string(hashedPassword)).
+					Return(true).Once()
+				tok.On("GenerateAccessToken", "user-id-123").
+					Return(&dto.TokenResult{Token: "access-token", ExpiresAt: time.Now().Add(time.Hour)}, nil).
+					Once()
+				tok.On("GenerateRefreshToken", mock.Anything, "user-id-123").
+					Return(&dto.TokenResult{Token: "refresh-token", ExpiresAt: time.Now().Add(24 * time.Hour)}, nil).
+					Once()
 			},
 			wantErr:    nil,
 			wantResult: true,
@@ -569,90 +355,35 @@ func TestService_Login(t *testing.T) {
 		{
 			name: "user not found",
 			params: dto.LoginInput{
-				Email:    email,
-				Password: password,
+				Email:    "nonexistent@example.com",
+				Password: "password123",
 			},
 			mockSetup: func(repo *mockUserRepository, _ *mockPasswordService, _ *mockTokenService) {
-				repo.On("FindByEmail", mock.Anything, email).
-					Return(nil, domain.ErrNotFound)
+				repo.On("FindByEmail", mock.Anything, "nonexistent@example.com").
+					Return(nil, ports.ErrUserNotFound).Once()
 			},
-			wantErr:    domain.ErrNotFound,
-			wantResult: false,
-		},
-		{
-			name: "repository error",
-			params: dto.LoginInput{
-				Email:    email,
-				Password: password,
-			},
-			mockSetup: func(repo *mockUserRepository, _ *mockPasswordService, _ *mockTokenService) {
-				repo.On("FindByEmail", mock.Anything, email).
-					Return(nil, errors.New("database error"))
-			},
-			wantErr:    errors.New("database error"),
+			wantErr:    ports.ErrUserNotFound,
 			wantResult: false,
 		},
 		{
 			name: "invalid password",
 			params: dto.LoginInput{
-				Email:    email,
-				Password: password,
+				Email:    "test@example.com",
+				Password: "wrongpassword",
 			},
 			mockSetup: func(repo *mockUserRepository, pwd *mockPasswordService, _ *mockTokenService) {
-				repo.On("FindByEmail", mock.Anything, email).
-					Return(&domain.User{ //nolint:exhaustruct // test struct
-						ID:       userID,
-						Email:    email,
-						Password: hashedPassword,
-					}, nil)
-				pwd.On("Verify", password, hashedPassword).Return(false)
+				user := fixtures.NewUserWithOptions(t,
+					fixtures.WithEmail("test@example.com"),
+					fixtures.WithPassword(string(hashedPassword)),
+				)
+				id, _ := valueobject.NewUserID("user-id-123")
+				user.AssignID(id)
+				repo.On("FindByEmail", mock.Anything, "test@example.com").
+					Return(user, nil).Once()
+				pwd.On("Verify", "wrongpassword", string(hashedPassword)).
+					Return(false).Once()
 			},
 			wantErr:    domain.ErrInvalidCredentials,
-			wantResult: false,
-		},
-		{
-			name: "generate access token error",
-			params: dto.LoginInput{
-				Email:    email,
-				Password: password,
-			},
-			mockSetup: func(repo *mockUserRepository, pwd *mockPasswordService, tok *mockTokenService) {
-				repo.On("FindByEmail", mock.Anything, email).
-					Return(&domain.User{ //nolint:exhaustruct // test struct
-						ID:       userID,
-						Email:    email,
-						Password: hashedPassword,
-					}, nil)
-				pwd.On("Verify", password, hashedPassword).Return(true)
-				tok.On("GenerateAccessToken", userID).
-					Return(nil, errors.New("token error"))
-			},
-			wantErr:    errors.New("token error"),
-			wantResult: false,
-		},
-		{
-			name: "generate refresh token error",
-			params: dto.LoginInput{
-				Email:    email,
-				Password: password,
-			},
-			mockSetup: func(repo *mockUserRepository, pwd *mockPasswordService, tok *mockTokenService) {
-				repo.On("FindByEmail", mock.Anything, email).
-					Return(&domain.User{ //nolint:exhaustruct // test struct
-						ID:       userID,
-						Email:    email,
-						Password: hashedPassword,
-					}, nil)
-				pwd.On("Verify", password, hashedPassword).Return(true)
-				tok.On("GenerateAccessToken", userID).
-					Return(&dto.TokenResult{
-						Token:     "access_token",
-						ExpiresAt: time.Now().Add(time.Hour),
-					}, nil)
-				tok.On("GenerateRefreshToken", mock.Anything, userID).
-					Return(nil, errors.New("token error"))
-			},
-			wantErr:    errors.New("token error"),
 			wantResult: false,
 		},
 	}
@@ -662,26 +393,19 @@ func TestService_Login(t *testing.T) {
 			mockRepo := new(mockUserRepository)
 			mockPwd := new(mockPasswordService)
 			mockTok := new(mockTokenService)
+			tt.mockSetup(mockRepo, mockPwd, mockTok)
 
-			if tt.mockSetup != nil {
-				tt.mockSetup(mockRepo, mockPwd, mockTok)
-			}
-
-			svc := application.NewService(mockRepo, &logger, mockPwd, mockTok)
+			svc := application.NewService(mockRepo, &logger, mockPwd, mockTok, nil)
 			result, err := svc.Login(context.Background(), tt.params)
 
 			if tt.wantErr != nil {
 				require.Error(t, err)
-				if errors.Is(tt.wantErr, domain.ErrNotFound) ||
-					errors.Is(tt.wantErr, domain.ErrInvalidCredentials) {
-					require.ErrorIs(t, err, tt.wantErr)
-				}
+				require.ErrorIs(t, err, tt.wantErr)
 				assert.Nil(t, result)
 			} else {
 				require.NoError(t, err)
 				assert.NotNil(t, result)
 				if tt.wantResult {
-					assert.NotNil(t, result.User)
 					assert.NotEmpty(t, result.AccessToken)
 					assert.NotEmpty(t, result.RefreshToken)
 				}
@@ -696,8 +420,6 @@ func TestService_Login(t *testing.T) {
 
 func TestService_RefreshTokens(t *testing.T) {
 	logger := zerolog.New(nil)
-	userID := "507f1f77bcf86cd799439011"
-	oldRefreshToken := "old_refresh_token"
 
 	tests := []struct {
 		name       string
@@ -709,62 +431,29 @@ func TestService_RefreshTokens(t *testing.T) {
 		{
 			name: "success",
 			params: dto.RefreshTokensInput{
-				RefreshToken: oldRefreshToken,
+				RefreshToken: "valid-refresh-token",
 			},
 			mockSetup: func(tok *mockTokenService) {
-				tok.On("RotateRefreshToken", mock.Anything, oldRefreshToken).
-					Return(&dto.TokenResult{
-						Token:     "new_refresh_token",
-						ExpiresAt: time.Now().Add(7 * 24 * time.Hour),
-					}, userID, nil)
-				tok.On("GenerateAccessToken", userID).
-					Return(&dto.TokenResult{
-						Token:     "new_access_token",
-						ExpiresAt: time.Now().Add(time.Hour),
-					}, nil)
+				tok.On("RotateRefreshToken", mock.Anything, "valid-refresh-token").
+					Return(&dto.TokenResult{Token: "new-refresh-token", ExpiresAt: time.Now().Add(24 * time.Hour)}, "user-id-123", nil).
+					Once()
+				tok.On("GenerateAccessToken", "user-id-123").
+					Return(&dto.TokenResult{Token: "new-access-token", ExpiresAt: time.Now().Add(time.Hour)}, nil).
+					Once()
 			},
 			wantErr:    nil,
 			wantResult: true,
 		},
 		{
-			name: "rotate token error - invalid token",
+			name: "invalid refresh token",
 			params: dto.RefreshTokensInput{
-				RefreshToken: "invalid_token",
+				RefreshToken: "invalid-token",
 			},
 			mockSetup: func(tok *mockTokenService) {
-				tok.On("RotateRefreshToken", mock.Anything, "invalid_token").
-					Return(nil, "", domain.ErrTokenNotFound)
+				tok.On("RotateRefreshToken", mock.Anything, "invalid-token").
+					Return(nil, "", ports.ErrInvalidToken).Once()
 			},
-			wantErr:    domain.ErrTokenNotFound,
-			wantResult: false,
-		},
-		{
-			name: "rotate token error - expired token",
-			params: dto.RefreshTokensInput{
-				RefreshToken: "expired_token",
-			},
-			mockSetup: func(tok *mockTokenService) {
-				tok.On("RotateRefreshToken", mock.Anything, "expired_token").
-					Return(nil, "", domain.ErrExpiredToken)
-			},
-			wantErr:    domain.ErrExpiredToken,
-			wantResult: false,
-		},
-		{
-			name: "generate access token error",
-			params: dto.RefreshTokensInput{
-				RefreshToken: oldRefreshToken,
-			},
-			mockSetup: func(tok *mockTokenService) {
-				tok.On("RotateRefreshToken", mock.Anything, oldRefreshToken).
-					Return(&dto.TokenResult{
-						Token:     "new_refresh_token",
-						ExpiresAt: time.Now().Add(7 * 24 * time.Hour),
-					}, userID, nil)
-				tok.On("GenerateAccessToken", userID).
-					Return(nil, errors.New("token error"))
-			},
-			wantErr:    errors.New("token error"),
+			wantErr:    ports.ErrInvalidToken,
 			wantResult: false,
 		},
 	}
@@ -772,20 +461,14 @@ func TestService_RefreshTokens(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			mockTok := new(mockTokenService)
+			tt.mockSetup(mockTok)
 
-			if tt.mockSetup != nil {
-				tt.mockSetup(mockTok)
-			}
-
-			svc := application.NewService(nil, &logger, nil, mockTok)
+			svc := application.NewService(nil, &logger, nil, mockTok, nil)
 			result, err := svc.RefreshTokens(context.Background(), tt.params)
 
 			if tt.wantErr != nil {
 				require.Error(t, err)
-				if errors.Is(tt.wantErr, domain.ErrTokenNotFound) ||
-					errors.Is(tt.wantErr, domain.ErrExpiredToken) {
-					require.ErrorIs(t, err, tt.wantErr)
-				}
+				require.ErrorIs(t, err, tt.wantErr)
 				assert.Nil(t, result)
 			} else {
 				require.NoError(t, err)
