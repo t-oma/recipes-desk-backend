@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
-	"errors"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -17,6 +16,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	httphandler "recipes-desk/internal/modules/recipes/adapter/in/http"
+	"recipes-desk/internal/modules/recipes/application"
 	"recipes-desk/internal/modules/recipes/application/dto"
 	"recipes-desk/internal/modules/recipes/application/ports/in"
 	"recipes-desk/internal/modules/recipes/domain"
@@ -130,7 +130,7 @@ func TestHandler_List(t *testing.T) {
 		{
 			name: "service error",
 			mockSetup: func(m *mockService) {
-				m.On("GetAll", mock.Anything).Return(nil, errors.New("database error"))
+				m.On("GetAll", mock.Anything).Return(nil, application.ErrInternal)
 			},
 			wantStatusCode: http.StatusInternalServerError,
 			wantRecipes:    0,
@@ -201,7 +201,7 @@ func TestHandler_GetByID(t *testing.T) {
 			id:   recipeID,
 			mockSetup: func(m *mockService) {
 				m.On("GetByID", mock.Anything, recipeID).
-					Return(nil, errors.New("database error"))
+					Return(nil, application.ErrInternal)
 			},
 			wantStatusCode: http.StatusInternalServerError,
 			wantRecipe:     false,
@@ -270,7 +270,7 @@ func TestHandler_Search(t *testing.T) {
 			query: "pasta",
 			mockSetup: func(m *mockService) {
 				m.On("Search", mock.Anything, "pasta").
-					Return(nil, errors.New("database error"))
+					Return(nil, application.ErrInternal)
 			},
 			wantStatusCode: http.StatusInternalServerError,
 			wantRecipes:    0,
@@ -604,7 +604,7 @@ func TestHandler_Delete(t *testing.T) {
 			name: "service error",
 			id:   recipeID,
 			mockSetup: func(m *mockService) {
-				m.On("Delete", mock.Anything, recipeID).Return(errors.New("database error"))
+				m.On("Delete", mock.Anything, recipeID).Return(application.ErrInternal)
 			},
 			wantStatusCode: http.StatusInternalServerError,
 		},
