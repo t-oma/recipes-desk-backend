@@ -118,7 +118,7 @@ func (s *TokenService) GenerateRefreshToken(
 
 	refreshToken, err = s.refreshRepo.Create(ctx, refreshToken, s.refreshTTL)
 	if err != nil {
-		return nil, fmt.Errorf("failed to store refresh token: %w", err)
+		return nil, s.mapError(err, "GenerateRefreshToken")
 	}
 
 	return &dto.TokenResult{
@@ -135,10 +135,7 @@ func (s *TokenService) ValidateRefreshToken(
 
 	storedToken, err := s.refreshRepo.FindByHash(ctx, tokenHash)
 	if err != nil {
-		if errors.Is(err, domain.ErrTokenNotFound) {
-			return "", domain.ErrTokenNotFound
-		}
-		return "", fmt.Errorf("failed to find refresh token: %w", err)
+		return "", s.mapError(err, "ValidateRefreshToken")
 	}
 
 	// Check if token has expired
@@ -160,10 +157,7 @@ func (s *TokenService) RotateRefreshToken(
 
 	oldTokenHash := hashToken(oldPlainToken)
 	if err = s.refreshRepo.DeleteByHash(ctx, oldTokenHash); err != nil {
-		return nil, "", fmt.Errorf(
-			"failed to delete old refresh token: %w",
-			err,
-		)
+		return nil, "", s.mapError(err, "RotateRefreshToken")
 	}
 
 	newToken, err := s.GenerateRefreshToken(ctx, userID)
@@ -199,8 +193,42 @@ func GenerateToken(
 	token := jwt.NewWithClaims(method, claims)
 	tokenString, err := token.SignedString(secret)
 	if err != nil {
+		if errors.Is(err, jwt.ErrInvalidKeyType) {
+			return "", time.Time{}, fmt.Errorf("%w: %w", ErrSignToken, err)
+		}
 		return "", time.Time{}, fmt.Errorf("%w: %w", ErrSignToken, err)
 	}
 
 	return tokenString, expiresAt, nil
+}
+
+// mapError maps domain and infrastructure errors to application-level errors.
+// This ensures that only safe, client-facing errors are exposed.
+func (s *TokenService) mapError(err error, operation string) error {
+	if err == nil {
+		return nil
+	}
+
+	switch {
+	// Domain errors that are safe to pass through
+	case errors.Is(err, domain.ErrValidation):
+		return err
+	case errors.Is(err, domain.ErrNotFound):
+		return err
+	case errors.Is(err, domain.ErrForbidden):
+		return err
+	case errors.Is(err, domain.ErrConflict):
+		return err
+
+	// Infrastructure errors - map to safe versions
+	case errors.Is(err, domain.ErrTimeout):
+		s.log.Error().Err(err).Str("operation", operation).Msg("Database timeout")
+		return ErrServiceUnavailable
+	case errors.Is(err, domain.ErrDatabase):
+		s.log.Error().Err(err).Str("operation", operation).Msg("Database error")
+		return ErrInternal
+	default:
+		s.log.Error().Err(err).Str("operation", operation).Msg("Unexpected error")
+		return ErrInternal
+	}
 }
