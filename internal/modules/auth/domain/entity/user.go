@@ -22,7 +22,7 @@ func NewUser(
 	firstName vo.FirstName,
 	lastName vo.LastName,
 	password vo.PasswordHash,
-) (*User, error) {
+) *User {
 	return &User{
 		id:                id,
 		email:             email,
@@ -31,7 +31,7 @@ func NewUser(
 		passwordHash:      password,
 		createdAt:         time.Now(),
 		passwordUpdatedAt: time.Now(),
-	}, nil
+	}
 }
 
 func (u *User) UpdateEmail(email vo.Email) {

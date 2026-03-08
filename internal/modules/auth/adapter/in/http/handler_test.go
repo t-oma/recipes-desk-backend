@@ -20,7 +20,6 @@ import (
 	"recipes-desk/internal/modules/auth/application/dto"
 	"recipes-desk/internal/modules/auth/application/ports/in"
 	"recipes-desk/internal/modules/auth/domain"
-	"recipes-desk/internal/modules/auth/domain/ports"
 )
 
 // mockAuthService is a mock implementation of httphandler.AuthService.
@@ -272,7 +271,7 @@ func TestHandler_Login(t *testing.T) {
 			},
 			mockSetup: func(m *mockAuthService) {
 				m.On("Login", mock.Anything, mock.AnythingOfType("dto.LoginInput")).
-					Return(nil, ports.ErrUserNotFound)
+					Return(nil, domain.ErrUserNotFound)
 			},
 			wantStatusCode: http.StatusNotFound,
 			wantCookies:    0,
@@ -379,7 +378,7 @@ func TestHandler_Refresh(t *testing.T) {
 			cookie: "invalid_token",
 			mockSetup: func(m *mockAuthService) {
 				m.On("RefreshTokens", mock.Anything, mock.AnythingOfType("dto.RefreshTokensInput")).
-					Return(nil, ports.ErrTokenNotFound)
+					Return(nil, domain.ErrTokenNotFound)
 			},
 			wantStatusCode: http.StatusUnauthorized,
 			wantCookies:    0,
@@ -389,7 +388,7 @@ func TestHandler_Refresh(t *testing.T) {
 			cookie: "expired_token",
 			mockSetup: func(m *mockAuthService) {
 				m.On("RefreshTokens", mock.Anything, mock.AnythingOfType("dto.RefreshTokensInput")).
-					Return(nil, ports.ErrExpiredToken)
+					Return(nil, domain.ErrTokenExpired)
 			},
 			wantStatusCode: http.StatusUnauthorized,
 			wantCookies:    0,
@@ -501,7 +500,7 @@ func TestHandler_Me(t *testing.T) {
 			userID: userID,
 			mockSetup: func(m *mockAuthService) {
 				m.On("GetByID", mock.Anything, userID).
-					Return(nil, ports.ErrUserNotFound)
+					Return(nil, domain.ErrUserNotFound)
 			},
 			wantStatusCode: http.StatusNotFound,
 			wantUser:       false,

@@ -12,8 +12,8 @@ import (
 	"go.mongodb.org/mongo-driver/bson/primitive"
 
 	"recipes-desk/internal/modules/auth/adapter/out/mongorepo"
+	"recipes-desk/internal/modules/auth/domain"
 	"recipes-desk/internal/modules/auth/domain/fixtures"
-	"recipes-desk/internal/modules/auth/domain/ports"
 	"recipes-desk/internal/modules/auth/domain/valueobject"
 	"recipes-desk/pkg/testutils"
 )
@@ -83,12 +83,12 @@ func TestIntegration_MongoRepository_FindByID(t *testing.T) {
 	t.Run("find non-existent user", func(t *testing.T) {
 		nonExistentID := primitive.NewObjectID().Hex()
 		_, err := repo.FindByID(ctx, nonExistentID)
-		assert.ErrorIs(t, err, ports.ErrUserNotFound)
+		assert.ErrorIs(t, err, domain.ErrUserNotFound)
 	})
 
 	t.Run("find with invalid ID format", func(t *testing.T) {
 		_, err := repo.FindByID(ctx, "invalid-id-format")
-		assert.ErrorIs(t, err, ports.ErrUserNotFound)
+		assert.ErrorIs(t, err, domain.ErrUserNotFound)
 	})
 }
 
@@ -114,7 +114,7 @@ func TestIntegration_MongoRepository_FindByEmail(t *testing.T) {
 
 	t.Run("find non-existent user by email", func(t *testing.T) {
 		_, err := repo.FindByEmail(ctx, "nonexistent@example.com")
-		assert.ErrorIs(t, err, ports.ErrUserNotFound)
+		assert.ErrorIs(t, err, domain.ErrUserNotFound)
 	})
 }
 

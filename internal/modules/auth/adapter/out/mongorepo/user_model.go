@@ -58,17 +58,13 @@ func (m *userModel) toDomain() (*entity.User, error) {
 		return nil, err
 	}
 
-	user, err := entity.NewUser(
+	user := entity.NewUser(
 		idVO,
 		emailVO,
 		firstNameVO,
 		lastNameVO,
 		valueobject.PasswordHash(m.Password),
 	)
-	if err != nil {
-		return nil, err
-	}
-
 	user.RestoreFromPersistence(m.CreatedAt, m.PasswordUpdatedAt)
 	return user, nil
 }

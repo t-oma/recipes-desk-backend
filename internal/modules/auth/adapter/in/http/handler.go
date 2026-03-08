@@ -8,10 +8,9 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/rs/zerolog"
 
+	"recipes-desk/internal/modules/auth/application"
 	"recipes-desk/internal/modules/auth/application/dto"
 	"recipes-desk/internal/modules/auth/application/ports/in"
-	"recipes-desk/internal/modules/auth/domain"
-	"recipes-desk/internal/modules/auth/domain/ports"
 )
 
 const (
@@ -34,21 +33,26 @@ func NewHandler(service in.AuthService, log *zerolog.Logger) *Handler {
 	}
 }
 
+// handleError maps application errors to HTTP status codes.
 func handleError(c *gin.Context, err error) {
 	switch {
-	case errors.Is(err, ports.ErrUserNotFound):
-		c.JSON(http.StatusNotFound, gin.H{"error": "user not found"})
-	case errors.Is(err, domain.ErrValidation):
-		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
-	case errors.Is(err, ports.ErrInvalidToken), errors.Is(err, ports.ErrExpiredToken),
-		errors.Is(err, ports.ErrTokenNotFound):
-		c.JSON(http.StatusUnauthorized, gin.H{"error": "invalid or expired token"})
-	case errors.Is(err, domain.ErrUserAlreadyExists):
+	case errors.Is(err, application.ErrValidation):
+		c.JSON(http.StatusBadRequest, err.Error())
+	case errors.Is(err, application.ErrUserNotFound):
+		c.JSON(http.StatusNotFound, err.Error())
+	case errors.Is(err, application.ErrUnauthorized):
+		c.JSON(http.StatusUnauthorized, err.Error())
+	case errors.Is(err, application.ErrUserAlreadyExists):
 		c.JSON(http.StatusConflict, gin.H{"error": "user already exists"})
-	case errors.Is(err, domain.ErrInvalidCredentials):
-		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid credentials"})
+	case errors.Is(err, application.ErrConflict):
+		c.JSON(http.StatusConflict, err.Error())
+	case errors.Is(err, application.ErrInvalidCredentials):
+		c.JSON(http.StatusBadRequest, err.Error())
+
+	case errors.Is(err, application.ErrServiceUnavailable):
+		c.JSON(http.StatusServiceUnavailable, err.Error())
 	default:
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "internal server error"})
+		c.JSON(http.StatusInternalServerError, err.Error())
 	}
 }
 

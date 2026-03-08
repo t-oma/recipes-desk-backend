@@ -29,8 +29,7 @@ func NewUser(t *testing.T, email string) *entity.User {
 
 	passwordHash := valueobject.PasswordHash("hashedpassword123")
 
-	user, err := entity.NewUser(id, emailVO, firstName, lastName, passwordHash)
-	require.NoError(t, err)
+	user := entity.NewUser(id, emailVO, firstName, lastName, passwordHash)
 
 	return user
 }
@@ -53,8 +52,7 @@ func NewUserWithName(t *testing.T, email, firstNameStr, lastNameStr string) *ent
 
 	passwordHash := valueobject.PasswordHash("hashedpassword123")
 
-	user, err := entity.NewUser(id, emailVO, firstName, lastName, passwordHash)
-	require.NoError(t, err)
+	user := entity.NewUser(id, emailVO, firstName, lastName, passwordHash)
 
 	return user
 }
@@ -88,8 +86,7 @@ func NewUserWithOptions(t *testing.T, opts ...UserOption) *entity.User {
 
 	passwordHash := valueobject.PasswordHash(options.password)
 
-	user, err := entity.NewUser(id, emailVO, firstName, lastName, passwordHash)
-	require.NoError(t, err)
+	user := entity.NewUser(id, emailVO, firstName, lastName, passwordHash)
 
 	return user
 }

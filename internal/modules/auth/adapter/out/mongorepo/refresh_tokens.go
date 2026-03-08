@@ -10,6 +10,7 @@ import (
 	"go.mongodb.org/mongo-driver/mongo"
 	"go.mongodb.org/mongo-driver/mongo/options"
 
+	"recipes-desk/internal/modules/auth/domain"
 	"recipes-desk/internal/modules/auth/domain/entity"
 	"recipes-desk/internal/modules/auth/domain/ports"
 )
@@ -39,7 +40,7 @@ func (r *RefreshTokenRepository) InitIndexes(ctx context.Context) error {
 	_, err := r.collection.Indexes().CreateOne(ctx, indexModel)
 	if err != nil {
 		fmt.Printf("Failed to create TTL index: %v\n", err)
-		return err
+		return r.wrapError(err, "create refresh token index")
 	}
 
 	return nil
@@ -59,7 +60,7 @@ func (r *RefreshTokenRepository) Create(
 
 	_, err = r.collection.InsertOne(ctx, model)
 	if err != nil {
-		return nil, err
+		return nil, r.wrapError(err, "create refresh token")
 	}
 
 	return model.toDomain()
@@ -73,10 +74,7 @@ func (r *RefreshTokenRepository) FindByHash(
 	var model refreshTokenModel
 	err := r.collection.FindOne(ctx, bson.M{"tokenHash": tokenHash}).Decode(&model)
 	if err != nil {
-		if errors.Is(err, mongo.ErrNoDocuments) {
-			return nil, ports.ErrTokenNotFound
-		}
-		return nil, err
+		return nil, r.wrapError(err, "find refresh token")
 	}
 	return model.toDomain()
 }
@@ -87,5 +85,19 @@ func (r *RefreshTokenRepository) DeleteByHash(
 	tokenHash string,
 ) error {
 	_, err := r.collection.DeleteOne(ctx, bson.M{"tokenHash": tokenHash})
-	return err
+	return r.wrapError(err, "delete refresh token")
+}
+
+// wrapError converts MongoDB errors to domain errors.
+func (r *RefreshTokenRepository) wrapError(err error, operation string) error {
+	if err == nil {
+		return nil
+	}
+
+	// MongoDB specific errors
+	if errors.Is(err, mongo.ErrNoDocuments) {
+		return domain.ErrTokenNotFound
+	}
+
+	return wrapMongoError(err, operation)
 }

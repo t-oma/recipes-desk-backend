@@ -13,8 +13,8 @@ import (
 	"go.mongodb.org/mongo-driver/bson/primitive"
 
 	"recipes-desk/internal/modules/auth/adapter/out/mongorepo"
+	"recipes-desk/internal/modules/auth/domain"
 	"recipes-desk/internal/modules/auth/domain/fixtures"
-	"recipes-desk/internal/modules/auth/domain/ports"
 	"recipes-desk/pkg/testutils"
 )
 
@@ -98,7 +98,7 @@ func TestIntegration_MongoRefreshTokenRepository_FindByHash(t *testing.T) {
 
 	t.Run("find non-existent token", func(t *testing.T) {
 		_, err := repo.FindByHash(ctx, "nonexistent")
-		assert.ErrorIs(t, err, ports.ErrTokenNotFound)
+		assert.ErrorIs(t, err, domain.ErrTokenNotFound)
 	})
 }
 
@@ -121,7 +121,7 @@ func TestIntegration_MongoRefreshTokenRepository_DeleteByHash(t *testing.T) {
 
 		// Verify token is deleted
 		_, err = repo.FindByHash(ctx, "deleteme123")
-		assert.ErrorIs(t, err, ports.ErrTokenNotFound)
+		assert.ErrorIs(t, err, domain.ErrTokenNotFound)
 	})
 
 	t.Run("delete non-existent token", func(t *testing.T) {
@@ -166,7 +166,7 @@ func TestIntegration_MongoRefreshTokenRepository_TokenRotation(t *testing.T) {
 
 		// Verify old token is deleted but new still exists
 		_, err = repo.FindByHash(ctx, "oldtoken123")
-		assert.ErrorIs(t, err, ports.ErrTokenNotFound)
+		assert.ErrorIs(t, err, domain.ErrTokenNotFound)
 
 		foundNew, err = repo.FindByHash(ctx, "newtoken456")
 		require.NoError(t, err)

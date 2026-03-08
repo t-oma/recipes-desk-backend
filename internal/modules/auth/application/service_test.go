@@ -176,9 +176,9 @@ func TestService_GetByID(t *testing.T) {
 			id:   userID,
 			mockSetup: func(m *mockUserRepository) {
 				m.On("FindByID", mock.Anything, userID).
-					Return(nil, ports.ErrUserNotFound)
+					Return(nil, domain.ErrUserNotFound)
 			},
-			wantErr:    ports.ErrUserNotFound,
+			wantErr:    domain.ErrUserNotFound,
 			wantUser:   false,
 			wantUserID: "",
 		},
@@ -205,8 +205,8 @@ func TestService_GetByID(t *testing.T) {
 
 			if tt.wantErr != nil {
 				require.Error(t, err)
-				if errors.Is(tt.wantErr, ports.ErrUserNotFound) {
-					require.ErrorIs(t, err, ports.ErrUserNotFound)
+				if errors.Is(tt.wantErr, domain.ErrUserNotFound) {
+					require.ErrorIs(t, err, domain.ErrUserNotFound)
 				}
 				assert.Nil(t, user)
 			} else {
@@ -360,9 +360,9 @@ func TestService_Login(t *testing.T) {
 			},
 			mockSetup: func(repo *mockUserRepository, _ *mockPasswordService, _ *mockTokenService) {
 				repo.On("FindByEmail", mock.Anything, "nonexistent@example.com").
-					Return(nil, ports.ErrUserNotFound).Once()
+					Return(nil, domain.ErrUserNotFound).Once()
 			},
-			wantErr:    ports.ErrUserNotFound,
+			wantErr:    domain.ErrUserNotFound,
 			wantResult: false,
 		},
 		{
@@ -451,9 +451,9 @@ func TestService_RefreshTokens(t *testing.T) {
 			},
 			mockSetup: func(tok *mockTokenService) {
 				tok.On("RotateRefreshToken", mock.Anything, "invalid-token").
-					Return(nil, "", ports.ErrInvalidToken).Once()
+					Return(nil, "", domain.ErrTokenInvalid).Once()
 			},
-			wantErr:    ports.ErrInvalidToken,
+			wantErr:    domain.ErrTokenInvalid,
 			wantResult: false,
 		},
 	}

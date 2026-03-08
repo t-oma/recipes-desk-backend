@@ -6,24 +6,24 @@ import (
 	"crypto/sha256"
 	"encoding/base64"
 	"errors"
-	"fmt"
 	"time"
 
 	"github.com/golang-jwt/jwt/v5"
+	"github.com/rs/zerolog"
 
 	"recipes-desk/internal/modules/auth/application/dto"
 	"recipes-desk/internal/modules/auth/application/ports/in"
+	"recipes-desk/internal/modules/auth/domain"
 	"recipes-desk/internal/modules/auth/domain/entity"
 	"recipes-desk/internal/modules/auth/domain/ports"
 	"recipes-desk/internal/modules/auth/domain/valueobject"
 )
 
-var ErrSignToken = errors.New("failed to sign token")
-
 // TokenService handles JWT token generation and validation.
 type TokenService struct {
 	refreshRepo ports.RefreshTokenRepository
 	idGen       ports.IDGenerator
+	log         *zerolog.Logger
 	secret      []byte
 	accessTTL   time.Duration
 	refreshTTL  time.Duration
@@ -35,6 +35,7 @@ var _ in.TokenService = (*TokenService)(nil)
 func NewTokenService(
 	refreshRepo ports.RefreshTokenRepository,
 	idGen ports.IDGenerator,
+	log *zerolog.Logger,
 	secret string,
 	accessTTL time.Duration,
 	refreshTTL time.Duration,
@@ -42,6 +43,7 @@ func NewTokenService(
 	return &TokenService{
 		refreshRepo: refreshRepo,
 		idGen:       idGen,
+		log:         log,
 		secret:      []byte(secret),
 		accessTTL:   accessTTL,
 		refreshTTL:  refreshTTL,
@@ -56,7 +58,7 @@ func (s *TokenService) GenerateAccessToken(userID string) (*dto.TokenResult, err
 		s.accessTTL,
 	)
 	if err != nil {
-		return nil, err
+		return nil, s.mapError(err, "GenerateAccessToken")
 	}
 
 	return &dto.TokenResult{
@@ -71,22 +73,19 @@ func (s *TokenService) ValidateAccessToken(tokenString string) (*dto.Claims, err
 		&dto.Claims{}, //nolint:exhaustruct // JWT library initializes fields
 		func(token *jwt.Token) (any, error) {
 			if _, ok := token.Method.(*jwt.SigningMethodHMAC); !ok {
-				return nil, fmt.Errorf("unexpected signing method: %v", token.Header["alg"])
+				return nil, ErrTokenInvalid
 			}
 			return s.secret, nil
 		})
 	if err != nil {
-		if errors.Is(err, jwt.ErrTokenExpired) {
-			return nil, ports.ErrExpiredToken
-		}
-		return nil, fmt.Errorf("%w: %w", ports.ErrInvalidToken, err)
+		return nil, s.mapError(err, "ValidateAccessToken")
 	}
 
 	if claims, ok := token.Claims.(*dto.Claims); ok && token.Valid {
 		return claims, nil
 	}
 
-	return nil, ports.ErrInvalidToken
+	return nil, domain.ErrTokenInvalid
 }
 
 func (s *TokenService) GenerateRefreshToken(
@@ -95,7 +94,7 @@ func (s *TokenService) GenerateRefreshToken(
 ) (*dto.TokenResult, error) {
 	randomBytes := make([]byte, 32)
 	if _, err := rand.Read(randomBytes); err != nil {
-		return nil, fmt.Errorf("failed to generate random token: %w", err)
+		return nil, s.mapError(err, "GenerateRefreshToken")
 	}
 
 	plainToken := base64.URLEncoding.EncodeToString(randomBytes)
@@ -115,7 +114,7 @@ func (s *TokenService) GenerateRefreshToken(
 
 	refreshToken, err = s.refreshRepo.Create(ctx, refreshToken, s.refreshTTL)
 	if err != nil {
-		return nil, fmt.Errorf("failed to store refresh token: %w", err)
+		return nil, s.mapError(err, "GenerateRefreshToken")
 	}
 
 	return &dto.TokenResult{
@@ -132,15 +131,12 @@ func (s *TokenService) ValidateRefreshToken(
 
 	storedToken, err := s.refreshRepo.FindByHash(ctx, tokenHash)
 	if err != nil {
-		if errors.Is(err, ports.ErrTokenNotFound) {
-			return "", ports.ErrTokenNotFound
-		}
-		return "", fmt.Errorf("failed to find refresh token: %w", err)
+		return "", s.mapError(err, "ValidateRefreshToken")
 	}
 
 	// Check if token has expired
 	if time.Now().After(storedToken.ExpiresAt()) {
-		return "", ports.ErrExpiredToken
+		return "", domain.ErrTokenExpired
 	}
 
 	return storedToken.UserID().String(), nil
@@ -157,10 +153,7 @@ func (s *TokenService) RotateRefreshToken(
 
 	oldTokenHash := hashToken(oldPlainToken)
 	if err = s.refreshRepo.DeleteByHash(ctx, oldTokenHash); err != nil {
-		return nil, "", fmt.Errorf(
-			"failed to delete old refresh token: %w",
-			err,
-		)
+		return nil, "", s.mapError(err, "RotateRefreshToken")
 	}
 
 	newToken, err := s.GenerateRefreshToken(ctx, userID)
@@ -196,8 +189,56 @@ func GenerateToken(
 	token := jwt.NewWithClaims(method, claims)
 	tokenString, err := token.SignedString(secret)
 	if err != nil {
-		return "", time.Time{}, fmt.Errorf("%w: %w", ErrSignToken, err)
+		return "", time.Time{}, err
 	}
 
 	return tokenString, expiresAt, nil
+}
+
+// mapError maps domain and infrastructure errors to application-level errors.
+// This ensures that only safe, client-facing errors are exposed.
+func (s *TokenService) mapError(err error, operation string) error {
+	if err == nil {
+		return nil
+	}
+
+	switch {
+	case errors.Is(err, jwt.ErrTokenExpired):
+		return ErrTokenExpired
+	case errors.Is(err, jwt.ErrTokenNotValidYet),
+		errors.Is(err, jwt.ErrTokenMalformed),
+		errors.Is(err, jwt.ErrTokenInvalidIssuer),
+		errors.Is(err, jwt.ErrTokenInvalidAudience),
+		errors.Is(err, jwt.ErrTokenInvalidSubject),
+		errors.Is(err, jwt.ErrTokenUnverifiable),
+		errors.Is(err, jwt.ErrTokenSignatureInvalid):
+		s.log.Error().Err(err).Str("operation", operation).Msg("Invalid token")
+		return ErrTokenInvalid
+
+	// Domain errors that are safe to pass through
+	case errors.Is(err, domain.ErrValidation):
+		return err
+	case errors.Is(err, domain.ErrNotFound):
+		return err
+	case errors.Is(err, domain.ErrForbidden):
+		return err
+	case errors.Is(err, domain.ErrConflict):
+		return err
+	case errors.Is(err, domain.ErrUnauthorized):
+		return err
+
+	// Infrastructure errors - map to safe versions
+	case errors.Is(err, jwt.ErrInvalidKeyType):
+		s.log.Error().Err(err).Str("operation", operation).Msg("Invalid key type")
+		return ErrInternal
+	case errors.Is(err, domain.ErrTimeout):
+		s.log.Error().Err(err).Str("operation", operation).Msg("Database timeout")
+		return ErrServiceUnavailable
+	case errors.Is(err, domain.ErrDatabase):
+		s.log.Error().Err(err).Str("operation", operation).Msg("Database error")
+		return ErrInternal
+	default:
+		s.log.Error().Err(err).Str("operation", operation).Msg("Unexpected error")
+		return ErrInternal
+	}
 }

@@ -2,7 +2,6 @@ package ports
 
 import (
 	"context"
-	"errors"
 
 	"recipes-desk/internal/modules/auth/domain/entity"
 )
@@ -13,5 +12,3 @@ type UserRepository interface {
 	FindByID(ctx context.Context, id string) (*entity.User, error)
 	ExistsByEmail(ctx context.Context, email string) (bool, error)
 }
-
-var ErrUserNotFound = errors.New("user not found")

@@ -9,12 +9,14 @@ import (
 	"time"
 
 	"github.com/golang-jwt/jwt/v5"
+	"github.com/rs/zerolog"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
 
 	"recipes-desk/internal/modules/auth/application"
 	"recipes-desk/internal/modules/auth/application/dto"
+	"recipes-desk/internal/modules/auth/domain"
 	"recipes-desk/internal/modules/auth/domain/entity"
 	"recipes-desk/internal/modules/auth/domain/ports"
 	vo "recipes-desk/internal/modules/auth/domain/valueobject"
@@ -94,9 +96,11 @@ func TestTokenService_GenerateAccessToken(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			mockRepo := new(mockRefreshTokensRepository)
 			mockID := new(mockIDGenerator)
+			logger := zerolog.New(nil)
 			tokenService := application.NewTokenService(
 				mockRepo,
 				mockID,
+				&logger,
 				secret,
 				accessTTL,
 				refreshTTL,
@@ -168,7 +172,7 @@ func TestTokenService_ValidateAccessToken(t *testing.T) {
 					-time.Hour,
 				)
 			},
-			wantErr:    ports.ErrExpiredToken,
+			wantErr:    domain.ErrTokenExpired,
 			wantUserID: "",
 		},
 		{
@@ -182,7 +186,7 @@ func TestTokenService_ValidateAccessToken(t *testing.T) {
 					accessTTL,
 				)
 			},
-			wantErr:    ports.ErrInvalidToken,
+			wantErr:    domain.ErrTokenInvalid,
 			wantUserID: "",
 		},
 		{
@@ -190,7 +194,7 @@ func TestTokenService_ValidateAccessToken(t *testing.T) {
 			generateFn: func() (string, error) {
 				return "invalid.token.string", nil
 			},
-			wantErr:    ports.ErrInvalidToken,
+			wantErr:    domain.ErrTokenInvalid,
 			wantUserID: "",
 		},
 		{
@@ -198,7 +202,7 @@ func TestTokenService_ValidateAccessToken(t *testing.T) {
 			generateFn: func() (string, error) {
 				return "", nil
 			},
-			wantErr:    ports.ErrInvalidToken,
+			wantErr:    domain.ErrTokenInvalid,
 			wantUserID: "",
 		},
 		{
@@ -217,7 +221,7 @@ func TestTokenService_ValidateAccessToken(t *testing.T) {
 					accessTTL,
 				)
 			},
-			wantErr:    ports.ErrInvalidToken,
+			wantErr:    domain.ErrTokenInvalid,
 			wantUserID: "",
 		},
 	}
@@ -226,9 +230,11 @@ func TestTokenService_ValidateAccessToken(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			mockRepo := new(mockRefreshTokensRepository)
 			mockID := new(mockIDGenerator)
+			logger := zerolog.New(nil)
 			tokenService := application.NewTokenService(
 				mockRepo,
 				mockID,
+				&logger,
 				secret,
 				accessTTL,
 				refreshTTL,
@@ -308,9 +314,11 @@ func TestTokenService_GenerateRefreshToken(t *testing.T) {
 				tt.mockSetup(mockRepo, mockID)
 			}
 
+			logger := zerolog.New(nil)
 			tokenService := application.NewTokenService(
 				mockRepo,
 				mockID,
+				&logger,
 				secret,
 				accessTTL,
 				refreshTTL,
@@ -372,9 +380,9 @@ func TestTokenService_ValidateRefreshToken(t *testing.T) {
 			plainToken: "non-existent-token",
 			mockSetup: func(m *mockRefreshTokensRepository) {
 				m.On("FindByHash", mock.Anything, mock.AnythingOfType("string")).
-					Return(nil, ports.ErrTokenNotFound)
+					Return(nil, domain.ErrTokenNotFound)
 			},
-			wantErr:    ports.ErrTokenNotFound,
+			wantErr:    domain.ErrUnauthorized,
 			wantUserID: "",
 		},
 		{
@@ -393,7 +401,7 @@ func TestTokenService_ValidateRefreshToken(t *testing.T) {
 						nil,
 					)
 			},
-			wantErr:    ports.ErrExpiredToken,
+			wantErr:    domain.ErrTokenExpired,
 			wantUserID: "",
 		},
 		{
@@ -401,9 +409,9 @@ func TestTokenService_ValidateRefreshToken(t *testing.T) {
 			plainToken: "error-token",
 			mockSetup: func(m *mockRefreshTokensRepository) {
 				m.On("FindByHash", mock.Anything, mock.AnythingOfType("string")).
-					Return(nil, errors.New("database error"))
+					Return(nil, domain.ErrDatabase)
 			},
-			wantErr:    errors.New("failed to find refresh token"),
+			wantErr:    application.ErrInternal,
 			wantUserID: "",
 		},
 	}
@@ -414,9 +422,11 @@ func TestTokenService_ValidateRefreshToken(t *testing.T) {
 			mockID := new(mockIDGenerator)
 			tt.mockSetup(mockRepo)
 
+			logger := zerolog.New(nil)
 			tokenService := application.NewTokenService(
 				mockRepo,
 				mockID,
+				&logger,
 				secret,
 				accessTTL,
 				refreshTTL,
@@ -428,12 +438,7 @@ func TestTokenService_ValidateRefreshToken(t *testing.T) {
 
 			if tt.wantErr != nil {
 				require.Error(t, err)
-				if errors.Is(tt.wantErr, ports.ErrTokenNotFound) ||
-					errors.Is(tt.wantErr, ports.ErrExpiredToken) {
-					require.ErrorIs(t, err, tt.wantErr)
-				} else {
-					assert.Contains(t, err.Error(), tt.wantErr.Error())
-				}
+				require.ErrorIs(t, err, tt.wantErr)
 				assert.Equal(t, tt.wantUserID, resultUserID)
 			} else {
 				require.NoError(t, err)
@@ -500,9 +505,9 @@ func TestTokenService_RotateRefreshToken(t *testing.T) {
 			oldToken: "invalid-token",
 			mockSetup: func(m *mockRefreshTokensRepository, _ *mockIDGenerator) {
 				m.On("FindByHash", mock.Anything, mock.AnythingOfType("string")).
-					Return(nil, ports.ErrTokenNotFound).Once()
+					Return(nil, domain.ErrTokenNotFound).Once()
 			},
-			wantErr:       ports.ErrTokenNotFound,
+			wantErr:       domain.ErrUnauthorized,
 			checkNewToken: false,
 		},
 		{
@@ -521,9 +526,9 @@ func TestTokenService_RotateRefreshToken(t *testing.T) {
 						nil,
 					).Once()
 				m.On("DeleteByHash", mock.Anything, mock.AnythingOfType("string")).
-					Return(errors.New("delete error")).Once()
+					Return(domain.ErrDatabase).Once()
 			},
-			wantErr:       errors.New("failed to delete old refresh token"),
+			wantErr:       application.ErrInternal,
 			checkNewToken: false,
 		},
 	}
@@ -534,9 +539,11 @@ func TestTokenService_RotateRefreshToken(t *testing.T) {
 			mockID := new(mockIDGenerator)
 			tt.mockSetup(mockRepo, mockID)
 
+			logger := zerolog.New(nil)
 			tokenService := application.NewTokenService(
 				mockRepo,
 				mockID,
+				&logger,
 				secret,
 				accessTTL,
 				refreshTTL,
@@ -548,11 +555,7 @@ func TestTokenService_RotateRefreshToken(t *testing.T) {
 
 			if tt.wantErr != nil {
 				require.Error(t, err)
-				if errors.Is(tt.wantErr, ports.ErrTokenNotFound) {
-					require.ErrorIs(t, err, tt.wantErr)
-				} else {
-					assert.Contains(t, err.Error(), tt.wantErr.Error())
-				}
+				require.ErrorIs(t, err, tt.wantErr)
 				assert.Nil(t, newToken)
 				assert.Empty(t, resultUserID)
 			} else {
