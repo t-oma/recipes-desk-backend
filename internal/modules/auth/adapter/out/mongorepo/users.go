@@ -3,7 +3,6 @@ package mongorepo
 import (
 	"context"
 	"errors"
-	"time"
 
 	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/bson/primitive"
@@ -32,9 +31,6 @@ func NewUsers(db *mongo.Database) *UserRepository {
 
 // Create stores a new user in the database.
 func (r *UserRepository) Create(ctx context.Context, user *entity.User) (*entity.User, error) {
-	ctx, cancel := context.WithTimeout(ctx, 5*time.Second)
-	defer cancel()
-
 	model := userModelFromDomain(user)
 	model.prepareForInsert()
 
@@ -47,9 +43,6 @@ func (r *UserRepository) Create(ctx context.Context, user *entity.User) (*entity
 
 // FindByID finds a user by their ID.
 func (r *UserRepository) FindByID(ctx context.Context, id string) (*entity.User, error) {
-	ctx, cancel := context.WithTimeout(ctx, 5*time.Second)
-	defer cancel()
-
 	objectID, err := primitive.ObjectIDFromHex(id)
 	if err != nil {
 		return nil, domain.ErrUserNotFound
@@ -74,9 +67,6 @@ func (r *UserRepository) FindByEmail(
 	ctx context.Context,
 	email string,
 ) (*entity.User, error) {
-	ctx, cancel := context.WithTimeout(ctx, 5*time.Second)
-	defer cancel()
-
 	filter := bson.M{"email": email}
 
 	var model userModel
@@ -93,9 +83,6 @@ func (r *UserRepository) FindByEmail(
 
 // ExistsByEmail checks if a user with the given email exists.
 func (r *UserRepository) ExistsByEmail(ctx context.Context, email string) (bool, error) {
-	ctx, cancel := context.WithTimeout(ctx, 5*time.Second)
-	defer cancel()
-
 	filter := bson.M{"email": email}
 
 	num, err := r.collection.CountDocuments(ctx, filter)
