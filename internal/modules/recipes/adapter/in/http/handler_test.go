@@ -78,8 +78,8 @@ func (m *mockService) Update(
 	return args.Get(0).(*dto.Recipe), args.Error(1)
 }
 
-func (m *mockService) Delete(ctx context.Context, id string) error {
-	args := m.Called(ctx, id)
+func (m *mockService) Delete(ctx context.Context, userID, id string) error {
+	args := m.Called(ctx, userID, id)
 	return args.Error(0)
 }
 
@@ -577,36 +577,51 @@ func TestHandler_Update(t *testing.T) {
 
 func TestHandler_Delete(t *testing.T) {
 	recipeID := "abc123"
+	userID := "author123"
 
 	tests := []struct {
 		name           string
+		userID         string
 		id             string
 		mockSetup      func(*mockService)
 		wantStatusCode int
 	}{
 		{
-			name: "success",
-			id:   recipeID,
+			name:   "success",
+			userID: userID,
+			id:     recipeID,
 			mockSetup: func(m *mockService) {
-				m.On("Delete", mock.Anything, recipeID).Return(nil)
+				m.On("Delete", mock.Anything, userID, recipeID).Return(nil)
 			},
 			wantStatusCode: http.StatusOK,
 		},
 		{
-			name: "not found",
-			id:   recipeID,
+			name:   "not found",
+			userID: userID,
+			id:     recipeID,
 			mockSetup: func(m *mockService) {
-				m.On("Delete", mock.Anything, recipeID).Return(domain.ErrNotFound)
+				m.On("Delete", mock.Anything, userID, recipeID).Return(domain.ErrNotFound)
 			},
 			wantStatusCode: http.StatusNotFound,
 		},
 		{
-			name: "service error",
-			id:   recipeID,
+			name:   "service error",
+			userID: userID,
+			id:     recipeID,
 			mockSetup: func(m *mockService) {
-				m.On("Delete", mock.Anything, recipeID).Return(application.ErrInternal)
+				m.On("Delete", mock.Anything, userID, recipeID).Return(application.ErrInternal)
 			},
 			wantStatusCode: http.StatusInternalServerError,
+		},
+		{
+			name:   "forbidden",
+			userID: "not-author",
+			id:     recipeID,
+			mockSetup: func(m *mockService) {
+				m.On("Delete", mock.Anything, "not-author", recipeID).
+					Return(application.ErrForbidden)
+			},
+			wantStatusCode: http.StatusForbidden,
 		},
 	}
 
@@ -615,7 +630,12 @@ func TestHandler_Delete(t *testing.T) {
 			router, mockSvc, h := setupTest()
 			tt.mockSetup(mockSvc)
 
-			router.DELETE("/recipes/:id", h.Delete)
+			router.DELETE("/recipes/:id", func(c *gin.Context) {
+				if tt.userID != "" {
+					c.Set("userID", tt.userID)
+				}
+				h.Delete(c)
+			})
 
 			w := httptest.NewRecorder()
 			req, _ := http.NewRequest(http.MethodDelete, "/recipes/"+tt.id, nil)

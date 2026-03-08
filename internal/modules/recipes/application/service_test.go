@@ -655,16 +655,19 @@ func TestService_Delete(t *testing.T) {
 	logger := zerolog.New(nil)
 	recipe := fixtures.NewRecipe(t, "id123", "author123", "Test Recipe")
 	recipeID := recipe.ID().String()
+	authorID := recipe.AuthorID().String()
 
 	tests := []struct {
 		name      string
+		userID    string
 		id        string
 		mockSetup func(*mockRepository)
 		wantErr   error
 	}{
 		{
-			name: "success",
-			id:   recipeID,
+			name:   "success",
+			id:     recipeID,
+			userID: authorID,
 			mockSetup: func(m *mockRepository) {
 				m.On("FindByID", mock.Anything, recipeID).
 					Return(recipe, nil)
@@ -674,17 +677,19 @@ func TestService_Delete(t *testing.T) {
 			wantErr: nil,
 		},
 		{
-			name: "not found",
-			id:   recipeID,
+			name:   "not found",
+			id:     recipeID,
+			userID: authorID,
 			mockSetup: func(m *mockRepository) {
 				m.On("FindByID", mock.Anything, recipeID).
 					Return(nil, domain.ErrNotFound)
 			},
-			wantErr: domain.ErrNotFound,
+			wantErr: application.ErrNotFound,
 		},
 		{
-			name: "delete error",
-			id:   recipeID,
+			name:   "delete error",
+			id:     recipeID,
+			userID: authorID,
 			mockSetup: func(m *mockRepository) {
 				m.On("FindByID", mock.Anything, recipeID).
 					Return(recipe, nil)
@@ -692,6 +697,17 @@ func TestService_Delete(t *testing.T) {
 					Return(application.ErrInternal)
 			},
 			wantErr: application.ErrInternal,
+		},
+		{
+			name:   "forbidden",
+			id:     recipeID,
+			userID: "not-author",
+			mockSetup: func(m *mockRepository) {
+				m.On("FindByID", mock.Anything, recipeID).
+					Return(recipe, nil)
+				// Delete should not be called because recipe is not owned by user
+			},
+			wantErr: application.ErrForbidden,
 		},
 	}
 
@@ -702,13 +718,11 @@ func TestService_Delete(t *testing.T) {
 
 			idGen := new(mockIDGenerator)
 			svc := application.NewService(mockRepo, idGen, &logger)
-			err := svc.Delete(context.Background(), tt.id)
+			err := svc.Delete(context.Background(), tt.userID, tt.id)
 
 			if tt.wantErr != nil {
 				require.Error(t, err)
-				if errors.Is(tt.wantErr, domain.ErrNotFound) {
-					assert.ErrorIs(t, err, domain.ErrNotFound)
-				}
+				require.ErrorIs(t, err, tt.wantErr)
 			} else {
 				require.NoError(t, err)
 			}

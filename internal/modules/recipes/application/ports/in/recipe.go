@@ -18,5 +18,5 @@ type RecipeService interface {
 		id string,
 		recipe dto.UpdateRecipeInput,
 	) (*dto.Recipe, error)
-	Delete(ctx context.Context, id string) error
+	Delete(ctx context.Context, userID string, id string) error
 }

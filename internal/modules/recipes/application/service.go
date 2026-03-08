@@ -194,12 +194,17 @@ func (s *Service) Update(
 	return mapper.ToRecipeDTO(recipe), nil
 }
 
-func (s *Service) Delete(ctx context.Context, id string) error {
-	if _, err := s.repo.FindByID(ctx, id); err != nil {
+func (s *Service) Delete(ctx context.Context, userID, id string) error {
+	recipeToDelete, err := s.repo.FindByID(ctx, id)
+	if err != nil {
 		return s.mapError(err, "Delete")
 	}
 
-	if err := s.repo.Delete(ctx, id); err != nil {
+	if !recipeToDelete.CanBeModified(userID) {
+		return ErrForbidden
+	}
+
+	if err = s.repo.Delete(ctx, id); err != nil {
 		return s.mapError(err, "Delete")
 	}
 

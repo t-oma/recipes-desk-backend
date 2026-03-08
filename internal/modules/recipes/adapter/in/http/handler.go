@@ -147,11 +147,10 @@ func (h *Handler) Update(c *gin.Context) {
 
 func (h *Handler) Delete(c *gin.Context) {
 	userID := c.GetString("userID")
-	_ = userID
 
 	id := c.Param("id")
 
-	if err := h.service.Delete(c.Request.Context(), id); err != nil {
+	if err := h.service.Delete(c.Request.Context(), userID, id); err != nil {
 		handleError(c, err)
 		return
 	}
