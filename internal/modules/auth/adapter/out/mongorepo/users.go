@@ -9,6 +9,7 @@ import (
 	"go.mongodb.org/mongo-driver/bson/primitive"
 	"go.mongodb.org/mongo-driver/mongo"
 
+	"recipes-desk/internal/modules/auth/domain"
 	"recipes-desk/internal/modules/auth/domain/entity"
 	"recipes-desk/internal/modules/auth/domain/ports"
 )
@@ -51,7 +52,7 @@ func (r *UserRepository) FindByID(ctx context.Context, id string) (*entity.User,
 
 	objectID, err := primitive.ObjectIDFromHex(id)
 	if err != nil {
-		return nil, ports.ErrUserNotFound
+		return nil, domain.ErrUserNotFound
 	}
 
 	filter := bson.M{"_id": objectID}
@@ -60,7 +61,7 @@ func (r *UserRepository) FindByID(ctx context.Context, id string) (*entity.User,
 	err = r.collection.FindOne(ctx, filter).Decode(&model)
 	if err != nil {
 		if errors.Is(err, mongo.ErrNoDocuments) {
-			return nil, ports.ErrUserNotFound
+			return nil, domain.ErrUserNotFound
 		}
 		return nil, err
 	}
@@ -82,7 +83,7 @@ func (r *UserRepository) FindByEmail(
 	err := r.collection.FindOne(ctx, filter).Decode(&model)
 	if err != nil {
 		if errors.Is(err, mongo.ErrNoDocuments) {
-			return nil, ports.ErrUserNotFound
+			return nil, domain.ErrUserNotFound
 		}
 		return nil, err
 	}

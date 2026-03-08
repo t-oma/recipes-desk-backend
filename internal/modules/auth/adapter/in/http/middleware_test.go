@@ -13,7 +13,7 @@ import (
 
 	httphandler "recipes-desk/internal/modules/auth/adapter/in/http"
 	"recipes-desk/internal/modules/auth/application/dto"
-	"recipes-desk/internal/modules/auth/domain/ports"
+	"recipes-desk/internal/modules/auth/domain"
 )
 
 // mockTokenValidator is a mock implementation of tokenService for middleware testing.
@@ -98,7 +98,7 @@ func TestAuthMiddleware(t *testing.T) {
 			},
 			mockSetup: func(m *mockTokenValidator) {
 				m.On("ValidateAccessToken", "").
-					Return(nil, ports.ErrInvalidToken)
+					Return(nil, domain.ErrTokenInvalid)
 			},
 			wantStatusCode: http.StatusUnauthorized,
 			wantUserID:     "",
@@ -114,7 +114,7 @@ func TestAuthMiddleware(t *testing.T) {
 			},
 			mockSetup: func(m *mockTokenValidator) {
 				m.On("ValidateAccessToken", "expired_token").
-					Return(nil, ports.ErrExpiredToken)
+					Return(nil, domain.ErrTokenExpired)
 			},
 			wantStatusCode: http.StatusUnauthorized,
 			wantUserID:     "",
@@ -130,7 +130,7 @@ func TestAuthMiddleware(t *testing.T) {
 			},
 			mockSetup: func(m *mockTokenValidator) {
 				m.On("ValidateAccessToken", "invalid_token").
-					Return(nil, ports.ErrInvalidToken)
+					Return(nil, domain.ErrTokenInvalid)
 			},
 			wantStatusCode: http.StatusUnauthorized,
 			wantUserID:     "",

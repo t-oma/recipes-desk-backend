@@ -15,6 +15,7 @@ import (
 
 	"recipes-desk/internal/modules/auth/application"
 	"recipes-desk/internal/modules/auth/application/dto"
+	"recipes-desk/internal/modules/auth/domain"
 	"recipes-desk/internal/modules/auth/domain/entity"
 	"recipes-desk/internal/modules/auth/domain/ports"
 	vo "recipes-desk/internal/modules/auth/domain/valueobject"
@@ -168,7 +169,7 @@ func TestTokenService_ValidateAccessToken(t *testing.T) {
 					-time.Hour,
 				)
 			},
-			wantErr:    ports.ErrExpiredToken,
+			wantErr:    domain.ErrTokenExpired,
 			wantUserID: "",
 		},
 		{
@@ -182,7 +183,7 @@ func TestTokenService_ValidateAccessToken(t *testing.T) {
 					accessTTL,
 				)
 			},
-			wantErr:    ports.ErrInvalidToken,
+			wantErr:    domain.ErrTokenInvalid,
 			wantUserID: "",
 		},
 		{
@@ -190,7 +191,7 @@ func TestTokenService_ValidateAccessToken(t *testing.T) {
 			generateFn: func() (string, error) {
 				return "invalid.token.string", nil
 			},
-			wantErr:    ports.ErrInvalidToken,
+			wantErr:    domain.ErrTokenInvalid,
 			wantUserID: "",
 		},
 		{
@@ -198,7 +199,7 @@ func TestTokenService_ValidateAccessToken(t *testing.T) {
 			generateFn: func() (string, error) {
 				return "", nil
 			},
-			wantErr:    ports.ErrInvalidToken,
+			wantErr:    domain.ErrTokenInvalid,
 			wantUserID: "",
 		},
 		{
@@ -217,7 +218,7 @@ func TestTokenService_ValidateAccessToken(t *testing.T) {
 					accessTTL,
 				)
 			},
-			wantErr:    ports.ErrInvalidToken,
+			wantErr:    domain.ErrTokenInvalid,
 			wantUserID: "",
 		},
 	}
@@ -372,9 +373,9 @@ func TestTokenService_ValidateRefreshToken(t *testing.T) {
 			plainToken: "non-existent-token",
 			mockSetup: func(m *mockRefreshTokensRepository) {
 				m.On("FindByHash", mock.Anything, mock.AnythingOfType("string")).
-					Return(nil, ports.ErrTokenNotFound)
+					Return(nil, domain.ErrTokenNotFound)
 			},
-			wantErr:    ports.ErrTokenNotFound,
+			wantErr:    domain.ErrTokenNotFound,
 			wantUserID: "",
 		},
 		{
@@ -393,7 +394,7 @@ func TestTokenService_ValidateRefreshToken(t *testing.T) {
 						nil,
 					)
 			},
-			wantErr:    ports.ErrExpiredToken,
+			wantErr:    domain.ErrTokenExpired,
 			wantUserID: "",
 		},
 		{
@@ -428,8 +429,8 @@ func TestTokenService_ValidateRefreshToken(t *testing.T) {
 
 			if tt.wantErr != nil {
 				require.Error(t, err)
-				if errors.Is(tt.wantErr, ports.ErrTokenNotFound) ||
-					errors.Is(tt.wantErr, ports.ErrExpiredToken) {
+				if errors.Is(tt.wantErr, domain.ErrTokenNotFound) ||
+					errors.Is(tt.wantErr, domain.ErrTokenExpired) {
 					require.ErrorIs(t, err, tt.wantErr)
 				} else {
 					assert.Contains(t, err.Error(), tt.wantErr.Error())
@@ -500,9 +501,9 @@ func TestTokenService_RotateRefreshToken(t *testing.T) {
 			oldToken: "invalid-token",
 			mockSetup: func(m *mockRefreshTokensRepository, _ *mockIDGenerator) {
 				m.On("FindByHash", mock.Anything, mock.AnythingOfType("string")).
-					Return(nil, ports.ErrTokenNotFound).Once()
+					Return(nil, domain.ErrTokenNotFound).Once()
 			},
-			wantErr:       ports.ErrTokenNotFound,
+			wantErr:       domain.ErrTokenNotFound,
 			checkNewToken: false,
 		},
 		{
@@ -548,7 +549,7 @@ func TestTokenService_RotateRefreshToken(t *testing.T) {
 
 			if tt.wantErr != nil {
 				require.Error(t, err)
-				if errors.Is(tt.wantErr, ports.ErrTokenNotFound) {
+				if errors.Is(tt.wantErr, domain.ErrTokenNotFound) {
 					require.ErrorIs(t, err, tt.wantErr)
 				} else {
 					assert.Contains(t, err.Error(), tt.wantErr.Error())

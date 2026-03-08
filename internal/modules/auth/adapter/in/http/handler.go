@@ -11,7 +11,6 @@ import (
 	"recipes-desk/internal/modules/auth/application/dto"
 	"recipes-desk/internal/modules/auth/application/ports/in"
 	"recipes-desk/internal/modules/auth/domain"
-	"recipes-desk/internal/modules/auth/domain/ports"
 )
 
 const (
@@ -36,12 +35,12 @@ func NewHandler(service in.AuthService, log *zerolog.Logger) *Handler {
 
 func handleError(c *gin.Context, err error) {
 	switch {
-	case errors.Is(err, ports.ErrUserNotFound):
+	case errors.Is(err, domain.ErrUserNotFound):
 		c.JSON(http.StatusNotFound, gin.H{"error": "user not found"})
 	case errors.Is(err, domain.ErrValidation):
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
-	case errors.Is(err, ports.ErrInvalidToken), errors.Is(err, ports.ErrExpiredToken),
-		errors.Is(err, ports.ErrTokenNotFound):
+	case errors.Is(err, domain.ErrTokenInvalid), errors.Is(err, domain.ErrTokenExpired),
+		errors.Is(err, domain.ErrTokenNotFound):
 		c.JSON(http.StatusUnauthorized, gin.H{"error": "invalid or expired token"})
 	case errors.Is(err, domain.ErrUserAlreadyExists):
 		c.JSON(http.StatusConflict, gin.H{"error": "user already exists"})

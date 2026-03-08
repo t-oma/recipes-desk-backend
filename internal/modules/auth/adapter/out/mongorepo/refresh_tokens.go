@@ -10,6 +10,7 @@ import (
 	"go.mongodb.org/mongo-driver/mongo"
 	"go.mongodb.org/mongo-driver/mongo/options"
 
+	"recipes-desk/internal/modules/auth/domain"
 	"recipes-desk/internal/modules/auth/domain/entity"
 	"recipes-desk/internal/modules/auth/domain/ports"
 )
@@ -74,7 +75,7 @@ func (r *RefreshTokenRepository) FindByHash(
 	err := r.collection.FindOne(ctx, bson.M{"tokenHash": tokenHash}).Decode(&model)
 	if err != nil {
 		if errors.Is(err, mongo.ErrNoDocuments) {
-			return nil, ports.ErrTokenNotFound
+			return nil, domain.ErrTokenNotFound
 		}
 		return nil, err
 	}

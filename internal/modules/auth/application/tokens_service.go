@@ -13,6 +13,7 @@ import (
 
 	"recipes-desk/internal/modules/auth/application/dto"
 	"recipes-desk/internal/modules/auth/application/ports/in"
+	"recipes-desk/internal/modules/auth/domain"
 	"recipes-desk/internal/modules/auth/domain/entity"
 	"recipes-desk/internal/modules/auth/domain/ports"
 	"recipes-desk/internal/modules/auth/domain/valueobject"
@@ -77,16 +78,16 @@ func (s *TokenService) ValidateAccessToken(tokenString string) (*dto.Claims, err
 		})
 	if err != nil {
 		if errors.Is(err, jwt.ErrTokenExpired) {
-			return nil, ports.ErrExpiredToken
+			return nil, domain.ErrTokenExpired
 		}
-		return nil, fmt.Errorf("%w: %w", ports.ErrInvalidToken, err)
+		return nil, fmt.Errorf("%w: %w", domain.ErrTokenInvalid, err)
 	}
 
 	if claims, ok := token.Claims.(*dto.Claims); ok && token.Valid {
 		return claims, nil
 	}
 
-	return nil, ports.ErrInvalidToken
+	return nil, domain.ErrTokenInvalid
 }
 
 func (s *TokenService) GenerateRefreshToken(
@@ -132,15 +133,15 @@ func (s *TokenService) ValidateRefreshToken(
 
 	storedToken, err := s.refreshRepo.FindByHash(ctx, tokenHash)
 	if err != nil {
-		if errors.Is(err, ports.ErrTokenNotFound) {
-			return "", ports.ErrTokenNotFound
+		if errors.Is(err, domain.ErrTokenNotFound) {
+			return "", domain.ErrTokenNotFound
 		}
 		return "", fmt.Errorf("failed to find refresh token: %w", err)
 	}
 
 	// Check if token has expired
 	if time.Now().After(storedToken.ExpiresAt()) {
-		return "", ports.ErrExpiredToken
+		return "", domain.ErrTokenExpired
 	}
 
 	return storedToken.UserID().String(), nil

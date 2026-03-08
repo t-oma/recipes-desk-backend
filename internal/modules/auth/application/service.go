@@ -47,7 +47,7 @@ func NewService(
 func (s *Service) GetByID(ctx context.Context, id string) (*dto.User, error) {
 	user, err := s.repo.FindByID(ctx, id)
 	if err != nil {
-		if errors.Is(err, ports.ErrUserNotFound) {
+		if errors.Is(err, domain.ErrUserNotFound) {
 			s.log.Debug().Str("user_id", id).Msg("User not found")
 			return nil, err
 		}
@@ -141,7 +141,7 @@ func (s *Service) Register(ctx context.Context, params dto.RegisterInput) (*dto.
 func (s *Service) Login(ctx context.Context, params dto.LoginInput) (*dto.AuthResult, error) {
 	user, err := s.repo.FindByEmail(ctx, params.Email)
 	if err != nil {
-		if errors.Is(err, ports.ErrUserNotFound) {
+		if errors.Is(err, domain.ErrUserNotFound) {
 			s.log.Debug().Str("email", params.Email).Msg("User not found")
 			return nil, err
 		}
