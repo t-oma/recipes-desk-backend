@@ -14,9 +14,9 @@ import (
 	"go.mongodb.org/mongo-driver/bson/primitive"
 
 	"recipes-desk/internal/modules/recipes/adapter/out/mongorepo"
+	"recipes-desk/internal/modules/recipes/domain"
 	"recipes-desk/internal/modules/recipes/domain/entity"
 	"recipes-desk/internal/modules/recipes/domain/fixtures"
-	"recipes-desk/internal/modules/recipes/domain/ports"
 	"recipes-desk/internal/modules/recipes/domain/valueobject"
 	"recipes-desk/pkg/testutils"
 )
@@ -73,12 +73,12 @@ func TestIntegration_RecipeRepository_FindByID(t *testing.T) {
 	t.Run("find non-existing recipe", func(t *testing.T) {
 		nonExistingID := primitive.NewObjectID().Hex()
 		_, err := repo.FindByID(ctx, nonExistingID)
-		assert.ErrorIs(t, err, ports.ErrNotFound)
+		assert.ErrorIs(t, err, domain.ErrNotFound)
 	})
 
 	t.Run("find with invalid id", func(t *testing.T) {
 		_, err := repo.FindByID(ctx, "invalid-id")
-		assert.ErrorIs(t, err, ports.ErrNotFound)
+		assert.ErrorIs(t, err, domain.ErrNotFound)
 	})
 }
 
@@ -259,7 +259,7 @@ func TestIntegration_RecipeRepository_Update(t *testing.T) {
 		require.NoError(t, err)
 
 		_, err = repo.Update(ctx, nonExisting)
-		assert.ErrorIs(t, err, ports.ErrNotFound)
+		assert.ErrorIs(t, err, domain.ErrNotFound)
 	})
 }
 
@@ -282,17 +282,17 @@ func TestIntegration_RecipeRepository_Delete(t *testing.T) {
 
 		// Verify it's gone
 		_, err = repo.FindByID(ctx, id)
-		assert.ErrorIs(t, err, ports.ErrNotFound)
+		assert.ErrorIs(t, err, domain.ErrNotFound)
 	})
 
 	t.Run("delete non-existing recipe", func(t *testing.T) {
 		nonExistingID := primitive.NewObjectID().Hex()
 		err := repo.Delete(ctx, nonExistingID)
-		assert.ErrorIs(t, err, ports.ErrNotFound)
+		assert.ErrorIs(t, err, domain.ErrNotFound)
 	})
 
 	t.Run("delete with invalid id", func(t *testing.T) {
 		err := repo.Delete(ctx, "invalid-id")
-		assert.ErrorIs(t, err, ports.ErrNotFound)
+		assert.ErrorIs(t, err, domain.ErrNotFound)
 	})
 }

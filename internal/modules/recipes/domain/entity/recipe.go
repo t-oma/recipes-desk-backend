@@ -1,8 +1,7 @@
-// Package entity contains recipe entity, repository, value objects and domain errors.
+// Package entity contains recipe entity definitions.
 package entity
 
 import (
-	"fmt"
 	"time"
 
 	"recipes-desk/internal/modules/recipes/domain"
@@ -36,13 +35,13 @@ func NewRecipe(
 	authorID string,
 ) (*Recipe, error) {
 	if len(ingredientsVO) == 0 {
-		return nil, ErrNoIngredients
+		return nil, domain.ErrNoIngredients
 	}
 	if len(stepsVO) == 0 {
-		return nil, ErrNoSteps
+		return nil, domain.ErrNoSteps
 	}
 	if len(tagsVO) == 0 {
-		return nil, ErrNoTags
+		return nil, domain.ErrNoTags
 	}
 
 	idVO, err := vo.NewEntityID(id)
@@ -101,7 +100,7 @@ func (r *Recipe) UpdateDescription(description vo.Description) {
 func (r *Recipe) AddIngredient(ingredient vo.Ingredient) error {
 	for _, existing := range r.ingredients {
 		if existing.Name() == ingredient.Name() {
-			return ErrDuplicateIngredient
+			return domain.ErrDuplicateIngredient
 		}
 	}
 	r.ingredients = append(r.ingredients, ingredient)
@@ -111,7 +110,7 @@ func (r *Recipe) AddIngredient(ingredient vo.Ingredient) error {
 func (r *Recipe) AddStep(step vo.Step) error {
 	expectedOrder := len(r.steps) + 1
 	if step.Order() != expectedOrder {
-		return ErrInvalidStepOrderf(expectedOrder, step.Order())
+		return domain.ErrInvalidStepOrderf(expectedOrder, step.Order())
 	}
 	r.steps = append(r.steps, step)
 	return nil
@@ -194,33 +193,4 @@ func (r Recipe) Equals(other *Recipe) bool {
 func (r *Recipe) RestoreFromPersistence(updatedAt time.Time, createdAt time.Time) {
 	r.updatedAt = updatedAt
 	r.createdAt = createdAt
-}
-
-// Validation errors - wrapped with ErrValidation category.
-var (
-	ErrNoIngredients = fmt.Errorf(
-		"%w: recipe must have at least one ingredient",
-		domain.ErrValidation,
-	)
-	ErrNoSteps = fmt.Errorf(
-		"%w: recipe must have at least one step",
-		domain.ErrValidation,
-	)
-	ErrNoTags = fmt.Errorf(
-		"%w: recipe must have at least one tag",
-		domain.ErrValidation,
-	)
-	ErrDuplicateIngredient = fmt.Errorf(
-		"%w: recipe cannot have duplicate ingredients",
-		domain.ErrValidation,
-	)
-)
-
-func ErrInvalidStepOrderf(expectedOrder int, actualOrder int) error {
-	return fmt.Errorf(
-		"%w: step order must be %d got %d",
-		domain.ErrValidation,
-		expectedOrder,
-		actualOrder,
-	)
 }

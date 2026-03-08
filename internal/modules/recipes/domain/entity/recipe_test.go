@@ -61,7 +61,7 @@ func TestNewEntity(t *testing.T) {
 			portions:    4,
 			tags:        validTags,
 			authorID:    "author123",
-			wantErr:     entity.ErrNoIngredients,
+			wantErr:     domain.ErrNoIngredients,
 		},
 		{
 			name:        "no steps",
@@ -74,7 +74,7 @@ func TestNewEntity(t *testing.T) {
 			portions:    4,
 			tags:        validTags,
 			authorID:    "author123",
-			wantErr:     entity.ErrNoSteps,
+			wantErr:     domain.ErrNoSteps,
 		},
 		{
 			name:        "no tags",
@@ -87,7 +87,7 @@ func TestNewEntity(t *testing.T) {
 			portions:    4,
 			tags:        []valueobject.Tag{},
 			authorID:    "author123",
-			wantErr:     entity.ErrNoTags,
+			wantErr:     domain.ErrNoTags,
 		},
 		{
 			name:        "empty id",
@@ -343,7 +343,7 @@ func TestRecipe_AddIngredient(t *testing.T) {
 
 		err := recipe.AddIngredient(ingredient)
 		require.Error(t, err)
-		require.ErrorIs(t, err, entity.ErrDuplicateIngredient)
+		require.ErrorIs(t, err, domain.ErrDuplicateIngredient)
 		require.Len(t, recipe.Ingredients(), len(ingredients))
 	})
 

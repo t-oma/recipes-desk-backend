@@ -3,12 +3,14 @@ package mongorepo
 import (
 	"context"
 	"errors"
+	"fmt"
 	"time"
 
 	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/bson/primitive"
 	"go.mongodb.org/mongo-driver/mongo"
 
+	"recipes-desk/internal/modules/recipes/domain"
 	"recipes-desk/internal/modules/recipes/domain/entity"
 	"recipes-desk/internal/modules/recipes/domain/ports"
 )
@@ -37,7 +39,7 @@ func (r *RecipeRepository) Create(
 
 	_, err := r.collection.InsertOne(ctx, recipeModel)
 	if err != nil {
-		return nil, err
+		return nil, r.wrapError(err, "create recipe")
 	}
 	return recipeModel.toDomain()
 }
@@ -45,16 +47,13 @@ func (r *RecipeRepository) Create(
 func (r *RecipeRepository) FindByID(ctx context.Context, id string) (*entity.Recipe, error) {
 	objectID, err := primitive.ObjectIDFromHex(id)
 	if err != nil {
-		return nil, ports.ErrNotFound
+		return nil, domain.ErrNotFound
 	}
 
 	var model recipeModel
 	err = r.collection.FindOne(ctx, bson.M{"_id": objectID}).Decode(&model)
 	if err != nil {
-		if errors.Is(err, mongo.ErrNoDocuments) {
-			return nil, ports.ErrNotFound
-		}
-		return nil, err
+		return nil, r.wrapError(err, "find recipe by id")
 	}
 
 	return model.toDomain()
@@ -63,13 +62,13 @@ func (r *RecipeRepository) FindByID(ctx context.Context, id string) (*entity.Rec
 func (r *RecipeRepository) FindAll(ctx context.Context) ([]entity.Recipe, error) {
 	cursor, err := r.collection.Find(ctx, bson.M{})
 	if err != nil {
-		return nil, err
+		return nil, r.wrapError(err, "find all recipes")
 	}
 	defer cursor.Close(ctx)
 
 	var recipeModels []recipeModel
 	if err = cursor.All(ctx, &recipeModels); err != nil {
-		return nil, err
+		return nil, r.wrapError(err, "decode recipes")
 	}
 
 	recipes := make([]entity.Recipe, len(recipeModels))
@@ -96,13 +95,13 @@ func (r *RecipeRepository) Search(ctx context.Context, query string) ([]entity.R
 
 	cursor, err := r.collection.Find(ctx, filter)
 	if err != nil {
-		return nil, err
+		return nil, r.wrapError(err, "search recipes")
 	}
 	defer cursor.Close(ctx)
 
 	var recipeModels []recipeModel
 	if err = cursor.All(ctx, &recipeModels); err != nil {
-		return nil, err
+		return nil, r.wrapError(err, "decode search results")
 	}
 
 	recipes := make([]entity.Recipe, len(recipeModels))
@@ -130,11 +129,11 @@ func (r *RecipeRepository) Update(
 
 	result, err := r.collection.UpdateOne(ctx, filter, update)
 	if err != nil {
-		return nil, err
+		return nil, r.wrapError(err, "update recipe")
 	}
 
 	if result.MatchedCount == 0 {
-		return nil, ports.ErrNotFound
+		return nil, domain.ErrNotFound
 	}
 
 	return recipeModel.toDomain()
@@ -147,17 +146,39 @@ func (r *RecipeRepository) Delete(ctx context.Context, id string) error {
 
 	objectID, err := primitive.ObjectIDFromHex(id)
 	if err != nil {
-		return ports.ErrNotFound
+		return domain.ErrNotFound
 	}
 
 	result, err := r.collection.DeleteOne(ctx, bson.M{"_id": objectID})
 	if err != nil {
-		return err
+		return r.wrapError(err, "delete recipe")
 	}
 
 	if result.DeletedCount == 0 {
-		return ports.ErrNotFound
+		return domain.ErrNotFound
 	}
 
 	return nil
+}
+
+// wrapError converts MongoDB errors to domain errors.
+func (r *RecipeRepository) wrapError(err error, operation string) error {
+	if err == nil {
+		return nil
+	}
+
+	// MongoDB specific errors
+	if errors.Is(err, mongo.ErrNoDocuments) {
+		return domain.ErrNotFound
+	}
+
+	if mongo.IsTimeout(err) {
+		return fmt.Errorf("%w: %s: %w", domain.ErrTimeout, operation, err)
+	}
+
+	if mongo.IsDuplicateKeyError(err) {
+		return fmt.Errorf("%w: %s: %w", domain.ErrConflict, operation, err)
+	}
+
+	return fmt.Errorf("%w: %s: %w", domain.ErrDatabase, operation, err)
 }
