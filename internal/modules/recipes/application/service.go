@@ -45,7 +45,7 @@ func (s *Service) Create(ctx context.Context, input dto.CreateRecipeInput) (*dto
 		},
 	)
 	if err != nil {
-		return nil, err
+		return nil, s.mapError(err, "Create")
 	}
 
 	steps, err := sliceutils.MapSliceWithErr(
@@ -55,7 +55,7 @@ func (s *Service) Create(ctx context.Context, input dto.CreateRecipeInput) (*dto
 		},
 	)
 	if err != nil {
-		return nil, err
+		return nil, s.mapError(err, "Create")
 	}
 
 	tags, err := sliceutils.MapSliceWithErr(
@@ -63,7 +63,7 @@ func (s *Service) Create(ctx context.Context, input dto.CreateRecipeInput) (*dto
 		valueobject.NewTag,
 	)
 	if err != nil {
-		return nil, err
+		return nil, s.mapError(err, "Create")
 	}
 
 	recipe, err := entity.NewRecipe(
@@ -78,13 +78,12 @@ func (s *Service) Create(ctx context.Context, input dto.CreateRecipeInput) (*dto
 		input.UserID,
 	)
 	if err != nil {
-		return nil, err
+		return nil, s.mapError(err, "Create")
 	}
 
 	recipe, err = s.repo.Create(ctx, recipe)
 	if err != nil {
-		s.log.Error().Err(err).Msg("Failed to create recipe")
-		return nil, err
+		return nil, s.mapError(err, "Create")
 	}
 
 	return mapper.ToRecipeDTO(recipe), nil
@@ -93,12 +92,7 @@ func (s *Service) Create(ctx context.Context, input dto.CreateRecipeInput) (*dto
 func (s *Service) GetByID(ctx context.Context, id string) (*dto.Recipe, error) {
 	recipe, err := s.repo.FindByID(ctx, id)
 	if err != nil {
-		if errors.Is(err, domain.ErrNotFound) {
-			s.log.Debug().Str("recipe_id", id).Msg("Recipe not found")
-			return nil, domain.ErrRecipeNotFound
-		}
-		s.log.Error().Err(err).Str("recipe_id", id).Msg("Failed to get recipe")
-		return nil, err
+		return nil, s.mapError(err, "GetByID")
 	}
 
 	return mapper.ToRecipeDTO(recipe), nil
@@ -107,8 +101,7 @@ func (s *Service) GetByID(ctx context.Context, id string) (*dto.Recipe, error) {
 func (s *Service) GetAll(ctx context.Context) ([]dto.Recipe, error) {
 	recipes, err := s.repo.FindAll(ctx)
 	if err != nil {
-		s.log.Error().Err(err).Msg("Failed to get all recipes")
-		return nil, err
+		return nil, s.mapError(err, "GetAll")
 	}
 
 	dtos := make([]dto.Recipe, len(recipes))
@@ -126,8 +119,7 @@ func (s *Service) Search(ctx context.Context, query string) ([]dto.Recipe, error
 
 	recipes, err := s.repo.Search(ctx, query)
 	if err != nil {
-		s.log.Error().Err(err).Str("query", query).Msg("Failed to search recipes")
-		return nil, err
+		return nil, s.mapError(err, "Search")
 	}
 
 	dtos := make([]dto.Recipe, len(recipes))
@@ -145,10 +137,10 @@ func (s *Service) Update(
 ) (*dto.Recipe, error) {
 	existing, err := s.repo.FindByID(ctx, id)
 	if err != nil {
-		return nil, err
+		return nil, s.mapError(err, "Update")
 	}
 	if !existing.CanBeModified(userID) {
-		return nil, domain.ErrForbidden
+		return nil, s.mapError(domain.ErrForbidden, "Update")
 	}
 
 	ingredients, err := sliceutils.MapSliceWithErr(
@@ -158,7 +150,7 @@ func (s *Service) Update(
 		},
 	)
 	if err != nil {
-		return nil, err
+		return nil, s.mapError(err, "Update")
 	}
 
 	steps, err := sliceutils.MapSliceWithErr(
@@ -168,7 +160,7 @@ func (s *Service) Update(
 		},
 	)
 	if err != nil {
-		return nil, err
+		return nil, s.mapError(err, "Update")
 	}
 
 	tags, err := sliceutils.MapSliceWithErr(
@@ -176,7 +168,7 @@ func (s *Service) Update(
 		valueobject.NewTag,
 	)
 	if err != nil {
-		return nil, err
+		return nil, s.mapError(err, "Update")
 	}
 
 	recipe, err := entity.NewRecipe(
@@ -191,13 +183,12 @@ func (s *Service) Update(
 		existing.AuthorID().String(),
 	)
 	if err != nil {
-		return nil, err
+		return nil, s.mapError(err, "Update")
 	}
 
 	recipe, err = s.repo.Update(ctx, recipe)
 	if err != nil {
-		s.log.Error().Err(err).Str("recipe_id", id).Msg("Failed to update recipe")
-		return nil, err
+		return nil, s.mapError(err, "Update")
 	}
 
 	return mapper.ToRecipeDTO(recipe), nil
@@ -205,13 +196,43 @@ func (s *Service) Update(
 
 func (s *Service) Delete(ctx context.Context, id string) error {
 	if _, err := s.repo.FindByID(ctx, id); err != nil {
-		return err
+		return s.mapError(err, "Delete")
 	}
 
 	if err := s.repo.Delete(ctx, id); err != nil {
-		s.log.Error().Err(err).Str("recipe_id", id).Msg("Failed to delete recipe")
-		return err
+		return s.mapError(err, "Delete")
 	}
 
 	return nil
+}
+
+// mapError maps domain and infrastructure errors to application-level errors.
+// This ensures that only safe, client-facing errors are exposed.
+func (s *Service) mapError(err error, operation string) error {
+	if err == nil {
+		return nil
+	}
+
+	switch {
+	// Domain errors that are safe to pass through
+	case errors.Is(err, domain.ErrValidation):
+		return err
+	case errors.Is(err, domain.ErrNotFound):
+		return ErrRecipeNotFound
+	case errors.Is(err, domain.ErrForbidden):
+		return ErrForbidden
+	case errors.Is(err, domain.ErrConflict):
+		return ErrConflict
+
+	// Infrastructure errors - map to safe versions
+	case errors.Is(err, domain.ErrTimeout):
+		s.log.Error().Err(err).Str("operation", operation).Msg("Database timeout")
+		return ErrServiceUnavailable
+	case errors.Is(err, domain.ErrDatabase):
+		s.log.Error().Err(err).Str("operation", operation).Msg("Database error")
+		return ErrInternal
+	default:
+		s.log.Error().Err(err).Str("operation", operation).Msg("Unexpected error")
+		return ErrInternal
+	}
 }

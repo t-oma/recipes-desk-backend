@@ -223,9 +223,9 @@ func TestService_Create(t *testing.T) {
 				mID.On("Generate").Return("id123")
 
 				m.On("Create", mock.Anything, mock.AnythingOfType(_recipeTypeString)).
-					Return(nil, errors.New("database error"))
+					Return(nil, application.ErrInternal)
 			},
-			wantErr: errors.New("database error"),
+			wantErr: application.ErrInternal,
 			wantID:  false,
 		},
 	}
@@ -292,9 +292,9 @@ func TestService_GetByID(t *testing.T) {
 			id:   recipeID,
 			mockSetup: func(m *mockRepository) {
 				m.On("FindByID", mock.Anything, recipeID).
-					Return(nil, errors.New("database error"))
+					Return(nil, application.ErrInternal)
 			},
-			wantErr:    errors.New("database error"),
+			wantErr:    application.ErrInternal,
 			wantRecipe: false,
 		},
 	}
@@ -364,9 +364,9 @@ func TestService_GetAll(t *testing.T) {
 			name: "repository error",
 			mockSetup: func(m *mockRepository) {
 				m.On("FindAll", mock.Anything).
-					Return(nil, errors.New("database error"))
+					Return(nil, application.ErrInternal)
 			},
-			wantErr:   errors.New("database error"),
+			wantErr:   application.ErrInternal,
 			wantCount: 0,
 		},
 	}
@@ -435,9 +435,9 @@ func TestService_Search(t *testing.T) {
 			query: "pasta",
 			mockSetup: func(m *mockRepository) {
 				m.On("Search", mock.Anything, "pasta").
-					Return(nil, errors.New("search error"))
+					Return(nil, application.ErrInternal)
 			},
-			wantErr:   errors.New("search error"),
+			wantErr:   application.ErrInternal,
 			wantCount: 0,
 		},
 	}
@@ -606,9 +606,9 @@ func TestService_Update(t *testing.T) {
 				m.On("FindByID", mock.Anything, recipeID).
 					Return(recipe, nil)
 				m.On("Update", mock.Anything, mock.AnythingOfType(_recipeTypeString)).
-					Return(nil, errors.New("update failed"))
+					Return(nil, application.ErrInternal)
 			},
-			wantErr: errors.New("update failed"),
+			wantErr: application.ErrInternal,
 		},
 		{
 			name:   "forbidden",
@@ -689,9 +689,9 @@ func TestService_Delete(t *testing.T) {
 				m.On("FindByID", mock.Anything, recipeID).
 					Return(recipe, nil)
 				m.On("Delete", mock.Anything, recipeID).
-					Return(errors.New("delete error"))
+					Return(application.ErrInternal)
 			},
-			wantErr: errors.New("delete error"),
+			wantErr: application.ErrInternal,
 		},
 	}
 

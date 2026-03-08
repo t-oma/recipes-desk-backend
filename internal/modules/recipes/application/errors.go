@@ -1,6 +1,10 @@
 package application
 
-import "recipes-desk/internal/modules/recipes/domain"
+import (
+	"errors"
+
+	"recipes-desk/internal/modules/recipes/domain"
+)
 
 // Re-export domain errors for use by handlers.
 // This provides a clean public API while keeping domain details encapsulated.
@@ -11,6 +15,10 @@ var (
 	ErrNotFound = domain.ErrNotFound
 	// ErrForbidden indicates the operation is forbidden.
 	ErrForbidden = domain.ErrForbidden
+	// ErrServiceUnavailable indicates the service is temporarily unavailable.
+	ErrServiceUnavailable = errors.New("service temporarily unavailable")
+	// ErrInternal indicates an internal server error.
+	ErrInternal = errors.New("internal server error")
 
 	// ErrRecipeNotFound indicates a recipe was not found.
 	ErrRecipeNotFound = domain.ErrRecipeNotFound
