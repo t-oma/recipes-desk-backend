@@ -11,8 +11,12 @@ var (
 	ErrNotFound = domain.ErrNotFound
 	// ErrForbidden indicates the operation is forbidden.
 	ErrForbidden = domain.ErrForbidden
+
 	// ErrRecipeNotFound indicates a recipe was not found.
 	ErrRecipeNotFound = domain.ErrRecipeNotFound
-	// ErrInternal indicates an internal server error.
-	ErrInternal = domain.ErrInternal
+
+	// ErrTimeout indicates a database operation timeout.
+	ErrTimeout = domain.ErrTimeout
+	// ErrConflict indicates a resource conflict (e.g., duplicate key).
+	ErrConflict = domain.ErrConflict
 )

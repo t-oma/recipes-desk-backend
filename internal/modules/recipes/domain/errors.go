@@ -12,8 +12,6 @@ var (
 	ErrNotFound = errors.New("not found")
 	// ErrForbidden indicates the operation is forbidden.
 	ErrForbidden = errors.New("forbidden")
-	// ErrInternal indicates an internal server error.
-	ErrInternal = errors.New("internal server error")
 
 	// ErrRecipeNotFound indicates a recipe was not found.
 	ErrRecipeNotFound = fmt.Errorf("%w: recipe not found", ErrNotFound)
@@ -32,6 +30,13 @@ var (
 		"%w: recipe cannot have duplicate ingredients",
 		ErrValidation,
 	)
+
+	// ErrTimeout indicates a database operation timeout.
+	ErrTimeout = errors.New("database timeout")
+	// ErrDatabase indicates a generic database error.
+	ErrDatabase = errors.New("database error")
+	// ErrConflict indicates a resource conflict (e.g., duplicate key).
+	ErrConflict = errors.New("resource conflict")
 )
 
 // ErrInvalidStepOrderf creates a validation error for invalid step order.
