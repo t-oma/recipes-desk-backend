@@ -19,4 +19,9 @@ var (
 
 	ErrUserNotFound  = fmt.Errorf("%w: user not found", ErrNotFound)
 	ErrTokenNotFound = fmt.Errorf("%w: refresh token not found", ErrNotFound)
+
+	// ErrTimeout indicates a database operation timeout.
+	ErrTimeout = errors.New("database timeout")
+	// ErrDatabase indicates a generic database error.
+	ErrDatabase = errors.New("database error")
 )

@@ -40,7 +40,7 @@ func (r *UserRepository) Create(ctx context.Context, user *entity.User) (*entity
 
 	_, err := r.collection.InsertOne(ctx, model)
 	if err != nil {
-		return nil, err
+		return nil, r.wrapError(err, "create user")
 	}
 	return model.toDomain()
 }
@@ -63,7 +63,7 @@ func (r *UserRepository) FindByID(ctx context.Context, id string) (*entity.User,
 		if errors.Is(err, mongo.ErrNoDocuments) {
 			return nil, domain.ErrUserNotFound
 		}
-		return nil, err
+		return nil, r.wrapError(err, "find user by id")
 	}
 
 	return model.toDomain()
@@ -85,7 +85,7 @@ func (r *UserRepository) FindByEmail(
 		if errors.Is(err, mongo.ErrNoDocuments) {
 			return nil, domain.ErrUserNotFound
 		}
-		return nil, err
+		return nil, r.wrapError(err, "find user by email")
 	}
 
 	return model.toDomain()
@@ -100,8 +100,22 @@ func (r *UserRepository) ExistsByEmail(ctx context.Context, email string) (bool,
 
 	num, err := r.collection.CountDocuments(ctx, filter)
 	if err != nil {
-		return false, err
+		return false, r.wrapError(err, "check user exists")
 	}
 
 	return num > 0, nil
+}
+
+// wrapError converts MongoDB errors to domain errors.
+func (r *UserRepository) wrapError(err error, operation string) error {
+	if err == nil {
+		return nil
+	}
+
+	// MongoDB specific errors
+	if errors.Is(err, mongo.ErrNoDocuments) {
+		return domain.ErrUserNotFound
+	}
+
+	return wrapMongoError(err, operation)
 }
