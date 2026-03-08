@@ -183,8 +183,6 @@ func (s *Service) mapError(err error, operation string) error {
 	switch {
 	case errors.Is(err, bcrypt.ErrPasswordTooLong):
 		return valueobject.ErrPasswordTooLong
-	case errors.Is(err, ErrSignToken):
-		return ErrInternal
 
 	// Domain errors that are safe to pass through
 	case errors.Is(err, domain.ErrValidation):
@@ -195,9 +193,7 @@ func (s *Service) mapError(err error, operation string) error {
 		return err
 	case errors.Is(err, domain.ErrConflict):
 		return err
-	case errors.Is(err, domain.ErrTokenInvalid):
-		return err
-	case errors.Is(err, domain.ErrTokenExpired):
+	case errors.Is(err, domain.ErrUnauthorized):
 		return err
 	case errors.Is(err, domain.ErrInvalidCredentials):
 		return err

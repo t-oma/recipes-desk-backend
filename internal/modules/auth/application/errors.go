@@ -17,6 +17,8 @@ var (
 	ErrForbidden = domain.ErrForbidden
 	// ErrConflict indicates a resource conflict.
 	ErrConflict = domain.ErrConflict
+	// ErrUnauthorized indicates an unauthorized operation.
+	ErrUnauthorized = domain.ErrUnauthorized
 
 	// ErrUserNotFound indicates a user was not found.
 	ErrUserNotFound = domain.ErrUserNotFound
@@ -41,6 +43,4 @@ var (
 	ErrServiceUnavailable = errors.New("service temporarily unavailable")
 	// ErrInternal indicates an internal server error.
 	ErrInternal = errors.New("internal server error")
-	// ErrSignToken indicates a token signing failure.
-	ErrSignToken = errors.New("failed to sign token")
 )

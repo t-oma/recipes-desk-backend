@@ -6,7 +6,6 @@ import (
 	"crypto/sha256"
 	"encoding/base64"
 	"errors"
-	"fmt"
 	"time"
 
 	"github.com/golang-jwt/jwt/v5"
@@ -59,7 +58,7 @@ func (s *TokenService) GenerateAccessToken(userID string) (*dto.TokenResult, err
 		s.accessTTL,
 	)
 	if err != nil {
-		return nil, err
+		return nil, s.mapError(err, "GenerateAccessToken")
 	}
 
 	return &dto.TokenResult{
@@ -74,15 +73,12 @@ func (s *TokenService) ValidateAccessToken(tokenString string) (*dto.Claims, err
 		&dto.Claims{}, //nolint:exhaustruct // JWT library initializes fields
 		func(token *jwt.Token) (any, error) {
 			if _, ok := token.Method.(*jwt.SigningMethodHMAC); !ok {
-				return nil, fmt.Errorf("unexpected signing method: %v", token.Header["alg"])
+				return nil, ErrTokenInvalid
 			}
 			return s.secret, nil
 		})
 	if err != nil {
-		if errors.Is(err, jwt.ErrTokenExpired) {
-			return nil, domain.ErrTokenExpired
-		}
-		return nil, fmt.Errorf("%w: %w", domain.ErrTokenInvalid, err)
+		return nil, s.mapError(err, "ValidateAccessToken")
 	}
 
 	if claims, ok := token.Claims.(*dto.Claims); ok && token.Valid {
@@ -98,7 +94,7 @@ func (s *TokenService) GenerateRefreshToken(
 ) (*dto.TokenResult, error) {
 	randomBytes := make([]byte, 32)
 	if _, err := rand.Read(randomBytes); err != nil {
-		return nil, fmt.Errorf("failed to generate random token: %w", err)
+		return nil, s.mapError(err, "GenerateRefreshToken")
 	}
 
 	plainToken := base64.URLEncoding.EncodeToString(randomBytes)
@@ -193,10 +189,7 @@ func GenerateToken(
 	token := jwt.NewWithClaims(method, claims)
 	tokenString, err := token.SignedString(secret)
 	if err != nil {
-		if errors.Is(err, jwt.ErrInvalidKeyType) {
-			return "", time.Time{}, fmt.Errorf("%w: %w", ErrSignToken, err)
-		}
-		return "", time.Time{}, fmt.Errorf("%w: %w", ErrSignToken, err)
+		return "", time.Time{}, err
 	}
 
 	return tokenString, expiresAt, nil
@@ -210,6 +203,18 @@ func (s *TokenService) mapError(err error, operation string) error {
 	}
 
 	switch {
+	case errors.Is(err, jwt.ErrTokenExpired):
+		return ErrTokenExpired
+	case errors.Is(err, jwt.ErrTokenNotValidYet),
+		errors.Is(err, jwt.ErrTokenMalformed),
+		errors.Is(err, jwt.ErrTokenInvalidIssuer),
+		errors.Is(err, jwt.ErrTokenInvalidAudience),
+		errors.Is(err, jwt.ErrTokenInvalidSubject),
+		errors.Is(err, jwt.ErrTokenUnverifiable),
+		errors.Is(err, jwt.ErrTokenSignatureInvalid):
+		s.log.Error().Err(err).Str("operation", operation).Msg("Invalid token")
+		return ErrTokenInvalid
+
 	// Domain errors that are safe to pass through
 	case errors.Is(err, domain.ErrValidation):
 		return err
@@ -219,8 +224,13 @@ func (s *TokenService) mapError(err error, operation string) error {
 		return err
 	case errors.Is(err, domain.ErrConflict):
 		return err
+	case errors.Is(err, domain.ErrUnauthorized):
+		return err
 
 	// Infrastructure errors - map to safe versions
+	case errors.Is(err, jwt.ErrInvalidKeyType):
+		s.log.Error().Err(err).Str("operation", operation).Msg("Invalid key type")
+		return ErrInternal
 	case errors.Is(err, domain.ErrTimeout):
 		s.log.Error().Err(err).Str("operation", operation).Msg("Database timeout")
 		return ErrServiceUnavailable

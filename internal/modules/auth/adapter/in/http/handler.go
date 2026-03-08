@@ -34,25 +34,25 @@ func NewHandler(service in.AuthService, log *zerolog.Logger) *Handler {
 }
 
 // handleError maps application errors to HTTP status codes.
-func handleError(c *gin.Context, log *zerolog.Logger, err error) {
+func handleError(c *gin.Context, err error) {
 	switch {
-	case errors.Is(err, application.ErrUserNotFound):
-		c.JSON(http.StatusNotFound, gin.H{"error": "user not found"})
 	case errors.Is(err, application.ErrValidation):
-		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
-	case errors.Is(err, application.ErrTokenInvalid), errors.Is(err, application.ErrTokenExpired),
-		errors.Is(err, application.ErrTokenNotFound):
-		c.JSON(http.StatusUnauthorized, gin.H{"error": "invalid or expired token"})
-	case errors.Is(err, application.ErrUserAlreadyExists), errors.Is(err, application.ErrConflict):
+		c.JSON(http.StatusBadRequest, err.Error())
+	case errors.Is(err, application.ErrUserNotFound):
+		c.JSON(http.StatusNotFound, err.Error())
+	case errors.Is(err, application.ErrUnauthorized):
+		c.JSON(http.StatusUnauthorized, err.Error())
+	case errors.Is(err, application.ErrUserAlreadyExists):
 		c.JSON(http.StatusConflict, gin.H{"error": "user already exists"})
+	case errors.Is(err, application.ErrConflict):
+		c.JSON(http.StatusConflict, err.Error())
 	case errors.Is(err, application.ErrInvalidCredentials):
-		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid credentials"})
+		c.JSON(http.StatusBadRequest, err.Error())
+
 	case errors.Is(err, application.ErrServiceUnavailable):
-		log.Error().Err(err).Msg("Service unavailable")
-		c.JSON(http.StatusServiceUnavailable, gin.H{"error": "service temporarily unavailable"})
+		c.JSON(http.StatusServiceUnavailable, err.Error())
 	default:
-		log.Error().Err(err).Msg("Internal server error")
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "internal server error"})
+		c.JSON(http.StatusInternalServerError, err.Error())
 	}
 }
 
@@ -71,7 +71,7 @@ func (h *Handler) Register(c *gin.Context) {
 		Password:  req.Password,
 	})
 	if err != nil {
-		handleError(c, h.log, err)
+		handleError(c, err)
 		return
 	}
 
@@ -95,7 +95,7 @@ func (h *Handler) Login(c *gin.Context) {
 		Password: req.Password,
 	})
 	if err != nil {
-		handleError(c, h.log, err)
+		handleError(c, err)
 		return
 	}
 
@@ -117,7 +117,7 @@ func (h *Handler) Refresh(c *gin.Context) {
 		RefreshToken: refreshToken,
 	})
 	if err != nil {
-		handleError(c, h.log, err)
+		handleError(c, err)
 		return
 	}
 
@@ -143,7 +143,7 @@ func (h *Handler) Me(c *gin.Context) {
 
 	user, err := h.service.GetByID(c.Request.Context(), userID)
 	if err != nil {
-		handleError(c, h.log, err)
+		handleError(c, err)
 		return
 	}
 
