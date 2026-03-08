@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/golang-jwt/jwt/v5"
+	"github.com/rs/zerolog"
 
 	"recipes-desk/internal/modules/auth/application/dto"
 	"recipes-desk/internal/modules/auth/application/ports/in"
@@ -19,12 +20,11 @@ import (
 	"recipes-desk/internal/modules/auth/domain/valueobject"
 )
 
-var ErrSignToken = errors.New("failed to sign token")
-
 // TokenService handles JWT token generation and validation.
 type TokenService struct {
 	refreshRepo ports.RefreshTokenRepository
 	idGen       ports.IDGenerator
+	log         *zerolog.Logger
 	secret      []byte
 	accessTTL   time.Duration
 	refreshTTL  time.Duration
@@ -36,6 +36,7 @@ var _ in.TokenService = (*TokenService)(nil)
 func NewTokenService(
 	refreshRepo ports.RefreshTokenRepository,
 	idGen ports.IDGenerator,
+	log *zerolog.Logger,
 	secret string,
 	accessTTL time.Duration,
 	refreshTTL time.Duration,
@@ -43,6 +44,7 @@ func NewTokenService(
 	return &TokenService{
 		refreshRepo: refreshRepo,
 		idGen:       idGen,
+		log:         log,
 		secret:      []byte(secret),
 		accessTTL:   accessTTL,
 		refreshTTL:  refreshTTL,
