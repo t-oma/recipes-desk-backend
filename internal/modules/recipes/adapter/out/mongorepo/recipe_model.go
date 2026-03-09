@@ -7,6 +7,7 @@ import (
 
 	"recipes-desk/internal/modules/recipes/domain/entity"
 	"recipes-desk/internal/modules/recipes/domain/valueobject"
+	"recipes-desk/pkg/sliceutils"
 )
 
 type recipeModel struct {
@@ -18,7 +19,7 @@ type recipeModel struct {
 	CookingTime int64              `bson:"cookingTime"`
 	Portions    int                `bson:"portions"`
 	Tags        []tagModel         `bson:"tags"`
-	AuthorID    string             `bson:"authorId"`
+	AuthorID    primitive.ObjectID `bson:"authorId"`
 	CreatedAt   time.Time          `bson:"createdAt"`
 	UpdatedAt   time.Time          `bson:"updatedAt"`
 }
@@ -48,40 +49,71 @@ func (m *recipeModel) prepareForUpdate() {
 
 func (m *recipeModel) toDomain() (*entity.Recipe, error) {
 	var err error
-	ingredients := make([]valueobject.Ingredient, len(m.Ingredients))
-	for i, ingredient := range m.Ingredients {
-		ingredients[i], err = ingredient.toDomain()
-		if err != nil {
-			return nil, err
-		}
+	id, err := valueobject.NewEntityID(m.ID.Hex())
+	if err != nil {
+		return nil, err
+	}
+	title, err := valueobject.NewTitle(m.Title)
+	if err != nil {
+		return nil, err
+	}
+	desc, err := valueobject.NewDescription(m.Description)
+	if err != nil {
+		return nil, err
+	}
+	cookingTime, err := valueobject.NewCookingTime(m.CookingTime)
+	if err != nil {
+		return nil, err
+	}
+	portions, err := valueobject.NewPortions(m.Portions)
+	if err != nil {
+		return nil, err
+	}
+	authorID, err := valueobject.NewAuthorID(m.AuthorID.Hex())
+	if err != nil {
+		return nil, err
 	}
 
-	steps := make([]valueobject.Step, len(m.Steps))
-	for i, step := range m.Steps {
-		steps[i], err = step.toDomain()
-		if err != nil {
-			return nil, err
-		}
+	ingredients, err := sliceutils.MapSliceWithErr(
+		m.Ingredients,
+		func(ing ingredientModel) (valueobject.Ingredient, error) {
+			return ing.toDomain()
+		},
+	)
+	if err != nil {
+		return nil, err
 	}
 
-	tags := make([]valueobject.Tag, len(m.Tags))
-	for i, tag := range m.Tags {
-		tags[i], err = tag.toDomain()
-		if err != nil {
-			return nil, err
-		}
+	steps, err := sliceutils.MapSliceWithErr(
+		m.Steps,
+		func(step stepModel) (valueobject.Step, error) {
+			return step.toDomain()
+		},
+	)
+	if err != nil {
+		return nil, err
+	}
+
+	tags, err := sliceutils.MapSliceWithErr(
+		m.Tags,
+		func(tag tagModel) (valueobject.Tag, error) {
+			return tag.toDomain()
+		},
+	)
+	if err != nil {
+		return nil, err
 	}
 
 	recipe, err := entity.NewRecipe(
-		m.ID.Hex(),
-		m.Title,
-		m.Description,
+		id,
+		title,
+		desc,
 		ingredients,
 		steps,
-		m.CookingTime,
-		m.Portions,
+		cookingTime,
+		portions,
 		tags,
-		m.AuthorID,
+		authorID,
 	)
 	if err != nil {
 		return nil, err
@@ -90,7 +122,7 @@ func (m *recipeModel) toDomain() (*entity.Recipe, error) {
 	return recipe, nil
 }
 
-func recipeModelFromDomain(recipe *entity.Recipe) *recipeModel {
+func recipeModelFromDomain(recipe *entity.Recipe) (*recipeModel, error) {
 	var id primitive.ObjectID
 	if recipe.HasID() {
 		var err error
@@ -98,6 +130,10 @@ func recipeModelFromDomain(recipe *entity.Recipe) *recipeModel {
 		if err != nil {
 			id = primitive.NewObjectID()
 		}
+	}
+	authorID, err := primitive.ObjectIDFromHex(recipe.AuthorID().String())
+	if err != nil {
+		return nil, err
 	}
 
 	recipeIngredients := recipe.Ingredients()
@@ -127,8 +163,8 @@ func recipeModelFromDomain(recipe *entity.Recipe) *recipeModel {
 		CookingTime: recipe.CookingTime().SecondsInt64(),
 		Portions:    recipe.Portions().Value(),
 		Tags:        tags,
-		AuthorID:    recipe.AuthorID().String(),
+		AuthorID:    authorID,
 		CreatedAt:   recipe.CreatedAt(),
 		UpdatedAt:   recipe.UpdatedAt(),
-	}
+	}, nil
 }

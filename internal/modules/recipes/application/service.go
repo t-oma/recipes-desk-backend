@@ -38,6 +38,27 @@ func NewService(
 }
 
 func (s *Service) Create(ctx context.Context, input dto.CreateRecipeInput) (*dto.Recipe, error) {
+	title, err := valueobject.NewTitle(input.Title)
+	if err != nil {
+		return nil, s.mapError(err, "Create")
+	}
+	desc, err := valueobject.NewDescription(input.Description)
+	if err != nil {
+		return nil, s.mapError(err, "Create")
+	}
+	cookingTime, err := valueobject.NewCookingTime(input.CookingTime)
+	if err != nil {
+		return nil, s.mapError(err, "Create")
+	}
+	portions, err := valueobject.NewPortions(input.Portions)
+	if err != nil {
+		return nil, s.mapError(err, "Create")
+	}
+	authorID, err := valueobject.NewAuthorID(input.UserID)
+	if err != nil {
+		return nil, s.mapError(err, "Create")
+	}
+
 	ingredients, err := sliceutils.MapSliceWithErr(
 		input.Ingredients,
 		func(ing dto.IngredientInput) (valueobject.Ingredient, error) {
@@ -66,16 +87,21 @@ func (s *Service) Create(ctx context.Context, input dto.CreateRecipeInput) (*dto
 		return nil, s.mapError(err, "Create")
 	}
 
+	id, err := valueobject.NewEntityID(s.idGen.Generate())
+	if err != nil {
+		return nil, s.mapError(err, "Create")
+	}
+
 	recipe, err := entity.NewRecipe(
-		s.idGen.Generate(),
-		input.Title,
-		input.Description,
+		id,
+		title,
+		desc,
 		ingredients,
 		steps,
-		input.CookingTime,
-		input.Portions,
+		cookingTime,
+		portions,
 		tags,
-		input.UserID,
+		authorID,
 	)
 	if err != nil {
 		return nil, s.mapError(err, "Create")
@@ -135,12 +161,21 @@ func (s *Service) Update(
 	id string,
 	input dto.UpdateRecipeInput,
 ) (*dto.Recipe, error) {
-	existing, err := s.repo.FindByID(ctx, id)
+	title, err := valueobject.NewTitle(input.Title)
 	if err != nil {
 		return nil, s.mapError(err, "Update")
 	}
-	if !existing.CanBeModified(userID) {
-		return nil, s.mapError(domain.ErrForbidden, "Update")
+	desc, err := valueobject.NewDescription(input.Description)
+	if err != nil {
+		return nil, s.mapError(err, "Update")
+	}
+	cookingTime, err := valueobject.NewCookingTime(input.CookingTime)
+	if err != nil {
+		return nil, s.mapError(err, "Update")
+	}
+	portions, err := valueobject.NewPortions(input.Portions)
+	if err != nil {
+		return nil, s.mapError(err, "Update")
 	}
 
 	ingredients, err := sliceutils.MapSliceWithErr(
@@ -171,16 +206,24 @@ func (s *Service) Update(
 		return nil, s.mapError(err, "Update")
 	}
 
+	existing, err := s.repo.FindByID(ctx, id)
+	if err != nil {
+		return nil, s.mapError(err, "Update")
+	}
+	if !existing.CanBeModified(userID) {
+		return nil, s.mapError(domain.ErrForbidden, "Update")
+	}
+
 	recipe, err := entity.NewRecipe(
-		existing.ID().String(),
-		input.Title,
-		input.Description,
+		existing.ID(),
+		title,
+		desc,
 		ingredients,
 		steps,
-		input.CookingTime,
-		input.Portions,
+		cookingTime,
+		portions,
 		tags,
-		existing.AuthorID().String(),
+		existing.AuthorID(),
 	)
 	if err != nil {
 		return nil, s.mapError(err, "Update")
@@ -223,11 +266,11 @@ func (s *Service) mapError(err error, operation string) error {
 	case errors.Is(err, domain.ErrValidation):
 		return err
 	case errors.Is(err, domain.ErrNotFound):
-		return ErrRecipeNotFound
+		return err
 	case errors.Is(err, domain.ErrForbidden):
-		return ErrForbidden
+		return err
 	case errors.Is(err, domain.ErrConflict):
-		return ErrConflict
+		return err
 
 	// Infrastructure errors - map to safe versions
 	case errors.Is(err, domain.ErrTimeout):

@@ -26,16 +26,31 @@ func NewRecipe(t *testing.T, id, authorID, title string) *entity.Recipe {
 		MustTag(t, "integration"),
 	}
 
-	entity, err := entity.NewRecipe(
-		id,
-		title,
+	idVO, err := valueobject.NewEntityID(id)
+	require.NoError(t, err)
+	titleVO, err := valueobject.NewTitle(title)
+	require.NoError(t, err)
+	descVO, err := valueobject.NewDescription(
 		"This is a valid description for integration test with at least 10 characters",
+	)
+	require.NoError(t, err)
+	cookingTimeVO, err := valueobject.NewCookingTime(35 * 60)
+	require.NoError(t, err)
+	portionsVO, err := valueobject.NewPortions(4)
+	require.NoError(t, err)
+	authorIDVO, err := valueobject.NewAuthorID(authorID)
+	require.NoError(t, err)
+
+	entity, err := entity.NewRecipe(
+		idVO,
+		titleVO,
+		descVO,
 		ingredients,
 		steps,
-		35*60, // 35 minutes in seconds
-		4,
+		cookingTimeVO,
+		portionsVO,
 		tags,
-		authorID,
+		authorIDVO,
 	)
 	require.NoError(t, err)
 

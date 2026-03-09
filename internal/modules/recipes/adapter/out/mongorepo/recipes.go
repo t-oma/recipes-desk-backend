@@ -34,10 +34,13 @@ func (r *RecipeRepository) Create(
 	ctx context.Context,
 	recipe *entity.Recipe,
 ) (*entity.Recipe, error) {
-	recipeModel := recipeModelFromDomain(recipe)
+	recipeModel, err := recipeModelFromDomain(recipe)
+	if err != nil {
+		return nil, err
+	}
 	recipeModel.prepareForInsert()
 
-	_, err := r.collection.InsertOne(ctx, recipeModel)
+	_, err = r.collection.InsertOne(ctx, recipeModel)
 	if err != nil {
 		return nil, r.wrapError(err, "create recipe")
 	}
@@ -121,7 +124,10 @@ func (r *RecipeRepository) Update(
 	ctx context.Context,
 	recipe *entity.Recipe,
 ) (*entity.Recipe, error) {
-	recipeModel := recipeModelFromDomain(recipe)
+	recipeModel, err := recipeModelFromDomain(recipe)
+	if err != nil {
+		return nil, err
+	}
 	recipeModel.prepareForUpdate()
 
 	filter := bson.M{"_id": recipeModel.ID}
