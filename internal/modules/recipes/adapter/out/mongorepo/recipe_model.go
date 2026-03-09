@@ -49,7 +49,7 @@ func (m *recipeModel) prepareForUpdate() {
 
 func (m *recipeModel) toDomain() (*entity.Recipe, error) {
 	var err error
-	id, err := valueobject.NewEntityID(m.ID.Hex())
+	id, err := valueobject.NewRecipeID(m.ID.Hex())
 	if err != nil {
 		return nil, err
 	}

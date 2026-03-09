@@ -33,7 +33,7 @@ func TestNewRecipeID(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got, gotErr := valueobject.NewEntityID(tt.id)
+			got, gotErr := valueobject.NewRecipeID(tt.id)
 			if tt.wantErr != nil {
 				require.Error(t, gotErr)
 				require.ErrorIs(t, gotErr, tt.wantErr)

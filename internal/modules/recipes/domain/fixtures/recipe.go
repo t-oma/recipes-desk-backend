@@ -26,7 +26,7 @@ func NewRecipe(t *testing.T, id, authorID, title string) *entity.Recipe {
 		MustTag(t, "integration"),
 	}
 
-	idVO, err := valueobject.NewEntityID(id)
+	idVO, err := valueobject.NewRecipeID(id)
 	require.NoError(t, err)
 	titleVO, err := valueobject.NewTitle(title)
 	require.NoError(t, err)

@@ -7,22 +7,22 @@ import (
 	"recipes-desk/internal/modules/recipes/domain"
 )
 
-type EntityID struct {
+type RecipeID struct {
 	value string
 }
 
-func NewEntityID(id string) (EntityID, error) {
+func NewRecipeID(id string) (RecipeID, error) {
 	id = strings.TrimSpace(id)
 	if id == "" {
-		return EntityID{}, ErrRecipeIDEmpty
+		return RecipeID{}, ErrRecipeIDEmpty
 	}
 
-	return EntityID{
+	return RecipeID{
 		value: id,
 	}, nil
 }
 
-func (r EntityID) String() string {
+func (r RecipeID) String() string {
 	return r.value
 }
 

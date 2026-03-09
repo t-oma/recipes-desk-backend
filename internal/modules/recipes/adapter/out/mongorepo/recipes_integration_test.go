@@ -126,7 +126,7 @@ func TestIntegration_RecipeRepository_Search(t *testing.T) {
 	}
 
 	for i, tr := range testRecipes {
-		id, err := valueobject.NewEntityID(primitive.NewObjectID().Hex())
+		id, err := valueobject.NewRecipeID(primitive.NewObjectID().Hex())
 		require.NoError(t, err)
 		title, err := valueobject.NewTitle(tr.title)
 		require.NoError(t, err)
@@ -234,7 +234,7 @@ func TestIntegration_RecipeRepository_Update(t *testing.T) {
 	})
 
 	t.Run("update non-existing recipe", func(t *testing.T) {
-		id, err := valueobject.NewEntityID(primitive.NewObjectID().Hex())
+		id, err := valueobject.NewRecipeID(primitive.NewObjectID().Hex())
 		require.NoError(t, err)
 		authorID, err := valueobject.NewAuthorID(primitive.NewObjectID().Hex())
 		require.NoError(t, err)

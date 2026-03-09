@@ -10,7 +10,7 @@ import (
 
 // Recipe represents a cooking recipe.
 type Recipe struct { //nolint:recvcheck // intentionally mixed pointer and value receivers
-	id          vo.EntityID
+	id          vo.RecipeID
 	title       vo.Title
 	description vo.Description
 	ingredients []vo.Ingredient
@@ -24,7 +24,7 @@ type Recipe struct { //nolint:recvcheck // intentionally mixed pointer and value
 }
 
 func NewRecipe(
-	id vo.EntityID,
+	id vo.RecipeID,
 	title vo.Title,
 	description vo.Description,
 	ingredients []vo.Ingredient,
@@ -90,7 +90,7 @@ func (r *Recipe) AddTag(tag vo.Tag) {
 	r.tags = append(r.tags, tag)
 }
 
-func (r Recipe) ID() vo.EntityID {
+func (r Recipe) ID() vo.RecipeID {
 	return r.id
 }
 
@@ -148,7 +148,7 @@ func (r Recipe) CanBeModified(userID string) bool {
 	return r.authorID.String() == userID
 }
 
-func (r *Recipe) AssignID(id vo.EntityID) {
+func (r *Recipe) AssignID(id vo.RecipeID) {
 	r.id = id
 }
 

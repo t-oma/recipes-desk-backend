@@ -38,10 +38,10 @@ func ValidTags(t *testing.T) []vo.Tag {
 	return []vo.Tag{tag1, tag2}
 }
 
-func ValidID(t *testing.T) vo.EntityID {
+func ValidID(t *testing.T) vo.RecipeID {
 	t.Helper()
 
-	id, err := vo.NewEntityID("id123")
+	id, err := vo.NewRecipeID("id123")
 	require.NoError(t, err)
 	return id
 }

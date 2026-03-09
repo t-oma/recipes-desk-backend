@@ -87,7 +87,7 @@ func (s *Service) Create(ctx context.Context, input dto.CreateRecipeInput) (*dto
 		return nil, s.mapError(err, "Create")
 	}
 
-	id, err := valueobject.NewEntityID(s.idGen.Generate())
+	id, err := valueobject.NewRecipeID(s.idGen.Generate())
 	if err != nil {
 		return nil, s.mapError(err, "Create")
 	}

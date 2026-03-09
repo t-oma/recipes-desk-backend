@@ -140,7 +140,7 @@ func TestEntity_Equals(t *testing.T) {
 				diffIngredients := []valueobject.Ingredient{
 					fixtures.MustIngredient(t, "Milk", 100, "ml"),
 				}
-				diffID, err := valueobject.NewEntityID("id456")
+				diffID, err := valueobject.NewRecipeID("id456")
 				require.NoError(t, err)
 
 				recipe2, _ := entity.NewRecipe(
