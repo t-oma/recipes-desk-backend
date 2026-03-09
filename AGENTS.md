@@ -36,12 +36,6 @@ golangci-lint run   # Alternative
 make test           # All unit tests
 make test-unit      # Alias for test
 go test -v ./...    # Direct command
-
-# Run single test
-go test -v -run TestHandler_List ./internal/modules/recipes/handler/...
-
-# Run tests in specific package
-go test -v ./internal/modules/recipes/service/...
 ```
 
 ### Integration Tests (requires Docker)
@@ -49,10 +43,6 @@ go test -v ./internal/modules/recipes/service/...
 ```bash
 make test-integration              # All integration tests
 make test-integration-recipes      # Recipes module only
-make test-integration-repository   # Repository layer only
-
-# Run single integration test
-go test -v -tags=integration -run TestIntegration_MongoRepository_Create ./internal/modules/recipes/repository/...
 ```
 
 ### Coverage
@@ -69,27 +59,6 @@ make coverage-all
 make docker-up      # Start MongoDB, Mongo Express
 make docker-down    # Stop containers
 make docker-logs    # Follow logs
-```
-
-## Project Structure
-
-```
-backend/
-├── cmd/api/main.go          # Application entry point
-├── internal/
-│   ├── config/              # Configuration loading
-│   ├── infra/               # Infrastructure (database, logger)
-│   ├── server/              # HTTP server setup
-│   ├── shared/              # Shared utilities
-│   └── modules/             # Feature modules
-│       └── recipes/
-│           ├── domain/      # Entities, repository interfaces, errors
-│           ├── handler/     # HTTP handlers, request/response DTOs
-│           ├── service/     # Business logic
-│           └── repository/  # Data access (MongoDB)
-├── configs/config.yaml      # Application config
-├── compose.yaml             # Docker Compose
-└── Makefile                 # Build commands
 ```
 
 ## Code Style Guidelines
@@ -128,14 +97,6 @@ Follow tagliatelle rules:
 - YAML: camelCase
 - Mapstructure: kebab-case
 
-```go
-type Recipe struct {
-    ID          primitive.ObjectID `bson:"_id,omitempty" json:"id"`
-    Title       string             `bson:"title" json:"title"`
-    CookingTime int                `bson:"cookingTime" json:"cookingTime"`
-}
-```
-
 ### Error Handling
 
 Use sentinel errors in domain layer with `fmt.Errorf` wrapping:
@@ -153,19 +114,6 @@ var ErrEmptyTitle = fmt.Errorf("%w: title cannot be empty", ErrValidation)
 // Check with errors.Is
 if errors.Is(err, domain.ErrNotFound) {
     // handle not found
-}
-```
-
-### Comments
-
-- Exported types/functions MUST have doc comments ending with period
-- Use `// FunctionName does X.` format
-
-```go
-// RecipeService defines the service interface.
-type RecipeService interface {
-    // Create creates a new recipe.
-    Create(ctx context.Context, recipe *domain.Recipe) (*domain.Recipe, error)
 }
 ```
 
@@ -232,17 +180,6 @@ require.NoError(t, err)        // Stops test on failure
 assert.Equal(t, expected, got) // Continues on failure
 assert.ErrorIs(t, err, domain.ErrNotFound)
 ```
-
-## Module Pattern
-
-Each module follows this structure:
-
-1. **domain/**: Entity structs, repository interfaces, domain errors
-2. **handler/**: HTTP handlers, request/response DTOs, mappers
-3. **service/**: Business logic, orchestrates repository
-4. **repository/**: Database implementation
-
-Dependency flow: handler → service → repository → domain
 
 ## Pre-commit Checklist
 
