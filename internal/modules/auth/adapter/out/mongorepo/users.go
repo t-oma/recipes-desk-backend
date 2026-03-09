@@ -3,10 +3,12 @@ package mongorepo
 import (
 	"context"
 	"errors"
+	"fmt"
 
 	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/bson/primitive"
 	"go.mongodb.org/mongo-driver/mongo"
+	"go.mongodb.org/mongo-driver/mongo/options"
 
 	"recipes-desk/internal/modules/auth/domain"
 	"recipes-desk/internal/modules/auth/domain/entity"
@@ -27,6 +29,21 @@ func NewUsers(db *mongo.Database) *UserRepository {
 	return &UserRepository{
 		collection: db.Collection(usersCollectionName),
 	}
+}
+
+func (r *UserRepository) InitIndexes(ctx context.Context) error {
+	indexModel := mongo.IndexModel{
+		Keys:    bson.D{{Key: "email", Value: 1}},
+		Options: options.Index().SetUnique(true),
+	}
+
+	_, err := r.collection.Indexes().CreateOne(ctx, indexModel)
+	if err != nil {
+		fmt.Printf("Failed to create unique index on email: %v\n", err)
+		return r.wrapError(err, "create user index")
+	}
+
+	return nil
 }
 
 // Create stores a new user in the database.

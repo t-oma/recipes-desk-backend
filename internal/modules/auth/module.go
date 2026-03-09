@@ -31,13 +31,20 @@ func NewModule(
 	defer cancel()
 
 	authRepo := mongorepo.NewUsers(db)
-	refreshRepo := mongorepo.NewRefreshTokens(db)
-	err := refreshRepo.InitIndexes(ctx)
+	err := authRepo.InitIndexes(ctx)
 	if err != nil {
 		cancel()
 		log.Fatal(). //nolint:gocritic // cancel() is called
 				Err(err).
-				Msg("Failed to initialize refresh token indexes")
+				Msg("Failed to initialize user indexes")
+	}
+	refreshRepo := mongorepo.NewRefreshTokens(db)
+	err = refreshRepo.InitIndexes(ctx)
+	if err != nil {
+		cancel()
+		log.Fatal().
+			Err(err).
+			Msg("Failed to initialize refresh token indexes")
 	}
 
 	passwordService := application.NewBcryptHasher(14)

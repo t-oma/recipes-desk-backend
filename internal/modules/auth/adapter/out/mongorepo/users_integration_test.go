@@ -159,11 +159,9 @@ func TestIntegration_MongoRepository_UniqueEmail(t *testing.T) {
 	t.Run("cannot create user with duplicate email", func(t *testing.T) {
 		user2 := fixtures.NewUser(t, "unique@example.com") // Same email
 		// This should fail due to unique index (if configured)
-		// For now, we just verify both users exist
 		created2, err := repo.Create(ctx, user2)
-		// Without unique index, this will succeed
-		// In production, you should configure unique index on email
-		require.NoError(t, err) // Currently no unique constraint
-		assert.NotEmpty(t, created2.ID().String())
+		require.Error(t, err)
+		require.ErrorIs(t, err, domain.ErrUserAlreadyExists)
+		assert.Empty(t, created2.ID().String())
 	})
 }
