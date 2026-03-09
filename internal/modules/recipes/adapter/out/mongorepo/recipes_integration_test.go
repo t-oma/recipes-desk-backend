@@ -126,27 +126,23 @@ func TestIntegration_RecipeRepository_Search(t *testing.T) {
 	}
 
 	for i, tr := range testRecipes {
-		// Create a new entity with specific title
-		ingredients := []valueobject.Ingredient{
-			fixtures.MustIngredient(t, "Test", 1, "g"),
-		}
-		steps := []valueobject.Step{
-			fixtures.MustStep(t, 1, "Step", 60),
-		}
-		tags := []valueobject.Tag{
-			fixtures.MustTag(t, "test"),
-		}
+		id, err := valueobject.NewEntityID(primitive.NewObjectID().Hex())
+		require.NoError(t, err)
+		title, err := valueobject.NewTitle(tr.title)
+		require.NoError(t, err)
+		authorID, err := valueobject.NewAuthorID(primitive.NewObjectID().Hex())
+		require.NoError(t, err)
 
 		customEntity, err := entity.NewRecipe(
-			primitive.NewObjectID().Hex(),
-			tr.title,
-			"Classic Italian dish with valid description",
-			ingredients,
-			steps,
-			600,
-			4,
-			tags,
-			primitive.NewObjectID().Hex(),
+			id,
+			title,
+			fixtures.ValidDescription(t),
+			fixtures.ValidIngredients(t),
+			fixtures.ValidSteps(t),
+			fixtures.ValidCookingTime(t),
+			fixtures.ValidPortions(t),
+			fixtures.ValidTags(t),
+			authorID,
 		)
 		require.NoError(t, err)
 
@@ -182,7 +178,7 @@ func TestIntegration_RecipeRepository_Update(t *testing.T) {
 	recipe := fixtures.NewRecipe(t, primitive.NewObjectID().Hex(), "authorID", "Original Title")
 	created, err := repo.Create(ctx, recipe)
 	require.NoError(t, err)
-	id := created.ID().String()
+	id := created.ID()
 
 	originalCreatedAt := created.CreatedAt()
 
@@ -191,7 +187,7 @@ func TestIntegration_RecipeRepository_Update(t *testing.T) {
 		time.Sleep(10 * time.Millisecond)
 
 		// Fetch the recipe first
-		recipeToUpdate, err := repo.FindByID(ctx, id)
+		recipeToUpdate, err := repo.FindByID(ctx, id.String())
 		require.NoError(t, err)
 
 		// Create updated version with new title
@@ -199,16 +195,19 @@ func TestIntegration_RecipeRepository_Update(t *testing.T) {
 		steps := recipeToUpdate.Steps()
 		tags := recipeToUpdate.Tags()
 
+		updatedTitle, err := valueobject.NewTitle("Updated Title")
+		require.NoError(t, err)
+
 		updatedEntity, err := entity.NewRecipe(
 			id,
-			"Updated Title",
-			recipeToUpdate.Description().String(),
+			updatedTitle,
+			recipeToUpdate.Description(),
 			ingredients,
 			steps,
-			recipeToUpdate.CookingTime().SecondsInt64(),
-			recipeToUpdate.Portions().Value(),
+			recipeToUpdate.CookingTime(),
+			recipeToUpdate.Portions(),
 			tags,
-			recipeToUpdate.AuthorID().String(),
+			recipeToUpdate.AuthorID(),
 		)
 		require.NoError(t, err)
 		updatedEntity.RestoreFromPersistence(
@@ -221,7 +220,7 @@ func TestIntegration_RecipeRepository_Update(t *testing.T) {
 		require.NotEmpty(t, result.ID().String())
 
 		// Verify update
-		updated, err := repo.FindByID(ctx, id)
+		updated, err := repo.FindByID(ctx, id.String())
 		require.NoError(t, err)
 		assert.Equal(t, "Updated Title", updated.Title().String())
 		// Compare timestamps in UTC to avoid timezone issues
@@ -235,26 +234,21 @@ func TestIntegration_RecipeRepository_Update(t *testing.T) {
 	})
 
 	t.Run("update non-existing recipe", func(t *testing.T) {
-		ingredients := []valueobject.Ingredient{
-			fixtures.MustIngredient(t, "Test", 1, "g"),
-		}
-		steps := []valueobject.Step{
-			fixtures.MustStep(t, 1, "Step", 60),
-		}
-		tags := []valueobject.Tag{
-			fixtures.MustTag(t, "test"),
-		}
+		id, err := valueobject.NewEntityID(primitive.NewObjectID().Hex())
+		require.NoError(t, err)
+		authorID, err := valueobject.NewAuthorID(primitive.NewObjectID().Hex())
+		require.NoError(t, err)
 
 		nonExisting, err := entity.NewRecipe(
-			primitive.NewObjectID().Hex(),
-			"Does not exist",
-			"This recipe does not exist description",
-			ingredients,
-			steps,
-			600,
-			2,
-			tags,
-			primitive.NewObjectID().Hex(),
+			id,
+			fixtures.ValidTitle(t),
+			fixtures.ValidDescription(t),
+			fixtures.ValidIngredients(t),
+			fixtures.ValidSteps(t),
+			fixtures.ValidCookingTime(t),
+			fixtures.ValidPortions(t),
+			fixtures.ValidTags(t),
+			authorID,
 		)
 		require.NoError(t, err)
 

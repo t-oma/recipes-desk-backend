@@ -11,176 +11,62 @@ import (
 	"recipes-desk/internal/modules/recipes/domain/valueobject"
 )
 
-func TestNewEntity(t *testing.T) {
-	ing1, _ := valueobject.NewIngredient("Flour", 500, valueobject.UnitGram)
-	ing2, _ := valueobject.NewIngredient("Eggs", 3, valueobject.UnitPcs)
-	validIngredients := []valueobject.Ingredient{ing1, ing2}
-
-	step1, _ := valueobject.NewStep(1, "Mix ingredients", 5)
-	step2, _ := valueobject.NewStep(2, "Bake", 30)
-	validSteps := []valueobject.Step{step1, step2}
-
-	tag1, _ := valueobject.NewTag("italian")
-	tag2, _ := valueobject.NewTag("pasta")
-	validTags := []valueobject.Tag{tag1, tag2}
-
+func TestNewRecipe(t *testing.T) {
 	tests := []struct {
-		name        string
-		id          string
-		title       string
-		desc        string
-		ingredients []valueobject.Ingredient
-		steps       []valueobject.Step
-		cookingTime int64
-		portions    int
-		tags        []valueobject.Tag
-		authorID    string
-		wantErr     error
+		name            string
+		makeIngredients func(t *testing.T) []valueobject.Ingredient
+		makeSteps       func(t *testing.T) []valueobject.Step
+		makeTags        func(t *testing.T) []valueobject.Tag
+		wantErr         error
 	}{
 		{
-			name:        "valid recipe",
-			id:          "id123",
-			title:       "Pasta Carbonara",
-			desc:        "Classic Italian pasta dish with eggs and cheese",
-			ingredients: validIngredients,
-			steps:       validSteps,
-			cookingTime: 30,
-			portions:    4,
-			tags:        validTags,
-			authorID:    "author123",
-			wantErr:     nil,
+			name:            "valid recipe",
+			makeIngredients: fixtures.ValidIngredients,
+			makeSteps:       fixtures.ValidSteps,
+			makeTags:        fixtures.ValidTags,
+			wantErr:         nil,
 		},
 		{
-			name:        "no ingredients",
-			id:          "id123",
-			title:       "Pasta Carbonara",
-			desc:        "Classic Italian pasta dish with eggs and cheese",
-			ingredients: []valueobject.Ingredient{},
-			steps:       validSteps,
-			cookingTime: 30,
-			portions:    4,
-			tags:        validTags,
-			authorID:    "author123",
-			wantErr:     domain.ErrNoIngredients,
+			name: "no ingredients",
+			makeIngredients: func(_ *testing.T) []valueobject.Ingredient {
+				return []valueobject.Ingredient{}
+			},
+			makeSteps: fixtures.ValidSteps,
+			makeTags:  fixtures.ValidTags,
+			wantErr:   domain.ErrNoIngredients,
 		},
 		{
-			name:        "no steps",
-			id:          "id123",
-			title:       "Pasta Carbonara",
-			desc:        "Classic Italian pasta dish with eggs and cheese",
-			ingredients: validIngredients,
-			steps:       []valueobject.Step{},
-			cookingTime: 30,
-			portions:    4,
-			tags:        validTags,
-			authorID:    "author123",
-			wantErr:     domain.ErrNoSteps,
+			name:            "no steps",
+			makeIngredients: fixtures.ValidIngredients,
+			makeSteps: func(_ *testing.T) []valueobject.Step {
+				return []valueobject.Step{}
+			},
+			makeTags: fixtures.ValidTags,
+			wantErr:  domain.ErrNoSteps,
 		},
 		{
-			name:        "no tags",
-			id:          "id123",
-			title:       "Pasta Carbonara",
-			desc:        "Classic Italian pasta dish with eggs and cheese",
-			ingredients: validIngredients,
-			steps:       validSteps,
-			cookingTime: 30,
-			portions:    4,
-			tags:        []valueobject.Tag{},
-			authorID:    "author123",
-			wantErr:     domain.ErrNoTags,
-		},
-		{
-			name:        "empty id",
-			id:          "",
-			title:       "Pasta Carbonara",
-			desc:        "Classic Italian pasta dish with eggs and cheese",
-			ingredients: validIngredients,
-			steps:       validSteps,
-			cookingTime: 30,
-			portions:    4,
-			tags:        validTags,
-			authorID:    "author123",
-			wantErr:     valueobject.ErrRecipeIDEmpty,
-		},
-		{
-			name:        "empty title",
-			id:          "id123",
-			title:       "",
-			desc:        "Classic Italian pasta dish with eggs and cheese",
-			ingredients: validIngredients,
-			steps:       validSteps,
-			cookingTime: 30,
-			portions:    4,
-			tags:        validTags,
-			authorID:    "author123",
-			wantErr:     valueobject.ErrTitleEmpty,
-		},
-		{
-			name:        "empty description",
-			id:          "id123",
-			title:       "Pasta Carbonara",
-			desc:        "",
-			ingredients: validIngredients,
-			steps:       validSteps,
-			cookingTime: 30,
-			portions:    4,
-			tags:        validTags,
-			authorID:    "author123",
-			wantErr:     valueobject.ErrDescriptionEmpty,
-		},
-		{
-			name:        "invalid cooking time",
-			id:          "id123",
-			title:       "Pasta Carbonara",
-			desc:        "Classic Italian pasta dish with eggs and cheese",
-			ingredients: validIngredients,
-			steps:       validSteps,
-			cookingTime: -1,
-			portions:    4,
-			tags:        validTags,
-			authorID:    "author123",
-			wantErr:     valueobject.ErrCookingNegativeTime,
-		},
-		{
-			name:        "invalid portions",
-			id:          "id123",
-			title:       "Pasta Carbonara",
-			desc:        "Classic Italian pasta dish with eggs and cheese",
-			ingredients: validIngredients,
-			steps:       validSteps,
-			cookingTime: 30,
-			portions:    -1,
-			tags:        validTags,
-			authorID:    "author123",
-			wantErr:     valueobject.ErrPortionsTooFew,
-		},
-		{
-			name:        "empty author ID",
-			id:          "id123",
-			title:       "Pasta Carbonara",
-			desc:        "Classic Italian pasta dish with eggs and cheese",
-			ingredients: validIngredients,
-			steps:       validSteps,
-			cookingTime: 30,
-			portions:    4,
-			tags:        validTags,
-			authorID:    "",
-			wantErr:     valueobject.ErrAuthorIDEmpty,
+			name:            "no tags",
+			makeIngredients: fixtures.ValidIngredients,
+			makeSteps:       fixtures.ValidSteps,
+			makeTags: func(_ *testing.T) []valueobject.Tag {
+				return []valueobject.Tag{}
+			},
+			wantErr: domain.ErrNoTags,
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			recipe, err := entity.NewRecipe(
-				tt.id,
-				tt.title,
-				tt.desc,
-				tt.ingredients,
-				tt.steps,
-				tt.cookingTime,
-				tt.portions,
-				tt.tags,
-				tt.authorID,
+				fixtures.ValidID(t),
+				fixtures.ValidTitle(t),
+				fixtures.ValidDescription(t),
+				tt.makeIngredients(t),
+				tt.makeSteps(t),
+				fixtures.ValidCookingTime(t),
+				fixtures.ValidPortions(t),
+				tt.makeTags(t),
+				fixtures.ValidAuthorID(t),
 			)
 			if tt.wantErr != nil {
 				require.Error(t, err)
@@ -189,14 +75,9 @@ func TestNewEntity(t *testing.T) {
 				require.NoError(t, err)
 				require.NotNil(t, recipe)
 
-				require.Equal(t, tt.title, recipe.Title().String())
-				require.Equal(t, tt.desc, recipe.Description().String())
-				require.Len(t, recipe.Ingredients(), len(tt.ingredients))
-				require.Len(t, recipe.Steps(), len(tt.steps))
-				require.Equal(t, tt.cookingTime, recipe.CookingTime().SecondsInt64())
-				require.Equal(t, tt.portions, recipe.Portions().Value())
-				require.Len(t, recipe.Tags(), len(tt.tags))
-				require.Equal(t, tt.authorID, recipe.AuthorID().String())
+				require.Len(t, recipe.Ingredients(), len(tt.makeIngredients(t)))
+				require.Len(t, recipe.Steps(), len(tt.makeSteps(t)))
+				require.Len(t, recipe.Tags(), len(tt.makeTags(t)))
 				require.True(t, recipe.HasID())
 			}
 		})
@@ -204,47 +85,37 @@ func TestNewEntity(t *testing.T) {
 }
 
 func TestEntity_Equals(t *testing.T) {
-	ing1, _ := valueobject.NewIngredient("Flour", 500, valueobject.UnitGram)
-	ing2, _ := valueobject.NewIngredient("Eggs", 3, valueobject.UnitPcs)
-	validIngredients := []valueobject.Ingredient{ing1, ing2}
-
-	step1, _ := valueobject.NewStep(1, "Mix ingredients", 5)
-	step2, _ := valueobject.NewStep(2, "Bake", 30)
-	validSteps := []valueobject.Step{step1, step2}
-
-	tag1, _ := valueobject.NewTag("italian")
-	tag2, _ := valueobject.NewTag("pasta")
-	validTags := []valueobject.Tag{tag1, tag2}
-
 	tests := []struct {
 		name        string
-		makeRecipes func() (*entity.Recipe, *entity.Recipe)
+		makeRecipes func(t *testing.T) (*entity.Recipe, *entity.Recipe)
 		wantEqual   bool
 	}{
 		{
 			name: "equal entities",
-			makeRecipes: func() (*entity.Recipe, *entity.Recipe) {
+			makeRecipes: func(t *testing.T) (*entity.Recipe, *entity.Recipe) {
+				t.Helper()
+
 				recipe1, _ := entity.NewRecipe(
-					"id123",
-					"Pasta Carbonara",
-					"Classic Italian pasta dish with eggs and cheese",
-					validIngredients,
-					validSteps,
-					30,
-					4,
-					validTags,
-					"author123",
+					fixtures.ValidID(t),
+					fixtures.ValidTitle(t),
+					fixtures.ValidDescription(t),
+					fixtures.ValidIngredients(t),
+					fixtures.ValidSteps(t),
+					fixtures.ValidCookingTime(t),
+					fixtures.ValidPortions(t),
+					fixtures.ValidTags(t),
+					fixtures.ValidAuthorID(t),
 				)
 				recipe2, _ := entity.NewRecipe(
-					"id123",
-					"Pasta Carbonara",
-					"Classic Italian pasta dish with eggs and cheese",
-					validIngredients,
-					validSteps,
-					30,
-					4,
-					validTags,
-					"author123",
+					fixtures.ValidID(t),
+					fixtures.ValidTitle(t),
+					fixtures.ValidDescription(t),
+					fixtures.ValidIngredients(t),
+					fixtures.ValidSteps(t),
+					fixtures.ValidCookingTime(t),
+					fixtures.ValidPortions(t),
+					fixtures.ValidTags(t),
+					fixtures.ValidAuthorID(t),
 				)
 				return recipe1, recipe2
 			},
@@ -252,28 +123,36 @@ func TestEntity_Equals(t *testing.T) {
 		},
 		{
 			name: "not equal entities",
-			makeRecipes: func() (*entity.Recipe, *entity.Recipe) {
+			makeRecipes: func(t *testing.T) (*entity.Recipe, *entity.Recipe) {
+				t.Helper()
+
 				recipe1, _ := entity.NewRecipe(
-					"id123",
-					"Pasta Carbonara",
-					"Classic Italian pasta dish with eggs and cheese",
-					validIngredients,
-					validSteps,
-					30,
-					4,
-					validTags,
-					"author123",
+					fixtures.ValidID(t),
+					fixtures.ValidTitle(t),
+					fixtures.ValidDescription(t),
+					fixtures.ValidIngredients(t),
+					fixtures.ValidSteps(t),
+					fixtures.ValidCookingTime(t),
+					fixtures.ValidPortions(t),
+					fixtures.ValidTags(t),
+					fixtures.ValidAuthorID(t),
 				)
+				diffIngredients := []valueobject.Ingredient{
+					fixtures.MustIngredient(t, "Milk", 100, "ml"),
+				}
+				diffID, err := valueobject.NewEntityID("id456")
+				require.NoError(t, err)
+
 				recipe2, _ := entity.NewRecipe(
-					"id456",
-					"Pasta Carbonara",
-					"Classic Italian pasta dish with eggs and cheese",
-					validIngredients,
-					validSteps,
-					30,
-					4,
-					validTags,
-					"author123",
+					diffID,
+					fixtures.ValidTitle(t),
+					fixtures.ValidDescription(t),
+					diffIngredients,
+					fixtures.ValidSteps(t),
+					fixtures.ValidCookingTime(t),
+					fixtures.ValidPortions(t),
+					fixtures.ValidTags(t),
+					fixtures.ValidAuthorID(t),
 				)
 				return recipe1, recipe2
 			},
@@ -281,18 +160,21 @@ func TestEntity_Equals(t *testing.T) {
 		},
 		{
 			name: "not equal entities - nil",
-			makeRecipes: func() (*entity.Recipe, *entity.Recipe) {
-				recipe1, _ := entity.NewRecipe(
-					"id123",
-					"Pasta Carbonara",
-					"Classic Italian pasta dish with eggs and cheese",
-					validIngredients,
-					validSteps,
-					30,
-					4,
-					validTags,
-					"author123",
+			makeRecipes: func(t *testing.T) (*entity.Recipe, *entity.Recipe) {
+				t.Helper()
+
+				recipe1, err := entity.NewRecipe(
+					fixtures.ValidID(t),
+					fixtures.ValidTitle(t),
+					fixtures.ValidDescription(t),
+					fixtures.ValidIngredients(t),
+					fixtures.ValidSteps(t),
+					fixtures.ValidCookingTime(t),
+					fixtures.ValidPortions(t),
+					fixtures.ValidTags(t),
+					fixtures.ValidAuthorID(t),
 				)
+				require.NoError(t, err)
 				return recipe1, nil
 			},
 			wantEqual: false,
@@ -301,7 +183,7 @@ func TestEntity_Equals(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			recipe1, recipe2 := tt.makeRecipes()
+			recipe1, recipe2 := tt.makeRecipes(t)
 
 			if tt.wantEqual {
 				require.True(t, recipe1.Equals(recipe2))

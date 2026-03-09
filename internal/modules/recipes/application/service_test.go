@@ -2,7 +2,6 @@ package application_test
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"testing"
 
@@ -139,9 +138,7 @@ func TestService_Create(t *testing.T) {
 				Tags:        []string{"test"},
 				UserID:      "user-id",
 			},
-			mockSetup: func(_ *mockRepository, mID *mockIDGenerator) {
-				mID.On("Generate").Return("id123")
-
+			mockSetup: func(_ *mockRepository, _ *mockIDGenerator) {
 				// Repository should not be called
 			},
 			wantErr: valueobject.ErrTitleEmpty,
@@ -150,7 +147,7 @@ func TestService_Create(t *testing.T) {
 		{
 			name: "validation error - empty ingridient name",
 			input: dto.CreateRecipeInput{
-				Title:       "",
+				Title:       "Test Recipe",
 				Description: "Valid description",
 				Ingredients: []dto.IngredientInput{{Name: "", Amount: 1, Unit: "g"}},
 				Steps:       []dto.StepInput{{Order: 1, Description: "Step", Duration: 1}},
@@ -159,9 +156,7 @@ func TestService_Create(t *testing.T) {
 				Tags:        []string{"test"},
 				UserID:      "user-id",
 			},
-			mockSetup: func(_ *mockRepository, mID *mockIDGenerator) {
-				mID.On("Generate").Return("id123")
-
+			mockSetup: func(_ *mockRepository, _ *mockIDGenerator) {
 				// Repository should not be called
 			},
 			wantErr: valueobject.ErrIngredientEmptyName,
@@ -170,7 +165,7 @@ func TestService_Create(t *testing.T) {
 		{
 			name: "validation error - negative step duration",
 			input: dto.CreateRecipeInput{
-				Title:       "",
+				Title:       "Test Recipe",
 				Description: "Valid description",
 				Ingredients: []dto.IngredientInput{{Name: "Test", Amount: 1, Unit: "g"}},
 				Steps:       []dto.StepInput{{Order: 1, Description: "Step", Duration: -1}},
@@ -179,9 +174,7 @@ func TestService_Create(t *testing.T) {
 				Tags:        []string{"test"},
 				UserID:      "user-id",
 			},
-			mockSetup: func(_ *mockRepository, mID *mockIDGenerator) {
-				mID.On("Generate").Return("id123")
-
+			mockSetup: func(_ *mockRepository, _ *mockIDGenerator) {
 				// Repository should not be called
 			},
 			wantErr: valueobject.ErrStepNegativeDuration,
@@ -190,7 +183,7 @@ func TestService_Create(t *testing.T) {
 		{
 			name: "validation error - empty tag name",
 			input: dto.CreateRecipeInput{
-				Title:       "",
+				Title:       "Test Recipe",
 				Description: "Valid description",
 				Ingredients: []dto.IngredientInput{{Name: "Test", Amount: 1, Unit: "g"}},
 				Steps:       []dto.StepInput{{Order: 1, Description: "Step", Duration: 1}},
@@ -199,9 +192,7 @@ func TestService_Create(t *testing.T) {
 				Tags:        []string{""},
 				UserID:      "user-id",
 			},
-			mockSetup: func(_ *mockRepository, mID *mockIDGenerator) {
-				mID.On("Generate").Return("id123")
-
+			mockSetup: func(_ *mockRepository, _ *mockIDGenerator) {
 				// Repository should not be called
 			},
 			wantErr: valueobject.ErrTagEmptyName,
@@ -223,7 +214,7 @@ func TestService_Create(t *testing.T) {
 				mID.On("Generate").Return("id123")
 
 				m.On("Create", mock.Anything, mock.AnythingOfType(_recipeTypeString)).
-					Return(nil, application.ErrInternal)
+					Return(nil, domain.ErrDatabase)
 			},
 			wantErr: application.ErrInternal,
 			wantID:  false,
@@ -292,7 +283,7 @@ func TestService_GetByID(t *testing.T) {
 			id:   recipeID,
 			mockSetup: func(m *mockRepository) {
 				m.On("FindByID", mock.Anything, recipeID).
-					Return(nil, application.ErrInternal)
+					Return(nil, domain.ErrDatabase)
 			},
 			wantErr:    application.ErrInternal,
 			wantRecipe: false,
@@ -310,9 +301,7 @@ func TestService_GetByID(t *testing.T) {
 
 			if tt.wantErr != nil {
 				require.Error(t, err)
-				if errors.Is(tt.wantErr, domain.ErrNotFound) {
-					assert.ErrorIs(t, err, domain.ErrNotFound)
-				}
+				require.ErrorIs(t, err, tt.wantErr)
 				assert.Nil(t, recipe)
 			} else {
 				require.NoError(t, err)
@@ -364,7 +353,7 @@ func TestService_GetAll(t *testing.T) {
 			name: "repository error",
 			mockSetup: func(m *mockRepository) {
 				m.On("FindAll", mock.Anything).
-					Return(nil, application.ErrInternal)
+					Return(nil, domain.ErrDatabase)
 			},
 			wantErr:   application.ErrInternal,
 			wantCount: 0,
@@ -382,6 +371,7 @@ func TestService_GetAll(t *testing.T) {
 
 			if tt.wantErr != nil {
 				require.Error(t, err)
+				require.ErrorIs(t, err, tt.wantErr)
 				assert.Nil(t, recipes)
 			} else {
 				require.NoError(t, err)
@@ -435,7 +425,7 @@ func TestService_Search(t *testing.T) {
 			query: "pasta",
 			mockSetup: func(m *mockRepository) {
 				m.On("Search", mock.Anything, "pasta").
-					Return(nil, application.ErrInternal)
+					Return(nil, domain.ErrDatabase)
 			},
 			wantErr:   application.ErrInternal,
 			wantCount: 0,
@@ -453,6 +443,7 @@ func TestService_Search(t *testing.T) {
 
 			if tt.wantErr != nil {
 				require.Error(t, err)
+				require.ErrorIs(t, err, tt.wantErr)
 				assert.Nil(t, recipes)
 			} else {
 				require.NoError(t, err)
@@ -530,10 +521,7 @@ func TestService_Update(t *testing.T) {
 				Portions:    4,
 				Tags:        []string{"updated"},
 			},
-			mockSetup: func(m *mockRepository) {
-				// FindByID is called first
-				m.On("FindByID", mock.Anything, recipeID).
-					Return(recipe, nil)
+			mockSetup: func(_ *mockRepository) {
 			},
 			wantErr: valueobject.ErrTitleEmpty,
 		},
@@ -542,7 +530,7 @@ func TestService_Update(t *testing.T) {
 			userID: authorID,
 			id:     recipeID,
 			input: dto.UpdateRecipeInput{
-				Title:       "Test", // Invalid - empty title
+				Title:       "Test Recipe",
 				Description: "Valid description",
 				Ingredients: []dto.IngredientInput{{Name: "", Amount: 1, Unit: "g"}},
 				Steps:       []dto.StepInput{{Order: 1, Description: "Step", Duration: 1}},
@@ -550,10 +538,7 @@ func TestService_Update(t *testing.T) {
 				Portions:    4,
 				Tags:        []string{"updated"},
 			},
-			mockSetup: func(m *mockRepository) {
-				// FindByID is called first
-				m.On("FindByID", mock.Anything, recipeID).
-					Return(recipe, nil)
+			mockSetup: func(_ *mockRepository) {
 			},
 			wantErr: valueobject.ErrIngredientEmptyName,
 		},
@@ -570,10 +555,7 @@ func TestService_Update(t *testing.T) {
 				Portions:    4,
 				Tags:        []string{""},
 			},
-			mockSetup: func(m *mockRepository) {
-				// FindByID is called first
-				m.On("FindByID", mock.Anything, recipeID).
-					Return(recipe, nil)
+			mockSetup: func(_ *mockRepository) {
 			},
 			wantErr: valueobject.ErrTagEmptyName,
 		},
@@ -590,10 +572,7 @@ func TestService_Update(t *testing.T) {
 				Portions:    4,
 				Tags:        []string{"testtag"},
 			},
-			mockSetup: func(m *mockRepository) {
-				// FindByID is called first
-				m.On("FindByID", mock.Anything, recipeID).
-					Return(recipe, nil)
+			mockSetup: func(_ *mockRepository) {
 			},
 			wantErr: valueobject.ErrStepNegativeDuration,
 		},
@@ -606,7 +585,7 @@ func TestService_Update(t *testing.T) {
 				m.On("FindByID", mock.Anything, recipeID).
 					Return(recipe, nil)
 				m.On("Update", mock.Anything, mock.AnythingOfType(_recipeTypeString)).
-					Return(nil, application.ErrInternal)
+					Return(nil, domain.ErrDatabase)
 			},
 			wantErr: application.ErrInternal,
 		},
@@ -634,11 +613,7 @@ func TestService_Update(t *testing.T) {
 
 			if tt.wantErr != nil {
 				require.Error(t, err)
-				if errors.Is(tt.wantErr, domain.ErrNotFound) ||
-					errors.Is(tt.wantErr, domain.ErrValidation) ||
-					errors.Is(tt.wantErr, domain.ErrForbidden) {
-					require.ErrorIs(t, err, tt.wantErr)
-				}
+				require.ErrorIs(t, err, tt.wantErr)
 				assert.Nil(t, updated)
 			} else {
 				require.NoError(t, err)
@@ -684,7 +659,7 @@ func TestService_Delete(t *testing.T) {
 				m.On("FindByID", mock.Anything, recipeID).
 					Return(nil, domain.ErrNotFound)
 			},
-			wantErr: application.ErrNotFound,
+			wantErr: domain.ErrNotFound,
 		},
 		{
 			name:   "delete error",
@@ -694,7 +669,7 @@ func TestService_Delete(t *testing.T) {
 				m.On("FindByID", mock.Anything, recipeID).
 					Return(recipe, nil)
 				m.On("Delete", mock.Anything, recipeID).
-					Return(application.ErrInternal)
+					Return(domain.ErrDatabase)
 			},
 			wantErr: application.ErrInternal,
 		},

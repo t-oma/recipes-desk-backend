@@ -24,66 +24,36 @@ type Recipe struct { //nolint:recvcheck // intentionally mixed pointer and value
 }
 
 func NewRecipe(
-	id string,
-	title string,
-	description string,
-	ingredientsVO []vo.Ingredient,
-	stepsVO []vo.Step,
-	cookingTime int64,
-	portions int,
-	tagsVO []vo.Tag,
-	authorID string,
+	id vo.EntityID,
+	title vo.Title,
+	description vo.Description,
+	ingredients []vo.Ingredient,
+	steps []vo.Step,
+	cookingTime vo.CookingTime,
+	portions vo.Portions,
+	tags []vo.Tag,
+	authorID vo.AuthorID,
 ) (*Recipe, error) {
-	if len(ingredientsVO) == 0 {
+	if len(ingredients) == 0 {
 		return nil, domain.ErrNoIngredients
 	}
-	if len(stepsVO) == 0 {
+	if len(steps) == 0 {
 		return nil, domain.ErrNoSteps
 	}
-	if len(tagsVO) == 0 {
+	if len(tags) == 0 {
 		return nil, domain.ErrNoTags
 	}
 
-	idVO, err := vo.NewEntityID(id)
-	if err != nil {
-		return nil, err
-	}
-
-	titleVO, err := vo.NewTitle(title)
-	if err != nil {
-		return nil, err
-	}
-
-	descVO, err := vo.NewDescription(description)
-	if err != nil {
-		return nil, err
-	}
-
-	cookingTimeVO, err := vo.NewCookingTime(cookingTime)
-	if err != nil {
-		return nil, err
-	}
-
-	portionsVO, err := vo.NewPortions(portions)
-	if err != nil {
-		return nil, err
-	}
-
-	authorIDVO, err := vo.NewAuthorID(authorID)
-	if err != nil {
-		return nil, err
-	}
-
 	return &Recipe{
-		id:          idVO,
-		title:       titleVO,
-		description: descVO,
-		ingredients: ingredientsVO,
-		steps:       stepsVO,
-		cookingTime: cookingTimeVO,
-		portions:    portionsVO,
-		tags:        tagsVO,
-		authorID:    authorIDVO,
+		id:          id,
+		title:       title,
+		description: description,
+		ingredients: ingredients,
+		steps:       steps,
+		cookingTime: cookingTime,
+		portions:    portions,
+		tags:        tags,
+		authorID:    authorID,
 		createdAt:   time.Time{},
 		updatedAt:   time.Time{},
 	}, nil
