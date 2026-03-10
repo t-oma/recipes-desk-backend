@@ -31,21 +31,21 @@ func NewModule(
 	defer cancel()
 
 	authRepo := mongorepo.NewUsers(db)
-	err := authRepo.InitIndexes(ctx)
-	if err != nil {
+	if err := authRepo.InitIndexes(ctx); err != nil {
 		cancel()
 		log.Fatal(). //nolint:gocritic // cancel() is called
 				Err(err).
 				Msg("Failed to initialize user indexes")
 	}
+
 	refreshRepo := mongorepo.NewRefreshTokens(db)
-	err = refreshRepo.InitIndexes(ctx)
-	if err != nil {
+	if err := refreshRepo.InitIndexes(ctx); err != nil {
 		cancel()
 		log.Fatal().
 			Err(err).
 			Msg("Failed to initialize refresh token indexes")
 	}
+	unitOfWork := mongorepo.NewUnitOfWork(db.Client())
 
 	passwordService := application.NewBcryptHasher(14)
 	idGen := mongorepo.ObjectIDGenerator{}
@@ -57,7 +57,14 @@ func NewModule(
 		accessExpiry,
 		refreshExpiry,
 	)
-	authService := application.NewService(authRepo, log, passwordService, tokenService, idGen)
+	authService := application.NewService(
+		authRepo,
+		log,
+		passwordService,
+		tokenService,
+		idGen,
+		unitOfWork,
+	)
 
 	authHandler := httphandler.NewHandler(authService, log)
 

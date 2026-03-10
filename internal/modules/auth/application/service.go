@@ -23,6 +23,7 @@ type Service struct {
 	password in.PasswordService
 	token    in.TokenService
 	idGen    ports.IDGenerator
+	uow      ports.UnitOfWork
 }
 
 var _ in.AuthService = (*Service)(nil)
@@ -34,6 +35,7 @@ func NewService(
 	password in.PasswordService,
 	token in.TokenService,
 	idGen ports.IDGenerator,
+	uow ports.UnitOfWork,
 ) *Service {
 	return &Service{
 		repo:     repo,
@@ -41,6 +43,7 @@ func NewService(
 		password: password,
 		token:    token,
 		idGen:    idGen,
+		uow:      uow,
 	}
 }
 
@@ -90,25 +93,33 @@ func (s *Service) Register(ctx context.Context, params dto.RegisterInput) (*dto.
 		return nil, s.mapError(err, "Register")
 	}
 
-	user := entity.NewUser(
-		idVO,
-		emailVO,
-		firstNameVO,
-		lastNameVO,
-		valueobject.PasswordHash(hash),
-	)
+	var user *entity.User
+	var accessResult *dto.TokenResult
+	var refreshResult *dto.TokenResult
+	err = s.uow.Execute(ctx, func(sesCtx context.Context) error {
+		user, err = s.repo.Create(sesCtx, entity.NewUser(
+			idVO,
+			emailVO,
+			firstNameVO,
+			lastNameVO,
+			valueobject.PasswordHash(hash),
+		))
+		if err != nil {
+			return s.mapError(err, "Register")
+		}
 
-	user, err = s.repo.Create(ctx, user)
-	if err != nil {
-		return nil, s.mapError(err, "Register")
-	}
+		accessResult, err = s.token.GenerateAccessToken(user.ID().String())
+		if err != nil {
+			return s.mapError(err, "Register")
+		}
 
-	accessResult, err := s.token.GenerateAccessToken(user.ID().String())
-	if err != nil {
-		return nil, s.mapError(err, "Register")
-	}
+		refreshResult, err = s.token.GenerateRefreshToken(sesCtx, user.ID().String())
+		if err != nil {
+			return s.mapError(err, "Register")
+		}
 
-	refreshResult, err := s.token.GenerateRefreshToken(ctx, user.ID().String())
+		return nil
+	})
 	if err != nil {
 		return nil, s.mapError(err, "Register")
 	}
