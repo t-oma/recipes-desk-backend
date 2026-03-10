@@ -105,17 +105,17 @@ func (s *Service) Register(ctx context.Context, params dto.RegisterInput) (*dto.
 			valueobject.PasswordHash(hash),
 		))
 		if err != nil {
-			return s.mapError(err, "Register")
+			return err
 		}
 
 		accessResult, err = s.token.GenerateAccessToken(user.ID().String())
 		if err != nil {
-			return s.mapError(err, "Register")
+			return err
 		}
 
 		refreshResult, err = s.token.GenerateRefreshToken(sesCtx, user.ID().String())
 		if err != nil {
-			return s.mapError(err, "Register")
+			return err
 		}
 
 		return nil
@@ -141,21 +141,21 @@ func (s *Service) Login(ctx context.Context, params dto.LoginInput) (*dto.AuthRe
 		var err error
 		user, err = s.repo.FindByEmail(sesCtx, params.Email)
 		if err != nil {
-			return s.mapError(err, "Login")
+			return err
 		}
 
 		if !s.password.Verify(params.Password, string(user.PasswordHash())) {
-			return s.mapError(domain.ErrInvalidCredentials, "Login")
+			return domain.ErrInvalidCredentials
 		}
 
 		accessResult, err = s.token.GenerateAccessToken(user.ID().String())
 		if err != nil {
-			return s.mapError(err, "Login")
+			return err
 		}
 
 		refreshResult, err = s.token.GenerateRefreshToken(sesCtx, user.ID().String())
 		if err != nil {
-			return s.mapError(err, "Login")
+			return err
 		}
 		return nil
 	})
