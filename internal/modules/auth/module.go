@@ -52,6 +52,7 @@ func NewModule(
 	tokenService := application.NewTokenService(
 		refreshRepo,
 		idGen,
+		unitOfWork,
 		log,
 		secret,
 		accessExpiry,

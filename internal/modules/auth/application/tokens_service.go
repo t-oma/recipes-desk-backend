@@ -23,6 +23,7 @@ import (
 type TokenService struct {
 	refreshRepo ports.RefreshTokenRepository
 	idGen       ports.IDGenerator
+	uow         ports.UnitOfWork
 	log         *zerolog.Logger
 	secret      []byte
 	accessTTL   time.Duration
@@ -35,6 +36,7 @@ var _ in.TokenService = (*TokenService)(nil)
 func NewTokenService(
 	refreshRepo ports.RefreshTokenRepository,
 	idGen ports.IDGenerator,
+	uow ports.UnitOfWork,
 	log *zerolog.Logger,
 	secret string,
 	accessTTL time.Duration,
@@ -43,6 +45,7 @@ func NewTokenService(
 	return &TokenService{
 		refreshRepo: refreshRepo,
 		idGen:       idGen,
+		uow:         uow,
 		log:         log,
 		secret:      []byte(secret),
 		accessTTL:   accessTTL,
@@ -146,19 +149,29 @@ func (s *TokenService) RotateRefreshToken(
 	ctx context.Context,
 	oldPlainToken string,
 ) (*dto.TokenResult, string, error) {
-	userID, err := s.ValidateRefreshToken(ctx, oldPlainToken)
-	if err != nil {
-		return nil, "", err
-	}
+	var userID string
+	var newToken *dto.TokenResult
+	err := s.uow.Execute(ctx, func(sesCtx context.Context) error {
+		var err error
+		userID, err = s.ValidateRefreshToken(sesCtx, oldPlainToken)
+		if err != nil {
+			return err
+		}
 
-	oldTokenHash := hashToken(oldPlainToken)
-	if err = s.refreshRepo.DeleteByHash(ctx, oldTokenHash); err != nil {
+		oldTokenHash := hashToken(oldPlainToken)
+		if err = s.refreshRepo.DeleteByHash(sesCtx, oldTokenHash); err != nil {
+			return err
+		}
+
+		newToken, err = s.GenerateRefreshToken(sesCtx, userID)
+		if err != nil {
+			return err
+		}
+
+		return nil
+	})
+	if err != nil {
 		return nil, "", s.mapError(err, "RotateRefreshToken")
-	}
-
-	newToken, err := s.GenerateRefreshToken(ctx, userID)
-	if err != nil {
-		return nil, "", err
 	}
 
 	return newToken, userID, nil
