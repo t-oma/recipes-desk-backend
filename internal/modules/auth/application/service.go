@@ -134,21 +134,31 @@ func (s *Service) Register(ctx context.Context, params dto.RegisterInput) (*dto.
 }
 
 func (s *Service) Login(ctx context.Context, params dto.LoginInput) (*dto.AuthResult, error) {
-	user, err := s.repo.FindByEmail(ctx, params.Email)
-	if err != nil {
-		return nil, s.mapError(err, "Login")
-	}
+	var user *entity.User
+	var accessResult *dto.TokenResult
+	var refreshResult *dto.TokenResult
+	err := s.uow.Execute(ctx, func(sesCtx context.Context) error {
+		var err error
+		user, err = s.repo.FindByEmail(sesCtx, params.Email)
+		if err != nil {
+			return s.mapError(err, "Login")
+		}
 
-	if !s.password.Verify(params.Password, string(user.PasswordHash())) {
-		return nil, s.mapError(domain.ErrInvalidCredentials, "Login")
-	}
+		if !s.password.Verify(params.Password, string(user.PasswordHash())) {
+			return s.mapError(domain.ErrInvalidCredentials, "Login")
+		}
 
-	accessResult, err := s.token.GenerateAccessToken(user.ID().String())
-	if err != nil {
-		return nil, s.mapError(err, "Login")
-	}
+		accessResult, err = s.token.GenerateAccessToken(user.ID().String())
+		if err != nil {
+			return s.mapError(err, "Login")
+		}
 
-	refreshResult, err := s.token.GenerateRefreshToken(ctx, user.ID().String())
+		refreshResult, err = s.token.GenerateRefreshToken(sesCtx, user.ID().String())
+		if err != nil {
+			return s.mapError(err, "Login")
+		}
+		return nil
+	})
 	if err != nil {
 		return nil, s.mapError(err, "Login")
 	}
