@@ -36,28 +36,6 @@ A production-ready RESTful API for managing recipes built with Go, Gin, MongoDB,
 - **CI/CD:** GitHub Actions
 - **Documentation:** Swagger/OpenAPI
 
-## Project Structure
-
-```
-internal/
-├── modules/
-│   ├── recipes/          # Recipes module
-│   │   ├── domain/       # Entities and interfaces
-│   │   ├── service/      # Business logic
-│   │   ├── repository/   # Data access (MongoDB)
-│   │   ├── handler/      # HTTP handlers
-│   │   └── module.go     # Module initialization
-│   └── auth/             # Authentication module
-│   │   ├── domain/       # User & RefreshToken entities
-│   │   ├── service/      # Auth business logic & JWT service
-│   │   ├── repository/   # MongoDB repositories
-│   │   ├── handler/      # HTTP handlers & middleware
-│   │   └── module.go     # Module initialization
-├── config/               # Configuration
-├── infra/                # Infrastructure (DB, logger)
-└── server/               # HTTP server setup
-```
-
 ## Quick Start
 
 ### Prerequisites
@@ -65,6 +43,17 @@ internal/
 - Go 1.26+
 - Docker & Docker Compose
 - Make
+
+> [!IMPORTANT]
+> For server to work outside of Docker, you need to have alias for each mongoDB container in your `/etc/hosts` file.
+
+For example:
+
+```bash
+...
+127.0.0.1 mongodb0 mongodb1
+...
+```
 
 ### Installation
 
@@ -103,13 +92,13 @@ The API will be available at `http://localhost:8080` by default
 
 ### Authentication
 
-| Method | Endpoint | Description | Auth |
-|--------|----------|-------------|------|
-| POST | `/api/v1/auth/register` | Register new user | No |
-| POST | `/api/v1/auth/login` | User login | No |
-| POST | `/api/v1/auth/refresh` | Refresh access token | No |
-| POST | `/api/v1/auth/logout` | User logout | Yes |
-| GET | `/api/v1/auth/me` | Get current user | Yes |
+| Method | Endpoint                | Description          | Auth |
+| ------ | ----------------------- | -------------------- | ---- |
+| POST   | `/api/v1/auth/register` | Register new user    | No   |
+| POST   | `/api/v1/auth/login`    | User login           | No   |
+| POST   | `/api/v1/auth/refresh`  | Refresh access token | No   |
+| POST   | `/api/v1/auth/logout`   | User logout          | Yes  |
+| GET    | `/api/v1/auth/me`       | Get current user     | Yes  |
 
 **Authentication Flow:**
 
@@ -208,6 +197,7 @@ The project includes comprehensive test coverage:
 - **Repository Layer**: Integration tests with real MongoDB (Testcontainers)
 
 **Auth Module Tests:**
+
 - Unit: 91 test cases covering validation, service logic, handlers, and middleware
 - Integration: 19 test cases covering MongoDB repositories
 
