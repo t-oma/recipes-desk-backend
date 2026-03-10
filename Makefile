@@ -121,6 +121,10 @@ swag:
 # =============================================================================
 
 docker-up:
+	@if [ ! -f scripts/mongo-keyfile ]; then \
+		echo "🔑 Generating MongoDB keyFile..."; \
+		openssl rand -base64 756 > scripts/mongo-keyfile && chmod 400 scripts/mongo-keyfile; \
+	fi
 	docker compose up -d
 
 docker-down:

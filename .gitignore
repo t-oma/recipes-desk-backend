@@ -1,6 +1,9 @@
 .env
 !.env.example
 
+# MongoDB keyFile for replica set authentication
+scripts/mongo-keyfile
+
 bin/*
 
 # Binaries for programs and plugins
