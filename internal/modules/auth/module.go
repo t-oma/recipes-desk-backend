@@ -11,6 +11,7 @@ import (
 	httphandler "recipes-desk/internal/modules/auth/adapter/in/http"
 	"recipes-desk/internal/modules/auth/adapter/out/mongorepo"
 	"recipes-desk/internal/modules/auth/application"
+	"recipes-desk/internal/modules/auth/config"
 )
 
 // Module represents the authentication module.
@@ -23,15 +24,18 @@ type Module struct {
 func NewModule(
 	db *mongo.Database,
 	log *zerolog.Logger,
-	secret string,
-	accessExpiry time.Duration,
-	refreshExpiry time.Duration,
 ) *Module {
+	cfg, err := config.Load()
+	if err != nil {
+		log.Fatal().Err(err).Msg("Failed to load auth config")
+	}
+	log.Debug().Any("config", cfg).Msg("Loaded auth config")
+
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
 	authRepo := mongorepo.NewUsers(db)
-	if err := authRepo.InitIndexes(ctx); err != nil {
+	if err = authRepo.InitIndexes(ctx); err != nil {
 		cancel()
 		log.Fatal(). //nolint:gocritic // cancel() is called
 				Err(err).
@@ -39,7 +43,7 @@ func NewModule(
 	}
 
 	refreshRepo := mongorepo.NewRefreshTokens(db)
-	if err := refreshRepo.InitIndexes(ctx); err != nil {
+	if err = refreshRepo.InitIndexes(ctx); err != nil {
 		cancel()
 		log.Fatal().
 			Err(err).
@@ -54,9 +58,9 @@ func NewModule(
 		idGen,
 		unitOfWork,
 		log,
-		secret,
-		accessExpiry,
-		refreshExpiry,
+		cfg.JWT.Secret,
+		cfg.JWT.Expiry.Access,
+		cfg.JWT.Expiry.Refresh,
 	)
 	authService := application.NewService(
 		authRepo,

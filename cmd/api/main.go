@@ -70,9 +70,6 @@ func main() {
 	authModule := auth.NewModule(
 		db.Database,
 		log,
-		cfg.JWT.Secret,
-		cfg.JWT.AccessExpiry,
-		cfg.JWT.RefreshExpiry,
 	)
 	protected.Use(authModule.Middleware())
 	authModule.RegisterRoutes(public, protected)

@@ -11,7 +11,6 @@ type Config struct {
 	App     App    `mapstructure:"app"`
 	Server  Server `mapstructure:"server"`
 	MongoDB MongoDB
-	JWT     JWT `mapstructure:"jwt"`
 }
 
 type App struct {
@@ -28,12 +27,6 @@ type Server struct {
 type MongoDB struct {
 	URI      string
 	Database string
-}
-
-type JWT struct {
-	Secret        string
-	AccessExpiry  time.Duration `mapstructure:"access-expiry"`
-	RefreshExpiry time.Duration `mapstructure:"refresh-expiry"`
 }
 
 func Load() (*Config, error) {
@@ -57,8 +50,6 @@ func Load() (*Config, error) {
 	v.SetDefault("server.port", "8080")
 	v.SetDefault("server.write-timeout", "10s")
 	v.SetDefault("server.read-timeout", "10s")
-	v.SetDefault("jwt.access-expiry", "15m")
-	v.SetDefault("jwt.refresh-expiry", "168h")
 
 	var config Config
 	if err := v.Unmarshal(&config); err != nil {
@@ -73,11 +64,6 @@ func Load() (*Config, error) {
 	config.MongoDB.Database = v.GetString("MONGO_DATABASE")
 	if config.MongoDB.Database == "" {
 		panic("MONGO_DATABASE is required")
-	}
-
-	config.JWT.Secret = v.GetString("JWT_SECRET")
-	if config.JWT.Secret == "" {
-		panic("JWT_SECRET is required")
 	}
 
 	return &config, nil

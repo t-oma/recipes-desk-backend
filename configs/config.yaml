@@ -5,7 +5,3 @@ server:
   port: 8080
   write-timeout: 10s
   read-timeout: 10s
-
-jwt:
-  access-expiry: 15m
-  refresh-expiry: 168h
