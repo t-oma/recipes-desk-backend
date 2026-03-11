@@ -148,6 +148,8 @@ func TestIntegration_MongoRepository_UniqueEmail(t *testing.T) {
 	defer cleanup()
 
 	repo := mongorepo.NewUsers(db)
+	err := repo.InitIndexes(context.Background())
+	require.NoError(t, err)
 	ctx := context.Background()
 
 	// Create first user
@@ -157,11 +159,10 @@ func TestIntegration_MongoRepository_UniqueEmail(t *testing.T) {
 	assert.NotEmpty(t, created1.ID().String())
 
 	t.Run("cannot create user with duplicate email", func(t *testing.T) {
-		user2 := fixtures.NewUser(t, "unique@example.com") // Same email
+		user2 := fixtures.NewUser(t, user1.Email().String()) // Same email
 		// This should fail due to unique index (if configured)
-		created2, err := repo.Create(ctx, user2)
+		_, err := repo.Create(ctx, user2)
 		require.Error(t, err)
-		require.ErrorIs(t, err, domain.ErrUserAlreadyExists)
-		assert.Empty(t, created2.ID().String())
+		require.ErrorIs(t, err, domain.ErrConflict)
 	})
 }

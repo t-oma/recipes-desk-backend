@@ -36,7 +36,7 @@ func (r *RecipeRepository) Create(
 ) (*entity.Recipe, error) {
 	recipeModel, err := recipeModelFromDomain(recipe)
 	if err != nil {
-		return nil, err
+		return nil, r.wrapError(err, "create recipe")
 	}
 	recipeModel.prepareForInsert()
 
