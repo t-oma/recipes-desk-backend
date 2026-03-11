@@ -145,6 +145,19 @@ func (m *mockIDGenerator) Validate(id string) error {
 	return args.Error(0)
 }
 
+// mockUnitOfWork is a mock implementation of ports.UnitOfWork.
+type mockUnitOfWork struct {
+	mock.Mock
+}
+
+var _ ports.UnitOfWork = (*mockUnitOfWork)(nil)
+
+func (m *mockUnitOfWork) Execute(ctx context.Context, fn func(ctx context.Context) error) error {
+	m.Called(ctx, fn)
+	// Execute the function with the provided context for transactional behavior simulation
+	return fn(ctx)
+}
+
 func TestService_GetByID(t *testing.T) {
 	logger := zerolog.New(nil)
 	userID := "507f1f77bcf86cd799439011"
@@ -200,7 +213,7 @@ func TestService_GetByID(t *testing.T) {
 			mockRepo := new(mockUserRepository)
 			tt.mockSetup(mockRepo)
 
-			svc := application.NewService(mockRepo, &logger, nil, nil, nil)
+			svc := application.NewService(mockRepo, &logger, nil, nil, nil, nil)
 			user, err := svc.GetByID(context.Background(), tt.id)
 
 			if tt.wantErr != nil {
@@ -228,7 +241,7 @@ func TestService_Register(t *testing.T) {
 	tests := []struct {
 		name       string
 		params     dto.RegisterInput
-		mockSetup  func(*mockUserRepository, *mockPasswordService, *mockTokenService, *mockIDGenerator)
+		mockSetup  func(*mockUserRepository, *mockPasswordService, *mockTokenService, *mockIDGenerator, *mockUnitOfWork)
 		wantErr    error
 		wantResult bool
 	}{
@@ -240,7 +253,7 @@ func TestService_Register(t *testing.T) {
 				FirstName: "John",
 				LastName:  "Doe",
 			},
-			mockSetup: func(repo *mockUserRepository, pwd *mockPasswordService, tok *mockTokenService, idGen *mockIDGenerator) {
+			mockSetup: func(repo *mockUserRepository, pwd *mockPasswordService, tok *mockTokenService, idGen *mockIDGenerator, uow *mockUnitOfWork) {
 				userID := "user-id-123"
 				repo.On("ExistsByEmail", mock.Anything, "test@example.com").
 					Return(false, nil).Once()
@@ -254,6 +267,7 @@ func TestService_Register(t *testing.T) {
 				)
 				userIDVO, _ := valueobject.NewUserID(userID)
 				user.AssignID(userIDVO)
+				uow.On("Execute", mock.Anything, mock.Anything).Return(nil)
 				repo.On("Create", mock.Anything, mock.AnythingOfType("*entity.User")).
 					Return(user, nil).Once()
 				tok.On("GenerateAccessToken", userID).
@@ -274,7 +288,7 @@ func TestService_Register(t *testing.T) {
 				FirstName: "John",
 				LastName:  "Doe",
 			},
-			mockSetup: func(repo *mockUserRepository, _ *mockPasswordService, _ *mockTokenService, _ *mockIDGenerator) {
+			mockSetup: func(repo *mockUserRepository, _ *mockPasswordService, _ *mockTokenService, _ *mockIDGenerator, _ *mockUnitOfWork) {
 				repo.On("ExistsByEmail", mock.Anything, "existing@example.com").
 					Return(true, nil).Once()
 			},
@@ -289,9 +303,10 @@ func TestService_Register(t *testing.T) {
 			mockPwd := new(mockPasswordService)
 			mockTok := new(mockTokenService)
 			mockID := new(mockIDGenerator)
-			tt.mockSetup(mockRepo, mockPwd, mockTok, mockID)
+			mockUOW := new(mockUnitOfWork)
+			tt.mockSetup(mockRepo, mockPwd, mockTok, mockID, mockUOW)
 
-			svc := application.NewService(mockRepo, &logger, mockPwd, mockTok, mockID)
+			svc := application.NewService(mockRepo, &logger, mockPwd, mockTok, mockID, mockUOW)
 			result, err := svc.Register(context.Background(), tt.params)
 
 			if tt.wantErr != nil {
@@ -321,7 +336,7 @@ func TestService_Login(t *testing.T) {
 	tests := []struct {
 		name       string
 		params     dto.LoginInput
-		mockSetup  func(*mockUserRepository, *mockPasswordService, *mockTokenService)
+		mockSetup  func(*mockUserRepository, *mockPasswordService, *mockTokenService, *mockUnitOfWork)
 		wantErr    error
 		wantResult bool
 	}{
@@ -331,13 +346,14 @@ func TestService_Login(t *testing.T) {
 				Email:    "test@example.com",
 				Password: "password123",
 			},
-			mockSetup: func(repo *mockUserRepository, pwd *mockPasswordService, tok *mockTokenService) {
+			mockSetup: func(repo *mockUserRepository, pwd *mockPasswordService, tok *mockTokenService, uow *mockUnitOfWork) {
 				user := fixtures.NewUserWithOptions(t,
 					fixtures.WithEmail("test@example.com"),
 					fixtures.WithPassword(string(hashedPassword)),
 				)
 				id, _ := valueobject.NewUserID("user-id-123")
 				user.AssignID(id)
+				uow.On("Execute", mock.Anything, mock.Anything).Return(nil)
 				repo.On("FindByEmail", mock.Anything, "test@example.com").
 					Return(user, nil).Once()
 				pwd.On("Verify", "password123", string(hashedPassword)).
@@ -358,7 +374,8 @@ func TestService_Login(t *testing.T) {
 				Email:    "nonexistent@example.com",
 				Password: "password123",
 			},
-			mockSetup: func(repo *mockUserRepository, _ *mockPasswordService, _ *mockTokenService) {
+			mockSetup: func(repo *mockUserRepository, _ *mockPasswordService, _ *mockTokenService, uow *mockUnitOfWork) {
+				uow.On("Execute", mock.Anything, mock.Anything).Return(domain.ErrUserNotFound)
 				repo.On("FindByEmail", mock.Anything, "nonexistent@example.com").
 					Return(nil, domain.ErrUserNotFound).Once()
 			},
@@ -371,13 +388,14 @@ func TestService_Login(t *testing.T) {
 				Email:    "test@example.com",
 				Password: "wrongpassword",
 			},
-			mockSetup: func(repo *mockUserRepository, pwd *mockPasswordService, _ *mockTokenService) {
+			mockSetup: func(repo *mockUserRepository, pwd *mockPasswordService, _ *mockTokenService, uow *mockUnitOfWork) {
 				user := fixtures.NewUserWithOptions(t,
 					fixtures.WithEmail("test@example.com"),
 					fixtures.WithPassword(string(hashedPassword)),
 				)
 				id, _ := valueobject.NewUserID("user-id-123")
 				user.AssignID(id)
+				uow.On("Execute", mock.Anything, mock.Anything).Return(domain.ErrInvalidCredentials)
 				repo.On("FindByEmail", mock.Anything, "test@example.com").
 					Return(user, nil).Once()
 				pwd.On("Verify", "wrongpassword", string(hashedPassword)).
@@ -393,9 +411,10 @@ func TestService_Login(t *testing.T) {
 			mockRepo := new(mockUserRepository)
 			mockPwd := new(mockPasswordService)
 			mockTok := new(mockTokenService)
-			tt.mockSetup(mockRepo, mockPwd, mockTok)
+			mockUOW := new(mockUnitOfWork)
+			tt.mockSetup(mockRepo, mockPwd, mockTok, mockUOW)
 
-			svc := application.NewService(mockRepo, &logger, mockPwd, mockTok, nil)
+			svc := application.NewService(mockRepo, &logger, mockPwd, mockTok, nil, mockUOW)
 			result, err := svc.Login(context.Background(), tt.params)
 
 			if tt.wantErr != nil {
@@ -463,7 +482,7 @@ func TestService_RefreshTokens(t *testing.T) {
 			mockTok := new(mockTokenService)
 			tt.mockSetup(mockTok)
 
-			svc := application.NewService(nil, &logger, nil, mockTok, nil)
+			svc := application.NewService(nil, &logger, nil, mockTok, nil, nil)
 			result, err := svc.RefreshTokens(context.Background(), tt.params)
 
 			if tt.wantErr != nil {

@@ -100,6 +100,7 @@ func TestTokenService_GenerateAccessToken(t *testing.T) {
 			tokenService := application.NewTokenService(
 				mockRepo,
 				mockID,
+				nil,
 				&logger,
 				secret,
 				accessTTL,
@@ -234,6 +235,7 @@ func TestTokenService_ValidateAccessToken(t *testing.T) {
 			tokenService := application.NewTokenService(
 				mockRepo,
 				mockID,
+				nil,
 				&logger,
 				secret,
 				accessTTL,
@@ -314,10 +316,16 @@ func TestTokenService_GenerateRefreshToken(t *testing.T) {
 				tt.mockSetup(mockRepo, mockID)
 			}
 
+			mockUOW := new(mockUnitOfWork)
+			mockUOW.On("Execute", mock.Anything, mock.Anything).Run(func(args mock.Arguments) {
+				fn := args.Get(1).(func(context.Context) error)
+				_ = fn(context.Background())
+			}).Return(nil)
 			logger := zerolog.New(nil)
 			tokenService := application.NewTokenService(
 				mockRepo,
 				mockID,
+				mockUOW,
 				&logger,
 				secret,
 				accessTTL,
@@ -426,6 +434,7 @@ func TestTokenService_ValidateRefreshToken(t *testing.T) {
 			tokenService := application.NewTokenService(
 				mockRepo,
 				mockID,
+				nil,
 				&logger,
 				secret,
 				accessTTL,
@@ -459,14 +468,15 @@ func TestTokenService_RotateRefreshToken(t *testing.T) {
 	tests := []struct {
 		name          string
 		oldToken      string
-		mockSetup     func(*mockRefreshTokensRepository, *mockIDGenerator)
+		mockSetup     func(*mockRefreshTokensRepository, *mockIDGenerator, *mockUnitOfWork)
 		wantErr       error
 		checkNewToken bool
 	}{
 		{
 			name:     "success",
 			oldToken: "valid-old-token",
-			mockSetup: func(m *mockRefreshTokensRepository, mID *mockIDGenerator) {
+			mockSetup: func(m *mockRefreshTokensRepository, mID *mockIDGenerator, mUOW *mockUnitOfWork) {
+				mUOW.On("Execute", mock.Anything, mock.Anything).Return(nil)
 				m.On("FindByHash", mock.Anything, mock.AnythingOfType("string")).
 					Return(
 						createTestRefreshToken(
@@ -503,7 +513,8 @@ func TestTokenService_RotateRefreshToken(t *testing.T) {
 		{
 			name:     "invalid old token",
 			oldToken: "invalid-token",
-			mockSetup: func(m *mockRefreshTokensRepository, _ *mockIDGenerator) {
+			mockSetup: func(m *mockRefreshTokensRepository, _ *mockIDGenerator, mUOW *mockUnitOfWork) {
+				mUOW.On("Execute", mock.Anything, mock.Anything).Return(nil)
 				m.On("FindByHash", mock.Anything, mock.AnythingOfType("string")).
 					Return(nil, domain.ErrTokenNotFound).Once()
 			},
@@ -513,7 +524,8 @@ func TestTokenService_RotateRefreshToken(t *testing.T) {
 		{
 			name:     "delete old token error",
 			oldToken: "valid-old-token",
-			mockSetup: func(m *mockRefreshTokensRepository, _ *mockIDGenerator) {
+			mockSetup: func(m *mockRefreshTokensRepository, _ *mockIDGenerator, mUOW *mockUnitOfWork) {
+				mUOW.On("Execute", mock.Anything, mock.Anything).Return(nil)
 				m.On("FindByHash", mock.Anything, mock.AnythingOfType("string")).
 					Return(
 						createTestRefreshToken(
@@ -537,12 +549,14 @@ func TestTokenService_RotateRefreshToken(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			mockRepo := new(mockRefreshTokensRepository)
 			mockID := new(mockIDGenerator)
-			tt.mockSetup(mockRepo, mockID)
+			mockUOW := new(mockUnitOfWork)
+			tt.mockSetup(mockRepo, mockID, mockUOW)
 
 			logger := zerolog.New(nil)
 			tokenService := application.NewTokenService(
 				mockRepo,
 				mockID,
+				mockUOW,
 				&logger,
 				secret,
 				accessTTL,
