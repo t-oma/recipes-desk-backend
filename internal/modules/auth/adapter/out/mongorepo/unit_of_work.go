@@ -32,6 +32,7 @@ func (u *UnitOfWork) Execute(
 	}
 	defer session.EndSession(ctx)
 
+	//nolint:contextcheck // sesCtx is mongo.SessionContext which wraps context.Context
 	_, err = session.WithTransaction(ctx, func(sesCtx mongo.SessionContext) (any, error) {
 		return nil, fn(sesCtx)
 	})
