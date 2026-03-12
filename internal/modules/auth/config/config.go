@@ -47,8 +47,6 @@ func Load(log *zerolog.Logger) (*Config, error) {
 		return nil, err
 	}
 
-	log.Debug().Any("config", env.Debug()).Msg("Loaded auth config")
-
 	cfg.JWT.Secret = env.Get("AUTH_JWT_SECRET")
 
 	if cfg.JWT.Expiry.Access <= 0 {
