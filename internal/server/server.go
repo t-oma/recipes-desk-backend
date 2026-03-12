@@ -47,8 +47,8 @@ func New(handler http.Handler, cfg *config.Config, logger *zerolog.Logger) *Serv
 		srv: &http.Server{
 			Addr:         ":" + cfg.Server.Port,
 			Handler:      handler,
-			ReadTimeout:  cfg.Server.ReadTimeout,
-			WriteTimeout: cfg.Server.WriteTimeout,
+			ReadTimeout:  cfg.Server.Timeouts.Read,
+			WriteTimeout: cfg.Server.Timeouts.Write,
 		},
 		isProduction: cfg.IsProduction(),
 	}

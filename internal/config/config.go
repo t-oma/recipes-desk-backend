@@ -1,72 +1,52 @@
 package config
 
 import (
-	"log/slog"
 	"time"
 
-	"github.com/spf13/viper"
+	"recipes-desk/pkg/config"
 )
 
-type Config struct {
-	App     App    `mapstructure:"app"`
-	Server  Server `mapstructure:"server"`
-	MongoDB MongoDB
-}
-
-type App struct {
-	Environment string `mapstructure:"environment"`
-}
-
-type Server struct {
-	Port string `mapstructure:"port"`
-	// Timeouts
-	WriteTimeout time.Duration `mapstructure:"write-timeout"`
-	ReadTimeout  time.Duration `mapstructure:"read-timeout"`
-}
-
-type MongoDB struct {
-	URI      string
-	Database string
-}
+type (
+	Config struct {
+		App     App    `yaml:"app"`
+		Server  Server `yaml:"server"`
+		MongoDB MongoDB
+	}
+	App struct {
+		Environment string `yaml:"environment"`
+	}
+	Server struct {
+		Port     string   `yaml:"port"`
+		Timeouts Timeouts `yaml:"timeouts"`
+	}
+	Timeouts struct {
+		Write time.Duration `yaml:"write"`
+		Read  time.Duration `yaml:"read"`
+	}
+	MongoDB struct {
+		URI      string
+		Database string
+	}
+)
 
 func Load() (*Config, error) {
-	v := viper.New()
-	v.AutomaticEnv()
-
-	v.AddConfigPath(".")
-	v.SetConfigFile(".env")
-	if err := v.ReadInConfig(); err != nil {
-		slog.Warn("Warning: .env file not found, using environment variables only")
+	cfg, err := config.LoadYAML[Config]("./configs/config.yaml")
+	if err != nil {
+		return nil, err
 	}
-
-	v.AddConfigPath("./configs/")
-	v.SetConfigName("config")
-	v.SetConfigType("yaml")
-	if err := v.MergeInConfig(); err != nil {
+	env, err := config.LoadEnv(".env")
+	if err != nil {
+		return nil, err
+	}
+	err = config.RequireEnvKeys(env, "MONGO_URI", "MONGO_DATABASE")
+	if err != nil {
 		return nil, err
 	}
 
-	v.SetDefault("app.environment", "development")
-	v.SetDefault("server.port", "8080")
-	v.SetDefault("server.write-timeout", "10s")
-	v.SetDefault("server.read-timeout", "10s")
+	cfg.MongoDB.URI = env["MONGO_URI"]
+	cfg.MongoDB.Database = env["MONGO_DATABASE"]
 
-	var config Config
-	if err := v.Unmarshal(&config); err != nil {
-		return nil, err
-	}
-
-	config.MongoDB.URI = v.GetString("MONGO_URI")
-	if config.MongoDB.URI == "" {
-		panic("MONGO_URI is required")
-	}
-
-	config.MongoDB.Database = v.GetString("MONGO_DATABASE")
-	if config.MongoDB.Database == "" {
-		panic("MONGO_DATABASE is required")
-	}
-
-	return &config, nil
+	return cfg, nil
 }
 
 func (c *Config) IsDevelopment() bool {
