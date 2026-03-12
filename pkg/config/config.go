@@ -4,10 +4,11 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/joho/godotenv"
 	"gopkg.in/yaml.v3"
 )
 
+// LoadYAML loads a YAML configuration file.
+// It returns an error if the file does not exist or if the YAML unmarshaling fails.
 func LoadYAML[T any](filename string) (*T, error) {
 	data, err := os.ReadFile(filename)
 	if err != nil {
@@ -20,22 +21,4 @@ func LoadYAML[T any](filename string) (*T, error) {
 	}
 
 	return &config, nil
-}
-
-func LoadEnv(filename string) (map[string]string, error) {
-	env, err := godotenv.Read(filename)
-	if err != nil {
-		return nil, fmt.Errorf("failed to read env file: %w", err)
-	}
-
-	return env, nil
-}
-
-func RequireEnvKeys(env map[string]string, keys ...string) error {
-	for _, field := range keys {
-		if _, ok := env[field]; !ok {
-			return fmt.Errorf("env variable %s is required but was not found", field)
-		}
-	}
-	return nil
 }

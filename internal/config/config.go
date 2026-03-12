@@ -1,9 +1,15 @@
 package config
 
 import (
+	"strconv"
 	"time"
 
 	"recipes-desk/pkg/config"
+)
+
+const (
+	DefaultServerTimeoutWrite = 10 * time.Second
+	DefaultServerTimeoutRead  = 10 * time.Second
 )
 
 type (
@@ -34,17 +40,27 @@ func Load() (*Config, error) {
 	if err != nil {
 		return nil, err
 	}
-	env, err := config.LoadEnv(".env")
-	if err != nil {
-		return nil, err
-	}
-	err = config.RequireEnvKeys(env, "MONGO_URI", "MONGO_DATABASE")
-	if err != nil {
+
+	env := config.NewEnv()
+	env.Required("MONGO_URI", "MONGO_DATABASE")
+	env.WithEnvVars()
+	env.AddEnvFiles(".env")
+	if err = env.Load(); err != nil {
 		return nil, err
 	}
 
-	cfg.MongoDB.URI = env["MONGO_URI"]
-	cfg.MongoDB.Database = env["MONGO_DATABASE"]
+	cfg.MongoDB.URI = env.Get("MONGO_URI")
+	cfg.MongoDB.Database = env.GetOrDefault("MONGO_DATABASE", "recipes")
+
+	if cfg.Server.Timeouts.Write <= 0 {
+		cfg.Server.Timeouts.Write = DefaultServerTimeoutWrite
+	}
+	if cfg.Server.Timeouts.Read <= 0 {
+		cfg.Server.Timeouts.Read = DefaultServerTimeoutRead
+	}
+	if _, err = strconv.Atoi(cfg.Server.Port); err != nil {
+		return nil, err
+	}
 
 	return cfg, nil
 }

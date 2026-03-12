@@ -25,11 +25,10 @@ func NewModule(
 	db *mongo.Database,
 	log *zerolog.Logger,
 ) *Module {
-	cfg, err := config.Load()
+	cfg, err := config.Load(log)
 	if err != nil {
 		log.Fatal().Err(err).Msg("Failed to load auth config")
 	}
-	log.Debug().Any("config", cfg).Msg("Loaded auth config")
 
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()

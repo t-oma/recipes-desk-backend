@@ -2,17 +2,14 @@ package config
 
 import (
 	"errors"
-	"fmt"
-	"os"
 	"time"
+
+	"github.com/rs/zerolog"
 
 	"recipes-desk/pkg/config"
 )
 
-var (
-	ErrMissingJWTSecret = errors.New("JWT secret is required")
-	ErrInvalidJWTSecret = errors.New("JWT secret must be at least 32 characters long")
-)
+var ErrInvalidJWTSecret = errors.New("JWT secret must be at least 32 characters long")
 
 const (
 	DefaultJWTSecretLength  = 32
@@ -34,34 +31,35 @@ type (
 	}
 )
 
-func Load() (*Config, error) {
-	cfg, err := config.LoadYAML[Config]("./internal/modules/auth/config/auth.yaml")
+func Load(log *zerolog.Logger) (*Config, error) {
+	env := config.NewEnv()
+	env.WithEnvVars()
+	env.Required("AUTH_JWT_SECRET")
+	env.KeyRules("AUTH_JWT_SECRET", func(value string) bool {
+		return len(value) >= DefaultJWTSecretLength
+	})
+	if err := env.Load(); err != nil {
+		return nil, err
+	}
+
+	cfg, err := config.LoadYAML[Config](
+		env.GetOrDefault("AUTH_CONFIG_PATH", "./internal/modules/auth/config/auth.yaml"),
+	)
 	if err != nil {
 		return nil, err
 	}
 
-	cfg.JWT.Secret = os.Getenv("AUTH_JWT_SECRET")
+	cfg.JWT.Secret = env.Get("AUTH_JWT_SECRET")
 
-	// Validation
-	if cfg.JWT.Secret == "" {
-		return nil, ErrMissingJWTSecret
-	}
-	if len(cfg.JWT.Secret) < DefaultJWTSecretLength {
-		return nil, ErrInvalidJWTSecret
-	}
-	if cfg.JWT.Expiry.Access == 0 {
-		fmt.Printf(
-			"WARNING: JWT access expiry is not set, using default value: %s\n",
-			DefaultJWTAccessExpiry,
-		)
+	if cfg.JWT.Expiry.Access <= 0 {
 		cfg.JWT.Expiry.Access = DefaultJWTAccessExpiry
+		log.Warn().Dur("access expiry", DefaultJWTAccessExpiry).
+			Msg("JWT access expiry is not set, using default value")
 	}
-	if cfg.JWT.Expiry.Refresh == 0 {
-		fmt.Printf(
-			"WARNING: JWT refresh expiry is not set, using default value: %s\n",
-			DefaultJWTRefreshExpiry,
-		)
+	if cfg.JWT.Expiry.Refresh <= 0 {
 		cfg.JWT.Expiry.Refresh = DefaultJWTRefreshExpiry
+		log.Warn().Dur("refresh expiry", DefaultJWTRefreshExpiry).
+			Msg("JWT refresh expiry is not set, using default value")
 	}
 
 	return cfg, nil
