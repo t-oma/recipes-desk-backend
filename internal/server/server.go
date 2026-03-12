@@ -3,6 +3,7 @@ package server
 import (
 	"context"
 	"errors"
+	"fmt"
 	"net/http"
 	"os"
 	"os/signal"
@@ -45,7 +46,7 @@ func New(handler http.Handler, cfg *config.Config, logger *zerolog.Logger) *Serv
 	return &Server{
 		log: logger,
 		srv: &http.Server{
-			Addr:         ":" + cfg.Server.Port,
+			Addr:         fmt.Sprintf(":%d", cfg.Server.Port),
 			Handler:      handler,
 			ReadTimeout:  cfg.Server.Timeouts.Read,
 			WriteTimeout: cfg.Server.Timeouts.Write,

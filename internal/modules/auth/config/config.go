@@ -34,10 +34,8 @@ type (
 func Load(log *zerolog.Logger) (*Config, error) {
 	env := config.NewEnv()
 	env.WithEnvVars()
-	env.Required("AUTH_JWT_SECRET")
-	env.KeyRules("AUTH_JWT_SECRET", func(value string) bool {
-		return len(value) >= DefaultJWTSecretLength
-	})
+	env.Required("AUTH_JWT_SECRET").WithRules(config.MinLength(DefaultJWTSecretLength))
+	env.Optional("AUTH_CONFIG_PATH").WithRules(config.IsPath(true))
 	if err := env.Load(); err != nil {
 		return nil, err
 	}
@@ -48,6 +46,8 @@ func Load(log *zerolog.Logger) (*Config, error) {
 	if err != nil {
 		return nil, err
 	}
+
+	log.Debug().Any("config", env.Debug()).Msg("Loaded auth config")
 
 	cfg.JWT.Secret = env.Get("AUTH_JWT_SECRET")
 

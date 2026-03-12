@@ -1,7 +1,6 @@
 package config
 
 import (
-	"strconv"
 	"time"
 
 	"recipes-desk/pkg/config"
@@ -14,15 +13,15 @@ const (
 
 type (
 	Config struct {
-		App     App    `yaml:"app"`
-		Server  Server `yaml:"server"`
-		MongoDB MongoDB
+		App     App     `yaml:"app"`
+		Server  Server  `yaml:"server"`
+		MongoDB MongoDB // loaded from .env or environment variables
 	}
 	App struct {
 		Environment string `yaml:"environment"`
 	}
 	Server struct {
-		Port     string   `yaml:"port"`
+		Port     int      `yaml:"port"`
 		Timeouts Timeouts `yaml:"timeouts"`
 	}
 	Timeouts struct {
@@ -42,7 +41,8 @@ func Load() (*Config, error) {
 	}
 
 	env := config.NewEnv()
-	env.Required("MONGO_URI", "MONGO_DATABASE")
+	env.Required("MONGO_URI")
+	env.Required("MONGO_DATABASE")
 	env.WithEnvVars()
 	env.AddEnvFiles(".env")
 	if err = env.Load(); err != nil {
@@ -50,16 +50,13 @@ func Load() (*Config, error) {
 	}
 
 	cfg.MongoDB.URI = env.Get("MONGO_URI")
-	cfg.MongoDB.Database = env.GetOrDefault("MONGO_DATABASE", "recipes")
+	cfg.MongoDB.Database = env.Get("MONGO_DATABASE")
 
 	if cfg.Server.Timeouts.Write <= 0 {
 		cfg.Server.Timeouts.Write = DefaultServerTimeoutWrite
 	}
 	if cfg.Server.Timeouts.Read <= 0 {
 		cfg.Server.Timeouts.Read = DefaultServerTimeoutRead
-	}
-	if _, err = strconv.Atoi(cfg.Server.Port); err != nil {
-		return nil, err
 	}
 
 	return cfg, nil
