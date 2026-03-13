@@ -14,7 +14,6 @@ import (
 	"recipes-desk/internal/modules/recipes/domain"
 	"recipes-desk/internal/modules/recipes/domain/entity"
 	"recipes-desk/internal/modules/recipes/domain/ports"
-	"recipes-desk/pkg/pagination"
 )
 
 const collectionName = "recipes"
@@ -66,11 +65,11 @@ func (r *RecipeRepository) FindByID(ctx context.Context, id string) (*entity.Rec
 
 func (r *RecipeRepository) FindAll(
 	ctx context.Context,
-	req *pagination.Request,
+	skip, limit int64,
 ) ([]entity.Recipe, int64, error) {
 	opts := options.Find().
-		SetSkip(req.Skip()).
-		SetLimit(int64(req.Limit))
+		SetSkip(skip).
+		SetLimit(limit)
 
 	cursor, err := r.collection.Find(ctx, bson.M{}, opts)
 	if err != nil {
@@ -105,7 +104,7 @@ func (r *RecipeRepository) FindAll(
 func (r *RecipeRepository) Search(
 	ctx context.Context,
 	query string,
-	req *pagination.Request,
+	skip, limit int64,
 ) ([]entity.Recipe, int64, error) {
 	filter := bson.M{
 		"title": bson.M{
@@ -115,8 +114,8 @@ func (r *RecipeRepository) Search(
 	}
 
 	opts := options.Find().
-		SetSkip(req.Skip()).
-		SetLimit(int64(req.Limit))
+		SetSkip(skip).
+		SetLimit(limit)
 
 	cursor, err := r.collection.Find(ctx, filter, opts)
 	if err != nil {
