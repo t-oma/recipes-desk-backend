@@ -21,6 +21,7 @@ import (
 	"recipes-desk/internal/modules/recipes/application/ports/in"
 	"recipes-desk/internal/modules/recipes/domain"
 	"recipes-desk/internal/modules/recipes/domain/valueobject"
+	"recipes-desk/pkg/pagination"
 )
 
 // mockService is a mock implementation of handler.RecipeService for testing.
@@ -49,20 +50,27 @@ func (m *mockService) GetByID(ctx context.Context, id string) (*dto.Recipe, erro
 	return args.Get(0).(*dto.Recipe), args.Error(1)
 }
 
-func (m *mockService) GetAll(ctx context.Context) ([]dto.Recipe, error) {
-	args := m.Called(ctx)
+func (m *mockService) GetAll(
+	ctx context.Context,
+	pagnreq pagination.Request,
+) (*pagination.Result[dto.Recipe], error) {
+	args := m.Called(ctx, pagnreq)
 	if args.Get(0) == nil {
 		return nil, args.Error(1)
 	}
-	return args.Get(0).([]dto.Recipe), args.Error(1)
+	return args.Get(0).(*pagination.Result[dto.Recipe]), args.Error(1)
 }
 
-func (m *mockService) Search(ctx context.Context, query string) ([]dto.Recipe, error) {
-	args := m.Called(ctx, query)
+func (m *mockService) Search(
+	ctx context.Context,
+	query string,
+	pagnreq pagination.Request,
+) (*pagination.Result[dto.Recipe], error) {
+	args := m.Called(ctx, query, pagnreq)
 	if args.Get(0) == nil {
 		return nil, args.Error(1)
 	}
-	return args.Get(0).([]dto.Recipe), args.Error(1)
+	return args.Get(0).(*pagination.Result[dto.Recipe]), args.Error(1)
 }
 
 func (m *mockService) Update(
@@ -95,6 +103,27 @@ func setupTest() (*gin.Engine, *mockService, *httphandler.Handler) {
 	return router, mockSvc, h
 }
 
+func pagResult(
+	t *testing.T,
+	items []dto.Recipe,
+	meta *pagination.Metadata,
+) *pagination.Result[dto.Recipe] {
+	t.Helper()
+	if meta == nil {
+		meta = &pagination.Metadata{
+			Page:       1,
+			Limit:      10,
+			Total:      2,
+			TotalPages: 1,
+		}
+	}
+
+	return &pagination.Result[dto.Recipe]{
+		Items:      items,
+		Pagination: *meta,
+	}
+}
+
 func TestHandler_List(t *testing.T) {
 	tests := []struct {
 		name           string
@@ -105,16 +134,19 @@ func TestHandler_List(t *testing.T) {
 		{
 			name: "success with recipes",
 			mockSetup: func(m *mockService) {
-				m.On("GetAll", mock.Anything).Return([]dto.Recipe{
-					{ //nolint:exhaustruct // test struct
-						ID:    "id123",
-						Title: "Recipe 1",
-					},
-					{ //nolint:exhaustruct // test struct
-						ID:    "id456",
-						Title: "Recipe 2",
-					},
-				}, nil)
+				m.On("GetAll", mock.Anything, mock.AnythingOfType("pagination.Request")).
+					Return(
+						pagResult(t, []dto.Recipe{
+							{ //nolint:exhaustruct // test struct
+								ID:    "id123",
+								Title: "Recipe 1",
+							},
+							{ //nolint:exhaustruct // test struct
+								ID:    "id456",
+								Title: "Recipe 2",
+							},
+						}, nil),
+						nil)
 			},
 			wantStatusCode: http.StatusOK,
 			wantRecipes:    2,
@@ -122,7 +154,11 @@ func TestHandler_List(t *testing.T) {
 		{
 			name: "success empty",
 			mockSetup: func(m *mockService) {
-				m.On("GetAll", mock.Anything).Return([]dto.Recipe{}, nil)
+				m.On("GetAll", mock.Anything, mock.AnythingOfType("pagination.Request")).
+					Return(
+						&pagination.Result[dto.Recipe]{}, //nolint:exhaustruct // test struct
+						nil,
+					)
 			},
 			wantStatusCode: http.StatusOK,
 			wantRecipes:    0,
@@ -130,7 +166,8 @@ func TestHandler_List(t *testing.T) {
 		{
 			name: "service error",
 			mockSetup: func(m *mockService) {
-				m.On("GetAll", mock.Anything).Return(nil, application.ErrInternal)
+				m.On("GetAll", mock.Anything, mock.AnythingOfType("pagination.Request")).
+					Return(nil, application.ErrInternal)
 			},
 			wantStatusCode: http.StatusInternalServerError,
 			wantRecipes:    0,
@@ -151,10 +188,10 @@ func TestHandler_List(t *testing.T) {
 			assert.Equal(t, tt.wantStatusCode, w.Code)
 
 			if tt.wantStatusCode == http.StatusOK {
-				var response []dto.Recipe
+				var response *pagination.Result[dto.Recipe]
 				err := json.Unmarshal(w.Body.Bytes(), &response)
 				require.NoError(t, err)
-				assert.Len(t, response, tt.wantRecipes)
+				assert.Len(t, response.Items, tt.wantRecipes)
 			}
 
 			mockSvc.AssertExpectations(t)
@@ -246,11 +283,13 @@ func TestHandler_Search(t *testing.T) {
 			name:  "success",
 			query: "pasta",
 			mockSetup: func(m *mockService) {
-				m.On("Search", mock.Anything, "pasta").
-					Return([]dto.Recipe{
-						{Title: "Pasta Carbonara"}, //nolint:exhaustruct // test struct
-						{Title: "Pasta Bolognese"}, //nolint:exhaustruct // test struct
-					}, nil)
+				m.On("Search", mock.Anything, "pasta", mock.AnythingOfType("pagination.Request")).
+					Return(
+						pagResult(t, []dto.Recipe{
+							{Title: "Pasta Carbonara"}, //nolint:exhaustruct // test struct
+							{Title: "Pasta Bolognese"}, //nolint:exhaustruct // test struct
+						}, nil),
+						nil)
 			},
 			wantStatusCode: http.StatusOK,
 			wantRecipes:    2,
@@ -259,8 +298,11 @@ func TestHandler_Search(t *testing.T) {
 			name:  "empty query",
 			query: "",
 			mockSetup: func(m *mockService) {
-				m.On("Search", mock.Anything, "").
-					Return([]dto.Recipe{}, nil)
+				m.On("Search", mock.Anything, "", mock.AnythingOfType("pagination.Request")).
+					Return(
+						&pagination.Result[dto.Recipe]{}, //nolint:exhaustruct // test struct
+						nil,
+					)
 			},
 			wantStatusCode: http.StatusOK,
 			wantRecipes:    0,
@@ -269,7 +311,7 @@ func TestHandler_Search(t *testing.T) {
 			name:  "service error",
 			query: "pasta",
 			mockSetup: func(m *mockService) {
-				m.On("Search", mock.Anything, "pasta").
+				m.On("Search", mock.Anything, "pasta", mock.AnythingOfType("pagination.Request")).
 					Return(nil, application.ErrInternal)
 			},
 			wantStatusCode: http.StatusInternalServerError,
@@ -292,10 +334,10 @@ func TestHandler_Search(t *testing.T) {
 			assert.Equal(t, tt.wantStatusCode, w.Code)
 
 			if tt.wantStatusCode == http.StatusOK {
-				var response []dto.Recipe
+				var response *pagination.Result[dto.Recipe]
 				err := json.Unmarshal(w.Body.Bytes(), &response)
 				require.NoError(t, err)
-				assert.Len(t, response, tt.wantRecipes)
+				assert.Len(t, response.Items, tt.wantRecipes)
 			}
 
 			mockSvc.AssertExpectations(t)
