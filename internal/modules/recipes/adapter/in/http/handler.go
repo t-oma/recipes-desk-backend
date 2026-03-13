@@ -3,6 +3,7 @@ package httphandler
 import (
 	"errors"
 	"net/http"
+	"strconv"
 
 	"github.com/gin-gonic/gin"
 	"github.com/rs/zerolog"
@@ -10,19 +11,27 @@ import (
 	"recipes-desk/internal/modules/recipes/application"
 	"recipes-desk/internal/modules/recipes/application/dto"
 	"recipes-desk/internal/modules/recipes/application/ports/in"
+	recipeconfig "recipes-desk/internal/modules/recipes/config"
+	"recipes-desk/pkg/pagination"
 )
 
 // Handler handles HTTP requests for recipes.
 type Handler struct {
 	service in.RecipeService
 	log     *zerolog.Logger
+	config  *recipeconfig.Config
 }
 
 // NewHandler creates a new recipe handler.
-func NewHandler(service in.RecipeService, log *zerolog.Logger) *Handler {
+func NewHandler(
+	service in.RecipeService,
+	log *zerolog.Logger,
+	config *recipeconfig.Config,
+) *Handler {
 	return &Handler{
 		service: service,
 		log:     log,
+		config:  config,
 	}
 }
 
@@ -45,35 +54,37 @@ func handleError(c *gin.Context, err error) {
 }
 
 func (h *Handler) List(c *gin.Context) {
-	result, err := h.service.GetAll(c.Request.Context())
+	req, err := h.parsePaginationRequest(c)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	result, err := h.service.GetAll(c.Request.Context(), req)
 	if err != nil {
 		handleError(c, err)
 		return
 	}
 
-	response := make([]RecipeResponse, len(result))
-	for i, recipe := range result {
-		response[i] = *toRecipeResponse(&recipe)
-	}
-
-	c.JSON(http.StatusOK, response)
+	c.JSON(http.StatusOK, toPaginatedResponse(result))
 }
 
 func (h *Handler) Search(c *gin.Context) {
 	query := c.Query("q")
 
-	result, err := h.service.Search(c.Request.Context(), query)
+	req, err := h.parsePaginationRequest(c)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	result, err := h.service.Search(c.Request.Context(), query, req)
 	if err != nil {
 		handleError(c, err)
 		return
 	}
 
-	response := make([]RecipeResponse, len(result))
-	for i, recipe := range result {
-		response[i] = *toRecipeResponse(&recipe)
-	}
-
-	c.JSON(http.StatusOK, response)
+	c.JSON(http.StatusOK, toPaginatedResponse(result))
 }
 
 // GetByID handles GET /recipes/:id.
@@ -156,4 +167,27 @@ func (h *Handler) Delete(c *gin.Context) {
 	}
 
 	c.JSON(http.StatusOK, gin.H{"message": "recipe deleted successfully"})
+}
+
+// parsePaginationRequest extracts and validates pagination parameters from query.
+func (h *Handler) parsePaginationRequest(c *gin.Context) (*pagination.Request, error) {
+	pageStr := c.DefaultQuery("page", "1")
+	limitStr := c.DefaultQuery("limit", strconv.Itoa(h.config.Pagination.DefaultLimit))
+
+	page, err := strconv.Atoi(pageStr)
+	if err != nil {
+		return nil, err
+	}
+
+	limit, err := strconv.Atoi(limitStr)
+	if err != nil {
+		return nil, err
+	}
+
+	return pagination.NewRequest(
+		page,
+		limit,
+		h.config.Pagination.DefaultLimit,
+		h.config.Pagination.MaxLimit,
+	)
 }

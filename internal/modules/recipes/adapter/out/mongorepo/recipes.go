@@ -9,10 +9,12 @@ import (
 	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/bson/primitive"
 	"go.mongodb.org/mongo-driver/mongo"
+	"go.mongodb.org/mongo-driver/mongo/options"
 
 	"recipes-desk/internal/modules/recipes/domain"
 	"recipes-desk/internal/modules/recipes/domain/entity"
 	"recipes-desk/internal/modules/recipes/domain/ports"
+	"recipes-desk/pkg/pagination"
 )
 
 const collectionName = "recipes"
@@ -62,16 +64,23 @@ func (r *RecipeRepository) FindByID(ctx context.Context, id string) (*entity.Rec
 	return model.toDomain()
 }
 
-func (r *RecipeRepository) FindAll(ctx context.Context) ([]entity.Recipe, error) {
-	cursor, err := r.collection.Find(ctx, bson.M{})
+func (r *RecipeRepository) FindAll(
+	ctx context.Context,
+	req *pagination.Request,
+) ([]entity.Recipe, int64, error) {
+	opts := options.Find().
+		SetSkip(req.Skip()).
+		SetLimit(int64(req.Limit))
+
+	cursor, err := r.collection.Find(ctx, bson.M{}, opts)
 	if err != nil {
-		return nil, r.wrapError(err, "find all recipes")
+		return nil, 0, r.wrapError(err, "find all recipes")
 	}
 	defer cursor.Close(ctx)
 
 	var recipeModels []recipeModel
 	if err = cursor.All(ctx, &recipeModels); err != nil {
-		return nil, r.wrapError(err, "decode recipes")
+		return nil, 0, r.wrapError(err, "decode recipes")
 	}
 
 	recipes := make([]entity.Recipe, len(recipeModels))
@@ -79,16 +88,25 @@ func (r *RecipeRepository) FindAll(ctx context.Context) ([]entity.Recipe, error)
 		var recipe *entity.Recipe
 		recipe, err = recipeModel.toDomain()
 		if err != nil {
-			return nil, err
+			return nil, 0, err
 		}
 		recipes[i] = *recipe
 	}
 
-	return recipes, nil
+	total, err := r.collection.CountDocuments(ctx, bson.M{})
+	if err != nil {
+		return nil, 0, r.wrapError(err, "count recipes")
+	}
+
+	return recipes, total, nil
 }
 
-// Search searches recipes by title (case-insensitive).
-func (r *RecipeRepository) Search(ctx context.Context, query string) ([]entity.Recipe, error) {
+// Search searches recipes by title (case-insensitive) with pagination.
+func (r *RecipeRepository) Search(
+	ctx context.Context,
+	query string,
+	req *pagination.Request,
+) ([]entity.Recipe, int64, error) {
 	filter := bson.M{
 		"title": bson.M{
 			"$regex":   query,
@@ -96,15 +114,19 @@ func (r *RecipeRepository) Search(ctx context.Context, query string) ([]entity.R
 		},
 	}
 
-	cursor, err := r.collection.Find(ctx, filter)
+	opts := options.Find().
+		SetSkip(req.Skip()).
+		SetLimit(int64(req.Limit))
+
+	cursor, err := r.collection.Find(ctx, filter, opts)
 	if err != nil {
-		return nil, r.wrapError(err, "search recipes")
+		return nil, 0, r.wrapError(err, "search recipes")
 	}
 	defer cursor.Close(ctx)
 
 	var recipeModels []recipeModel
 	if err = cursor.All(ctx, &recipeModels); err != nil {
-		return nil, r.wrapError(err, "decode search results")
+		return nil, 0, r.wrapError(err, "decode search results")
 	}
 
 	recipes := make([]entity.Recipe, len(recipeModels))
@@ -112,12 +134,17 @@ func (r *RecipeRepository) Search(ctx context.Context, query string) ([]entity.R
 		var recipe *entity.Recipe
 		recipe, err = recipeModel.toDomain()
 		if err != nil {
-			return nil, err
+			return nil, 0, err
 		}
 		recipes[i] = *recipe
 	}
 
-	return recipes, nil
+	total, err := r.collection.CountDocuments(ctx, filter)
+	if err != nil {
+		return nil, 0, r.wrapError(err, "count search results")
+	}
+
+	return recipes, total, nil
 }
 
 func (r *RecipeRepository) Update(

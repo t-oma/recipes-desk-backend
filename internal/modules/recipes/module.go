@@ -8,6 +8,7 @@ import (
 	httphandler "recipes-desk/internal/modules/recipes/adapter/in/http"
 	"recipes-desk/internal/modules/recipes/adapter/out/mongorepo"
 	"recipes-desk/internal/modules/recipes/application"
+	"recipes-desk/internal/modules/recipes/config"
 )
 
 // Module represents the recipes module.
@@ -17,10 +18,15 @@ type Module struct {
 
 // NewModule creates a new recipes module.
 func NewModule(db *mongo.Database, log *zerolog.Logger) *Module {
+	config, err := config.Load()
+	if err != nil {
+		log.Fatal().Err(err).Msg("Failed to load recipes config")
+	}
+
 	recipeRepo := mongorepo.NewRecipes(db)
 	idGenerator := mongorepo.ObjectIDGenerator{}
 	recipeService := application.NewService(recipeRepo, idGenerator, log)
-	recipeHandler := httphandler.NewHandler(recipeService, log)
+	recipeHandler := httphandler.NewHandler(recipeService, log, config)
 
 	return &Module{
 		handler: recipeHandler,

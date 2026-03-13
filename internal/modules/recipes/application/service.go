@@ -13,6 +13,7 @@ import (
 	"recipes-desk/internal/modules/recipes/domain/entity"
 	"recipes-desk/internal/modules/recipes/domain/ports"
 	"recipes-desk/internal/modules/recipes/domain/valueobject"
+	"recipes-desk/pkg/pagination"
 	"recipes-desk/pkg/sliceutils"
 )
 
@@ -124,8 +125,11 @@ func (s *Service) GetByID(ctx context.Context, id string) (*dto.Recipe, error) {
 	return mapper.ToRecipeDTO(recipe), nil
 }
 
-func (s *Service) GetAll(ctx context.Context) ([]dto.Recipe, error) {
-	recipes, err := s.repo.FindAll(ctx)
+func (s *Service) GetAll(
+	ctx context.Context,
+	req *pagination.Request,
+) (*pagination.Result[dto.Recipe], error) {
+	recipes, total, err := s.repo.FindAll(ctx, req)
 	if err != nil {
 		return nil, s.mapError(err, "GetAll")
 	}
@@ -135,15 +139,20 @@ func (s *Service) GetAll(ctx context.Context) ([]dto.Recipe, error) {
 		dtos[i] = *mapper.ToRecipeDTO(&recipe)
 	}
 
-	return dtos, nil
+	result := pagination.NewResult(dtos, req, total)
+	return &result, nil
 }
 
-func (s *Service) Search(ctx context.Context, query string) ([]dto.Recipe, error) {
+func (s *Service) Search(
+	ctx context.Context,
+	query string,
+	req *pagination.Request,
+) (*pagination.Result[dto.Recipe], error) {
 	if query == "" {
-		return s.GetAll(ctx)
+		return s.GetAll(ctx, req)
 	}
 
-	recipes, err := s.repo.Search(ctx, query)
+	recipes, total, err := s.repo.Search(ctx, query, req)
 	if err != nil {
 		return nil, s.mapError(err, "Search")
 	}
@@ -152,7 +161,9 @@ func (s *Service) Search(ctx context.Context, query string) ([]dto.Recipe, error
 	for i, recipe := range recipes {
 		dtos[i] = *mapper.ToRecipeDTO(&recipe)
 	}
-	return dtos, nil
+
+	result := pagination.NewResult(dtos, req, total)
+	return &result, nil
 }
 
 func (s *Service) Update(
