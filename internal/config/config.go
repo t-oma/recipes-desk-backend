@@ -1,86 +1,65 @@
 package config
 
 import (
-	"log/slog"
 	"time"
 
-	"github.com/spf13/viper"
+	"recipes-desk/pkg/config"
 )
 
-type Config struct {
-	App     App    `mapstructure:"app"`
-	Server  Server `mapstructure:"server"`
-	MongoDB MongoDB
-	JWT     JWT `mapstructure:"jwt"`
-}
+const (
+	DefaultServerTimeoutWrite = 10 * time.Second
+	DefaultServerTimeoutRead  = 10 * time.Second
+)
 
-type App struct {
-	Environment string `mapstructure:"environment"`
-}
-
-type Server struct {
-	Port string `mapstructure:"port"`
-	// Timeouts
-	WriteTimeout time.Duration `mapstructure:"write-timeout"`
-	ReadTimeout  time.Duration `mapstructure:"read-timeout"`
-}
-
-type MongoDB struct {
-	URI      string
-	Database string
-}
-
-type JWT struct {
-	Secret        string
-	AccessExpiry  time.Duration `mapstructure:"access-expiry"`
-	RefreshExpiry time.Duration `mapstructure:"refresh-expiry"`
-}
+type (
+	Config struct {
+		App     App     `yaml:"app"`
+		Server  Server  `yaml:"server"`
+		MongoDB MongoDB // loaded from .env or environment variables
+	}
+	App struct {
+		Environment string `yaml:"environment"`
+	}
+	Server struct {
+		Port     int      `yaml:"port"`
+		Timeouts Timeouts `yaml:"timeouts"`
+	}
+	Timeouts struct {
+		Write time.Duration `yaml:"write"`
+		Read  time.Duration `yaml:"read"`
+	}
+	MongoDB struct {
+		URI      string
+		Database string
+	}
+)
 
 func Load() (*Config, error) {
-	v := viper.New()
-	v.AutomaticEnv()
-
-	v.AddConfigPath(".")
-	v.SetConfigFile(".env")
-	if err := v.ReadInConfig(); err != nil {
-		slog.Warn("Warning: .env file not found, using environment variables only")
-	}
-
-	v.AddConfigPath("./configs/")
-	v.SetConfigName("config")
-	v.SetConfigType("yaml")
-	if err := v.MergeInConfig(); err != nil {
+	cfg, err := config.LoadYAML[Config]("./configs/config.yaml")
+	if err != nil {
 		return nil, err
 	}
 
-	v.SetDefault("app.environment", "development")
-	v.SetDefault("server.port", "8080")
-	v.SetDefault("server.write-timeout", "10s")
-	v.SetDefault("server.read-timeout", "10s")
-	v.SetDefault("jwt.access-expiry", "15m")
-	v.SetDefault("jwt.refresh-expiry", "168h")
-
-	var config Config
-	if err := v.Unmarshal(&config); err != nil {
+	env := config.NewEnv()
+	env.Required("MONGO_URI")
+	env.Required("MONGO_DATABASE")
+	env.WithEnvVars()
+	env.AddEnvFiles(".env")
+	if err = env.Load(); err != nil {
 		return nil, err
 	}
 
-	config.MongoDB.URI = v.GetString("MONGO_URI")
-	if config.MongoDB.URI == "" {
-		panic("MONGO_URI is required")
+	cfg.MongoDB.URI = env.Get("MONGO_URI")
+	cfg.MongoDB.Database = env.Get("MONGO_DATABASE")
+
+	if cfg.Server.Timeouts.Write <= 0 {
+		cfg.Server.Timeouts.Write = DefaultServerTimeoutWrite
+	}
+	if cfg.Server.Timeouts.Read <= 0 {
+		cfg.Server.Timeouts.Read = DefaultServerTimeoutRead
 	}
 
-	config.MongoDB.Database = v.GetString("MONGO_DATABASE")
-	if config.MongoDB.Database == "" {
-		panic("MONGO_DATABASE is required")
-	}
-
-	config.JWT.Secret = v.GetString("JWT_SECRET")
-	if config.JWT.Secret == "" {
-		panic("JWT_SECRET is required")
-	}
-
-	return &config, nil
+	return cfg, nil
 }
 
 func (c *Config) IsDevelopment() bool {
