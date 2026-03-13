@@ -25,8 +25,14 @@ func NewModule(db *mongo.Database, log *zerolog.Logger) *Module {
 
 	recipeRepo := mongorepo.NewRecipes(db)
 	idGenerator := mongorepo.ObjectIDGenerator{}
-	recipeService := application.NewService(recipeRepo, idGenerator, log)
-	recipeHandler := httphandler.NewHandler(recipeService, log, config)
+	recipeService := application.NewService(
+		recipeRepo,
+		idGenerator,
+		log,
+		config.Pagination.MaxLimit,
+		config.Pagination.DefaultLimit,
+	)
+	recipeHandler := httphandler.NewHandler(recipeService, log)
 
 	return &Module{
 		handler: recipeHandler,

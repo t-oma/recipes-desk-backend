@@ -11,6 +11,17 @@ type CreateRecipeRequest struct {
 	Tags        []string            `json:"tags"        binding:"required,min=1"`
 }
 
+type ListRecipesRequest struct {
+	Page  int `form:"page"`
+	Limit int `form:"limit"`
+}
+
+type SearchRecipesRequest struct {
+	Query string `form:"q"     binding:"required"`
+	Page  int    `form:"page"`
+	Limit int    `form:"limit"`
+}
+
 // IngredientRequest represents an ingredient in the request.
 type IngredientRequest struct {
 	Name   string  `json:"name"   binding:"required"`

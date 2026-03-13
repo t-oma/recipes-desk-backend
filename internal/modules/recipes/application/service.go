@@ -19,9 +19,11 @@ import (
 
 // Service handles business logic for recipes.
 type Service struct {
-	repo  ports.RecipeRepository
-	idGen ports.IDGenerator
-	log   *zerolog.Logger
+	repo         ports.RecipeRepository
+	idGen        ports.IDGenerator
+	log          *zerolog.Logger
+	maxLimit     int
+	defaultLimit int
 }
 
 var _ in.RecipeService = (*Service)(nil)
@@ -30,11 +32,15 @@ func NewService(
 	repo ports.RecipeRepository,
 	idGen ports.IDGenerator,
 	log *zerolog.Logger,
+	maxLimit int,
+	defaultLimit int,
 ) *Service {
 	return &Service{
-		repo:  repo,
-		idGen: idGen,
-		log:   log,
+		repo:         repo,
+		idGen:        idGen,
+		log:          log,
+		maxLimit:     maxLimit,
+		defaultLimit: defaultLimit,
 	}
 }
 
@@ -127,9 +133,19 @@ func (s *Service) GetByID(ctx context.Context, id string) (*dto.Recipe, error) {
 
 func (s *Service) GetAll(
 	ctx context.Context,
-	req *pagination.Request,
+	pagn *pagination.Request,
 ) (*pagination.Result[dto.Recipe], error) {
-	recipes, total, err := s.repo.FindAll(ctx, req)
+	if pagn.Page < 1 {
+		pagn.Page = 1
+	}
+	if pagn.Limit < 1 {
+		pagn.Limit = s.defaultLimit
+	}
+	if pagn.Limit > s.maxLimit {
+		pagn.Limit = s.maxLimit
+	}
+
+	recipes, total, err := s.repo.FindAll(ctx, pagn.Skip(), int64(pagn.Limit))
 	if err != nil {
 		return nil, s.mapError(err, "GetAll")
 	}
@@ -139,7 +155,7 @@ func (s *Service) GetAll(
 		dtos[i] = *mapper.ToRecipeDTO(&recipe)
 	}
 
-	result := pagination.NewResult(dtos, req, total)
+	result := pagination.NewResult(dtos, pagn, total)
 	return &result, nil
 }
 
@@ -152,7 +168,17 @@ func (s *Service) Search(
 		return s.GetAll(ctx, req)
 	}
 
-	recipes, total, err := s.repo.Search(ctx, query, req)
+	if req.Page < 1 {
+		req.Page = 1
+	}
+	if req.Limit < 1 {
+		req.Limit = 1
+	}
+	if req.Limit > s.maxLimit {
+		req.Limit = s.maxLimit
+	}
+
+	recipes, total, err := s.repo.Search(ctx, query, req.Skip(), int64(req.Limit))
 	if err != nil {
 		return nil, s.mapError(err, "Search")
 	}

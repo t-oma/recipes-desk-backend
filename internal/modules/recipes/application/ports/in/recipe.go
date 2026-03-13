@@ -16,13 +16,13 @@ type RecipeService interface {
 	GetByID(ctx context.Context, id string) (*dto.Recipe, error)
 
 	// GetAll returns all recipes with pagination.
-	GetAll(ctx context.Context, req *pagination.Request) (*pagination.Result[dto.Recipe], error)
+	GetAll(ctx context.Context, pagnreq *pagination.Request) (*pagination.Result[dto.Recipe], error)
 
 	// Search searches recipes by title (case-insensitive) with pagination.
 	Search(
 		ctx context.Context,
 		query string,
-		req *pagination.Request,
+		pagnreq *pagination.Request,
 	) (*pagination.Result[dto.Recipe], error)
 
 	// Update updates a recipe if the user has permission.
