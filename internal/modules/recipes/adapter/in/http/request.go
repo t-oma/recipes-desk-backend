@@ -17,7 +17,7 @@ type ListRecipesRequest struct {
 }
 
 type SearchRecipesRequest struct {
-	Query string `form:"q"     binding:"required"`
+	Query string `form:"q"`
 	Page  int    `form:"page"`
 	Limit int    `form:"limit"`
 }

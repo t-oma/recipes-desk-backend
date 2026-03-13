@@ -133,7 +133,7 @@ func (s *Service) GetByID(ctx context.Context, id string) (*dto.Recipe, error) {
 
 func (s *Service) GetAll(
 	ctx context.Context,
-	pagn *pagination.Request,
+	pagn pagination.Request,
 ) (*pagination.Result[dto.Recipe], error) {
 	if pagn.Page < 1 {
 		pagn.Page = 1
@@ -155,14 +155,14 @@ func (s *Service) GetAll(
 		dtos[i] = *mapper.ToRecipeDTO(&recipe)
 	}
 
-	result := pagination.NewResult(dtos, pagn, total)
+	result := pagination.NewResult(dtos, &pagn, total)
 	return &result, nil
 }
 
 func (s *Service) Search(
 	ctx context.Context,
 	query string,
-	req *pagination.Request,
+	req pagination.Request,
 ) (*pagination.Result[dto.Recipe], error) {
 	if query == "" {
 		return s.GetAll(ctx, req)
@@ -188,7 +188,7 @@ func (s *Service) Search(
 		dtos[i] = *mapper.ToRecipeDTO(&recipe)
 	}
 
-	result := pagination.NewResult(dtos, req, total)
+	result := pagination.NewResult(dtos, &req, total)
 	return &result, nil
 }
 

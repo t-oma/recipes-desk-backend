@@ -55,7 +55,7 @@ func (h *Handler) List(c *gin.Context) {
 		return
 	}
 
-	result, err := h.service.GetAll(c.Request.Context(), &pagination.Request{
+	result, err := h.service.GetAll(c.Request.Context(), pagination.Request{
 		Page:  req.Page,
 		Limit: req.Limit,
 	})
@@ -74,7 +74,7 @@ func (h *Handler) Search(c *gin.Context) {
 		return
 	}
 
-	result, err := h.service.Search(c.Request.Context(), req.Query, &pagination.Request{
+	result, err := h.service.Search(c.Request.Context(), req.Query, pagination.Request{
 		Page:  req.Page,
 		Limit: req.Limit,
 	})
