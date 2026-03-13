@@ -236,7 +236,7 @@ TEST_FILE_KEY2=file-value2`
 		assert.ErrorIs(t, err, config.ErrValidation)
 	})
 
-	t.Run("multiple env files - first wins", func(t *testing.T) {
+	t.Run("multiple env files - second wins", func(t *testing.T) {
 		envContent1 := `TEST_MULTI=first`
 		envContent2 := `TEST_MULTI=second`
 
@@ -249,7 +249,7 @@ TEST_FILE_KEY2=file-value2`
 
 		err := env.Load()
 		require.NoError(t, err)
-		assert.Equal(t, "first", env.Get("TEST_MULTI"))
+		assert.Equal(t, "second", env.Get("TEST_MULTI"))
 	})
 }
 
@@ -276,7 +276,6 @@ func TestEnv_EnvVarsPriority(t *testing.T) {
 func TestEnv_MixedSources(t *testing.T) {
 	t.Run("mix of env vars and files", func(t *testing.T) {
 		t.Setenv("TEST_MIX_ENV", "env-value")
-		defer os.Unsetenv("TEST_MIX_ENV")
 
 		envContent := `TEST_MIX_FILE=file-value`
 		envFile := createTempEnvFile(t, envContent)

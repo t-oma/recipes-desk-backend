@@ -13,7 +13,14 @@ import (
 
 var ErrValidation = errors.New("validation error")
 
+const (
+	SourceVar     envKeySource = "var"
+	SourceFile    envKeySource = "file"
+	SourceUnknown envKeySource = "unknown"
+)
+
 type (
+	envKeySource string
 	// EnvKeyRule is a function that validates an env key value.
 	EnvKeyRule func(string) bool
 	// EnvKey represents an environment variable.
@@ -21,6 +28,7 @@ type (
 		value    string
 		optional bool
 		isSet    bool
+		source   envKeySource
 		rules    []EnvKeyRule
 	}
 )
@@ -31,6 +39,7 @@ func NewEnvKey(optional bool) *EnvKey {
 		value:    "",
 		optional: optional,
 		isSet:    false,
+		source:   SourceUnknown,
 		rules:    []EnvKeyRule{},
 	}
 }
@@ -41,8 +50,15 @@ func (e *EnvKey) WithRules(rules ...EnvKeyRule) *EnvKey {
 	return e
 }
 
-// IsValid checks if the EnvKey is valid.
-func (e EnvKey) IsValid() bool {
+// Set sets the value of the EnvKey.
+func (e *EnvKey) Set(value string, source envKeySource) {
+	e.value = value
+	e.isSet = true
+	e.source = source
+}
+
+// isValid checks if the EnvKey is valid.
+func (e EnvKey) isValid() bool {
 	if e.optional && e.value == "" {
 		return true
 	}
@@ -55,32 +71,6 @@ func (e EnvKey) IsValid() bool {
 		}
 	}
 	return true
-}
-
-// Set sets the value of the EnvKey.
-func (e *EnvKey) Set(value string) {
-	e.value = value
-	e.isSet = true
-}
-
-// IsSet checks if the EnvKey has a value.
-func (e *EnvKey) IsSet() bool {
-	return e.isSet
-}
-
-// Value returns the value of the EnvKey.
-func (e EnvKey) Value() string {
-	return e.value
-}
-
-// Required returns true if the EnvKey is required.
-func (e EnvKey) Required() bool {
-	return !e.optional
-}
-
-// Rules returns the validation rules of the EnvKey.
-func (e EnvKey) Rules() []EnvKeyRule {
-	return e.rules
 }
 
 // Env represents a configuration environment.
@@ -153,7 +143,7 @@ func (e *Env) ReadFile(filename string) (map[string]string, error) {
 // Get returns the value of an environment variable.
 func (e *Env) Get(key string) string {
 	if envKey, ok := e.env[key]; ok {
-		return envKey.Value()
+		return envKey.value
 	}
 	return ""
 }
@@ -163,17 +153,17 @@ func (e *Env) GetOrDefault(key string, defaultValue string) string {
 	envKey, ok := e.env[key]
 	if !ok {
 		return defaultValue
-	} else if !envKey.IsSet() {
+	} else if !envKey.isSet {
 		return defaultValue
 	}
-	return envKey.Value()
+	return envKey.value
 }
 
 // Debug returns a map of environment variables and their masked values.
 func (e *Env) Debug() map[string]string {
 	m := make(map[string]string)
 	for key, envKey := range e.env {
-		m[key] = strings.Repeat("*", utf8.RuneCountInString(envKey.Value()))
+		m[key] = strings.Repeat("*", utf8.RuneCountInString(envKey.value))
 	}
 	return m
 }
@@ -181,7 +171,7 @@ func (e *Env) Debug() map[string]string {
 // validate checks if all required environment keys are set and if their values are valid according to the rules.
 func (e *Env) validate() error {
 	for key, envKey := range e.env {
-		if !envKey.IsValid() {
+		if !envKey.isValid() {
 			return fmt.Errorf("%w: env key %s is invalid", ErrValidation, key)
 		}
 	}
@@ -198,12 +188,19 @@ func (e *Env) loadEnvFiles() error {
 		}
 
 		for key, value := range env {
-			if envKey, ok := e.env[key]; ok && envKey.IsSet() {
-				// Prevent overwriting existing values got from env vars
+			envKey, ok := e.env[key]
+			if !ok {
+				e.env[key] = NewEnvKey(false)
+				e.env[key].Set(value, SourceFile)
 				continue
 			}
-			e.env[key] = NewEnvKey(false)
-			e.env[key].Set(value)
+			if !envKey.isSet {
+				e.env[key].Set(value, SourceFile)
+				continue
+			}
+			if envKey.isSet && envKey.source == SourceFile {
+				e.env[key].Set(value, SourceFile)
+			}
 		}
 	}
 	return nil
@@ -218,7 +215,7 @@ func (e *Env) loadEnvVars() {
 
 	for _, key := range keys {
 		if value, ok := os.LookupEnv(key); ok {
-			e.env[key].Set(value)
+			e.env[key].Set(value, SourceVar)
 		}
 	}
 }
