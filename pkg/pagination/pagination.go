@@ -27,24 +27,6 @@ type (
 	}
 )
 
-// NewRequest creates a new pagination request with validation.
-func NewRequest(page, limit, defaultLimit, maxLimit int) (*Request, error) {
-	if page <= 0 {
-		page = 1
-	}
-	if limit <= 0 {
-		limit = defaultLimit
-	}
-	if limit > maxLimit {
-		limit = maxLimit
-	}
-
-	return &Request{
-		Page:  page,
-		Limit: limit,
-	}, nil
-}
-
 // Skip calculates skip value.
 func (r *Request) Skip() int64 {
 	return int64((r.Page - 1) * r.Limit)
