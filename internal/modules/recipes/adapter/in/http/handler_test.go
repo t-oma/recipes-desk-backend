@@ -50,17 +50,6 @@ func (m *mockService) GetByID(ctx context.Context, id string) (*dto.Recipe, erro
 	return args.Get(0).(*dto.Recipe), args.Error(1)
 }
 
-func (m *mockService) GetAll(
-	ctx context.Context,
-	pagnreq pagination.Request,
-) (*pagination.Result[dto.Recipe], error) {
-	args := m.Called(ctx, pagnreq)
-	if args.Get(0) == nil {
-		return nil, args.Error(1)
-	}
-	return args.Get(0).(*pagination.Result[dto.Recipe]), args.Error(1)
-}
-
 func (m *mockService) Search(
 	ctx context.Context,
 	query string,
@@ -121,81 +110,6 @@ func pagResult(
 	return &pagination.Result[dto.Recipe]{
 		Items:      items,
 		Pagination: *meta,
-	}
-}
-
-func TestHandler_List(t *testing.T) {
-	tests := []struct {
-		name           string
-		mockSetup      func(*mockService)
-		wantStatusCode int
-		wantRecipes    int
-	}{
-		{
-			name: "success with recipes",
-			mockSetup: func(m *mockService) {
-				m.On("GetAll", mock.Anything, mock.AnythingOfType("pagination.Request")).
-					Return(
-						pagResult(t, []dto.Recipe{
-							{ //nolint:exhaustruct // test struct
-								ID:    "id123",
-								Title: "Recipe 1",
-							},
-							{ //nolint:exhaustruct // test struct
-								ID:    "id456",
-								Title: "Recipe 2",
-							},
-						}, nil),
-						nil)
-			},
-			wantStatusCode: http.StatusOK,
-			wantRecipes:    2,
-		},
-		{
-			name: "success empty",
-			mockSetup: func(m *mockService) {
-				m.On("GetAll", mock.Anything, mock.AnythingOfType("pagination.Request")).
-					Return(
-						&pagination.Result[dto.Recipe]{}, //nolint:exhaustruct // test struct
-						nil,
-					)
-			},
-			wantStatusCode: http.StatusOK,
-			wantRecipes:    0,
-		},
-		{
-			name: "service error",
-			mockSetup: func(m *mockService) {
-				m.On("GetAll", mock.Anything, mock.AnythingOfType("pagination.Request")).
-					Return(nil, application.ErrInternal)
-			},
-			wantStatusCode: http.StatusInternalServerError,
-			wantRecipes:    0,
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			router, mockSvc, h := setupTest()
-			tt.mockSetup(mockSvc)
-
-			router.GET("/recipes", h.List)
-
-			w := httptest.NewRecorder()
-			req, _ := http.NewRequest(http.MethodGet, "/recipes", nil)
-			router.ServeHTTP(w, req)
-
-			assert.Equal(t, tt.wantStatusCode, w.Code)
-
-			if tt.wantStatusCode == http.StatusOK {
-				var response *pagination.Result[dto.Recipe]
-				err := json.Unmarshal(w.Body.Bytes(), &response)
-				require.NoError(t, err)
-				assert.Len(t, response.Items, tt.wantRecipes)
-			}
-
-			mockSvc.AssertExpectations(t)
-		})
 	}
 }
 
@@ -300,12 +214,17 @@ func TestHandler_Search(t *testing.T) {
 			mockSetup: func(m *mockService) {
 				m.On("Search", mock.Anything, "", mock.AnythingOfType("pagination.Request")).
 					Return(
-						&pagination.Result[dto.Recipe]{}, //nolint:exhaustruct // test struct
+						pagResult(t, []dto.Recipe{
+							{Title: "Pasta Carbonara"}, //nolint:exhaustruct // test struct
+							{Title: "Beef Stroganoff"}, //nolint:exhaustruct // test struct
+							{Title: "Pasta Bolognese"}, //nolint:exhaustruct // test struct
+							{Title: "Chicken Curry"},   //nolint:exhaustruct // test struct
+						}, nil),
 						nil,
 					)
 			},
 			wantStatusCode: http.StatusOK,
-			wantRecipes:    0,
+			wantRecipes:    4,
 		},
 		{
 			name:  "service error",
@@ -324,10 +243,10 @@ func TestHandler_Search(t *testing.T) {
 			router, mockSvc, h := setupTest()
 			tt.mockSetup(mockSvc)
 
-			router.GET("/recipes/search", h.Search)
+			router.GET("/recipes", h.Search)
 
 			w := httptest.NewRecorder()
-			req, _ := http.NewRequest(http.MethodGet, "/recipes/search?q="+tt.query, nil)
+			req, _ := http.NewRequest(http.MethodGet, "/recipes?q="+tt.query, nil)
 			req.Header.Set("Content-Type", "application/json")
 			router.ServeHTTP(w, req)
 

@@ -42,8 +42,7 @@ func NewModule(db *mongo.Database, log *zerolog.Logger) *Module {
 // RegisterRoutes registers all recipe routes.
 func (m *Module) RegisterRoutes(public, protected *gin.RouterGroup) {
 	// Public routes
-	public.GET("/recipes", m.handler.List)
-	public.GET("/recipes/search", m.handler.Search)
+	public.GET("/recipes", m.handler.Search)
 	public.GET("/recipes/:id", m.handler.GetByID)
 
 	// Protected routes (will require auth middleware later)
