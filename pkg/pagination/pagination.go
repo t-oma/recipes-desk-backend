@@ -40,7 +40,7 @@ func (m Metadata) HasPrev() bool {
 
 // Skip calculates skip value.
 func (r Request) Skip() int64 {
-	return int64((r.Page - 1) * r.Limit)
+	return Skip(r.Page, r.Limit)
 }
 
 // NewResult creates a paginated result with metadata.
@@ -62,4 +62,8 @@ func NewResult[T any](items []T, req *Request, total int64) Result[T] {
 			TotalPages: totalPages,
 		},
 	}
+}
+
+func Skip(page, limit int) int64 {
+	return int64((page - 1) * limit)
 }
