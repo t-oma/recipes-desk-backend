@@ -11,11 +11,6 @@ type CreateRecipeRequest struct {
 	Tags        []string            `json:"tags"        binding:"required,min=1"`
 }
 
-type ListRecipesRequest struct {
-	Page  int `form:"page,default=1"`
-	Limit int `form:"limit,default=20"`
-}
-
 type SearchRecipesRequest struct {
 	Query string `form:"q"`
 	Page  int    `form:"page,default=1"`

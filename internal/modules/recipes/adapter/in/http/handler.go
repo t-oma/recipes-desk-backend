@@ -48,25 +48,6 @@ func handleError(c *gin.Context, err error) {
 	}
 }
 
-func (h *Handler) List(c *gin.Context) {
-	var req ListRecipesRequest
-	if err := c.ShouldBindQuery(&req); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
-		return
-	}
-
-	result, err := h.service.GetAll(c.Request.Context(), pagination.Request{
-		Page:  req.Page,
-		Limit: req.Limit,
-	})
-	if err != nil {
-		handleError(c, err)
-		return
-	}
-
-	c.JSON(http.StatusOK, toPaginatedResponse(result))
-}
-
 func (h *Handler) Search(c *gin.Context) {
 	var req SearchRecipesRequest
 	if err := c.ShouldBindQuery(&req); err != nil {
