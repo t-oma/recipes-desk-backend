@@ -38,8 +38,8 @@ type PaginationMeta struct {
 }
 
 type PaginatedResponse[T any] struct {
-	Items      []RecipeResponse `json:"items"`
-	Pagination PaginationMeta   `json:"pagination"`
+	Items      []T            `json:"items"`
+	Pagination PaginationMeta `json:"pagination"`
 }
 
 func toPaginatedResponse(result *pagination.Result[dto.Recipe]) PaginatedResponse[RecipeResponse] {
