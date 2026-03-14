@@ -17,6 +17,8 @@ type (
 		Limit      int
 		Total      int64
 		TotalPages int
+		HasNext    bool
+		HasPrev    bool
 	}
 )
 
@@ -42,6 +44,8 @@ func NewResult[T any](items []T, req *Request, total int64) Result[T] {
 			Limit:      req.Limit,
 			Total:      total,
 			TotalPages: totalPages,
+			HasNext:    totalPages > req.Page,
+			HasPrev:    req.Page > 1,
 		},
 	}
 }

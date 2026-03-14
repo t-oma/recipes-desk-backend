@@ -35,6 +35,8 @@ type PaginationMeta struct {
 	Limit      int   `json:"limit"`
 	Total      int64 `json:"total"`
 	TotalPages int   `json:"totalPages"`
+	HasNext    bool  `json:"hasNext"`
+	HasPrev    bool  `json:"hasPrev"`
 }
 
 type PaginatedResponse[T any] struct {
