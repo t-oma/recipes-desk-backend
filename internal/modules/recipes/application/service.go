@@ -135,16 +135,7 @@ func (s *Service) GetAll(
 	ctx context.Context,
 	pagn pagination.Request,
 ) (*pagination.Result[dto.Recipe], error) {
-	if pagn.Page < 1 {
-		pagn.Page = 1
-	}
-	if pagn.Limit < 1 {
-		pagn.Limit = s.defaultLimit
-	}
-	if pagn.Limit > s.maxLimit {
-		pagn.Limit = s.maxLimit
-	}
-
+	s.normalizePagination(&pagn)
 	recipes, total, err := s.repo.FindAll(ctx, pagn.Skip(), int64(pagn.Limit))
 	if err != nil {
 		return nil, s.mapError(err, "GetAll")
@@ -162,23 +153,14 @@ func (s *Service) GetAll(
 func (s *Service) Search(
 	ctx context.Context,
 	query string,
-	req pagination.Request,
+	pagn pagination.Request,
 ) (*pagination.Result[dto.Recipe], error) {
 	if query == "" {
-		return s.GetAll(ctx, req)
+		return s.GetAll(ctx, pagn)
 	}
 
-	if req.Page < 1 {
-		req.Page = 1
-	}
-	if req.Limit < 1 {
-		req.Limit = 1
-	}
-	if req.Limit > s.maxLimit {
-		req.Limit = s.maxLimit
-	}
-
-	recipes, total, err := s.repo.Search(ctx, query, req.Skip(), int64(req.Limit))
+	s.normalizePagination(&pagn)
+	recipes, total, err := s.repo.Search(ctx, query, pagn.Skip(), int64(pagn.Limit))
 	if err != nil {
 		return nil, s.mapError(err, "Search")
 	}
@@ -188,7 +170,7 @@ func (s *Service) Search(
 		dtos[i] = *mapper.ToRecipeDTO(&recipe)
 	}
 
-	result := pagination.NewResult(dtos, &req, total)
+	result := pagination.NewResult(dtos, &pagn, total)
 	return &result, nil
 }
 
@@ -289,6 +271,19 @@ func (s *Service) Delete(ctx context.Context, userID, id string) error {
 	}
 
 	return nil
+}
+
+// normalizePagination normalizes pagination request parameters using the service's default limit and maximum limit.
+func (s *Service) normalizePagination(req *pagination.Request) {
+	if req.Page < 1 {
+		req.Page = 1
+	}
+	if req.Limit < 1 {
+		req.Limit = s.defaultLimit
+	}
+	if req.Limit > s.maxLimit {
+		req.Limit = s.maxLimit
+	}
 }
 
 // mapError maps domain and infrastructure errors to application-level errors.
