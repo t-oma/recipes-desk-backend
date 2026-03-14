@@ -131,36 +131,23 @@ func (s *Service) GetByID(ctx context.Context, id string) (*dto.Recipe, error) {
 	return mapper.ToRecipeDTO(recipe), nil
 }
 
-func (s *Service) GetAll(
-	ctx context.Context,
-	pagn pagination.Request,
-) (*pagination.Result[dto.Recipe], error) {
-	s.normalizePagination(&pagn)
-	recipes, total, err := s.repo.FindAll(ctx, pagn.Skip(), int64(pagn.Limit))
-	if err != nil {
-		return nil, s.mapError(err, "GetAll")
-	}
-
-	dtos := make([]dto.Recipe, len(recipes))
-	for i, recipe := range recipes {
-		dtos[i] = *mapper.ToRecipeDTO(&recipe)
-	}
-
-	result := pagination.NewResult(dtos, &pagn, total)
-	return &result, nil
-}
-
 func (s *Service) Search(
 	ctx context.Context,
 	query string,
 	pagn pagination.Request,
 ) (*pagination.Result[dto.Recipe], error) {
-	if query == "" {
-		return s.GetAll(ctx, pagn)
-	}
-
 	s.normalizePagination(&pagn)
-	recipes, total, err := s.repo.Search(ctx, query, pagn.Skip(), int64(pagn.Limit))
+
+	var (
+		recipes []entity.Recipe
+		total   int64
+		err     error
+	)
+	if query == "" {
+		recipes, total, err = s.repo.FindAll(ctx, pagn.Skip(), int64(pagn.Limit))
+	} else {
+		recipes, total, err = s.repo.Search(ctx, query, pagn.Skip(), int64(pagn.Limit))
+	}
 	if err != nil {
 		return nil, s.mapError(err, "Search")
 	}

@@ -15,10 +15,8 @@ type RecipeService interface {
 	// GetByID returns a recipe by its ID.
 	GetByID(ctx context.Context, id string) (*dto.Recipe, error)
 
-	// GetAll returns all recipes with pagination.
-	GetAll(ctx context.Context, pagnreq pagination.Request) (*pagination.Result[dto.Recipe], error)
-
 	// Search searches recipes by title (case-insensitive) with pagination.
+	// Returns all recipes if query is empty.
 	Search(
 		ctx context.Context,
 		query string,
