@@ -51,7 +51,14 @@ func toPaginatedResponse(result *pagination.Result[dto.Recipe]) PaginatedRespons
 	}
 
 	return PaginatedResponse[RecipeResponse]{
-		Items:      items,
-		Pagination: PaginationMeta(result.Pagination),
+		Items: items,
+		Pagination: PaginationMeta{
+			Page:       result.Pagination.Page,
+			Limit:      result.Pagination.Limit,
+			Total:      result.Pagination.Total,
+			TotalPages: result.Pagination.TotalPages,
+			HasNext:    result.HasNext(),
+			HasPrev:    result.HasPrev(),
+		},
 	}
 }

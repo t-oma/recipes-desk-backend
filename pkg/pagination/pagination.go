@@ -17,13 +17,29 @@ type (
 		Limit      int
 		Total      int64
 		TotalPages int
-		HasNext    bool
-		HasPrev    bool
 	}
 )
 
+func (r Result[T]) HasNext() bool {
+	return r.Pagination.HasNext()
+}
+
+func (r Result[T]) HasPrev() bool {
+	return r.Pagination.HasPrev()
+}
+
+// HasNext returns true if there is a next page.
+func (m Metadata) HasNext() bool {
+	return m.TotalPages > m.Page
+}
+
+// HasPrev returns true if there is a previous page.
+func (m Metadata) HasPrev() bool {
+	return m.Page > 1
+}
+
 // Skip calculates skip value.
-func (r *Request) Skip() int64 {
+func (r Request) Skip() int64 {
 	return int64((r.Page - 1) * r.Limit)
 }
 
@@ -44,8 +60,6 @@ func NewResult[T any](items []T, req *Request, total int64) Result[T] {
 			Limit:      req.Limit,
 			Total:      total,
 			TotalPages: totalPages,
-			HasNext:    totalPages > req.Page,
-			HasPrev:    req.Page > 1,
 		},
 	}
 }
