@@ -12,14 +12,14 @@ type CreateRecipeRequest struct {
 }
 
 type ListRecipesRequest struct {
-	Page  int `form:"page"`
-	Limit int `form:"limit"`
+	Page  int `form:"page,default=1"`
+	Limit int `form:"limit,default=20"`
 }
 
 type SearchRecipesRequest struct {
 	Query string `form:"q"`
-	Page  int    `form:"page"`
-	Limit int    `form:"limit"`
+	Page  int    `form:"page,default=1"`
+	Limit int    `form:"limit,default=20"`
 }
 
 // IngredientRequest represents an ingredient in the request.
