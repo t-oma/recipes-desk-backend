@@ -93,8 +93,8 @@ func TestIntegration_RecipeRepository_FindAll(t *testing.T) {
 	repo := mongorepo.NewRecipes(db)
 	ctx := context.Background()
 
-	// Create multiple recipes
-	for i := 0; i < 3; i++ {
+	const totalRecipes = 3
+	for i := 0; i < totalRecipes; i++ {
 		entity := fixtures.NewRecipe(
 			t,
 			primitive.NewObjectID().Hex(),
@@ -105,11 +105,34 @@ func TestIntegration_RecipeRepository_FindAll(t *testing.T) {
 		require.NoError(t, err)
 	}
 
-	t.Run("find all recipes", func(t *testing.T) {
-		recipes, err := repo.FindAll(ctx)
-		require.NoError(t, err)
-		assert.Len(t, recipes, 3)
-	})
+	tests := []struct {
+		name       string
+		skip       int64
+		limit      int64
+		wantRecipe int
+	}{
+		{
+			name:       "no skip",
+			skip:       0,
+			limit:      totalRecipes,
+			wantRecipe: totalRecipes,
+		},
+		{
+			name:       "skip 2 recipes",
+			skip:       2,
+			limit:      totalRecipes,
+			wantRecipe: totalRecipes - 2,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			recipes, total, err := repo.FindAll(ctx, tt.skip, tt.limit)
+			require.NoError(t, err)
+			assert.Len(t, recipes, tt.wantRecipe)
+			assert.Equal(t, int64(totalRecipes), total)
+		})
+	}
 }
 
 func TestIntegration_RecipeRepository_Search(t *testing.T) {
@@ -156,7 +179,7 @@ func TestIntegration_RecipeRepository_Search(t *testing.T) {
 	}
 
 	t.Run("search by title - case insensitive", func(t *testing.T) {
-		results, err := repo.Search(ctx, "pasta")
+		results, _, err := repo.Search(ctx, "pasta", 0, 10)
 		require.NoError(t, err)
 		for _, result := range results {
 			require.NotEmpty(t, result.ID().String())
@@ -165,7 +188,7 @@ func TestIntegration_RecipeRepository_Search(t *testing.T) {
 	})
 
 	t.Run("search with no matches", func(t *testing.T) {
-		results, err := repo.Search(ctx, "sushi")
+		results, _, err := repo.Search(ctx, "sushi", 0, 10)
 		require.NoError(t, err)
 		assert.Len(t, results, 0)
 	})

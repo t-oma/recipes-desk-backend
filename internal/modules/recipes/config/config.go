@@ -4,7 +4,19 @@ import (
 	"recipes-desk/pkg/config"
 )
 
-type Config struct{}
+const (
+	DefaultMaxLimit = 100
+	DefaultLimit    = 20
+)
+
+type Config struct {
+	Pagination Pagination `yaml:"pagination"`
+}
+
+type Pagination struct {
+	MaxLimit     int `yaml:"maxLimit"`
+	DefaultLimit int `yaml:"defaultLimit"`
+}
 
 func Load() (*Config, error) {
 	env := config.NewEnv()
@@ -21,5 +33,16 @@ func Load() (*Config, error) {
 		return nil, err
 	}
 
+	cfg.setDefaults()
+
 	return cfg, nil
+}
+
+func (c *Config) setDefaults() {
+	if c.Pagination.MaxLimit <= 0 {
+		c.Pagination.MaxLimit = DefaultMaxLimit
+	}
+	if c.Pagination.DefaultLimit <= 0 {
+		c.Pagination.DefaultLimit = DefaultLimit
+	}
 }

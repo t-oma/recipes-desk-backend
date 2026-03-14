@@ -10,6 +10,7 @@ import (
 	"recipes-desk/internal/modules/recipes/application"
 	"recipes-desk/internal/modules/recipes/application/dto"
 	"recipes-desk/internal/modules/recipes/application/ports/in"
+	"recipes-desk/pkg/pagination"
 )
 
 // Handler handles HTTP requests for recipes.
@@ -19,7 +20,10 @@ type Handler struct {
 }
 
 // NewHandler creates a new recipe handler.
-func NewHandler(service in.RecipeService, log *zerolog.Logger) *Handler {
+func NewHandler(
+	service in.RecipeService,
+	log *zerolog.Logger,
+) *Handler {
 	return &Handler{
 		service: service,
 		log:     log,
@@ -30,50 +34,56 @@ func NewHandler(service in.RecipeService, log *zerolog.Logger) *Handler {
 func handleError(c *gin.Context, err error) {
 	switch {
 	case errors.Is(err, application.ErrNotFound), errors.Is(err, application.ErrRecipeNotFound):
-		c.JSON(http.StatusNotFound, gin.H{"error": "recipe not found"})
+		c.JSON(http.StatusNotFound, gin.H{"error": err.Error()})
 	case errors.Is(err, application.ErrValidation):
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 	case errors.Is(err, application.ErrForbidden):
 		c.JSON(http.StatusForbidden, gin.H{"error": err.Error()})
 	case errors.Is(err, application.ErrConflict):
-		c.JSON(http.StatusConflict, gin.H{"error": "resource conflict"})
+		c.JSON(http.StatusConflict, gin.H{"error": err.Error()})
 	case errors.Is(err, application.ErrServiceUnavailable):
-		c.JSON(http.StatusServiceUnavailable, gin.H{"error": "service temporarily unavailable"})
+		c.JSON(http.StatusServiceUnavailable, gin.H{"error": err.Error()})
 	default:
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "internal server error"})
+		c.JSON(http.StatusInternalServerError, gin.H{"error": application.ErrInternal.Error()})
 	}
 }
 
 func (h *Handler) List(c *gin.Context) {
-	result, err := h.service.GetAll(c.Request.Context())
+	var req ListRecipesRequest
+	if err := c.ShouldBindQuery(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	result, err := h.service.GetAll(c.Request.Context(), pagination.Request{
+		Page:  req.Page,
+		Limit: req.Limit,
+	})
 	if err != nil {
 		handleError(c, err)
 		return
 	}
 
-	response := make([]RecipeResponse, len(result))
-	for i, recipe := range result {
-		response[i] = *toRecipeResponse(&recipe)
-	}
-
-	c.JSON(http.StatusOK, response)
+	c.JSON(http.StatusOK, toPaginatedResponse(result))
 }
 
 func (h *Handler) Search(c *gin.Context) {
-	query := c.Query("q")
+	var req SearchRecipesRequest
+	if err := c.ShouldBindQuery(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
 
-	result, err := h.service.Search(c.Request.Context(), query)
+	result, err := h.service.Search(c.Request.Context(), req.Query, pagination.Request{
+		Page:  req.Page,
+		Limit: req.Limit,
+	})
 	if err != nil {
 		handleError(c, err)
 		return
 	}
 
-	response := make([]RecipeResponse, len(result))
-	for i, recipe := range result {
-		response[i] = *toRecipeResponse(&recipe)
-	}
-
-	c.JSON(http.StatusOK, response)
+	c.JSON(http.StatusOK, toPaginatedResponse(result))
 }
 
 // GetByID handles GET /recipes/:id.

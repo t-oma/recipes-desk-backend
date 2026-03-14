@@ -17,6 +17,7 @@ import (
 	"recipes-desk/internal/modules/recipes/domain/fixtures"
 	"recipes-desk/internal/modules/recipes/domain/ports"
 	"recipes-desk/internal/modules/recipes/domain/valueobject"
+	"recipes-desk/pkg/pagination"
 )
 
 const _recipeTypeString = "*entity.Recipe"
@@ -47,20 +48,27 @@ func (m *mockRepository) FindByID(ctx context.Context, id string) (*entity.Recip
 	return args.Get(0).(*entity.Recipe), args.Error(1)
 }
 
-func (m *mockRepository) FindAll(ctx context.Context) ([]entity.Recipe, error) {
-	args := m.Called(ctx)
+func (m *mockRepository) FindAll(
+	ctx context.Context,
+	skip, limit int64,
+) ([]entity.Recipe, int64, error) {
+	args := m.Called(ctx, skip, limit)
 	if args.Get(0) == nil {
-		return nil, args.Error(1)
+		return nil, args.Get(1).(int64), args.Error(2)
 	}
-	return args.Get(0).([]entity.Recipe), args.Error(1)
+	return args.Get(0).([]entity.Recipe), args.Get(1).(int64), args.Error(2)
 }
 
-func (m *mockRepository) Search(ctx context.Context, query string) ([]entity.Recipe, error) {
-	args := m.Called(ctx, query)
+func (m *mockRepository) Search(
+	ctx context.Context,
+	query string,
+	skip, limit int64,
+) ([]entity.Recipe, int64, error) {
+	args := m.Called(ctx, query, skip, limit)
 	if args.Get(0) == nil {
-		return nil, args.Error(1)
+		return nil, args.Get(1).(int64), args.Error(2)
 	}
-	return args.Get(0).([]entity.Recipe), args.Error(1)
+	return args.Get(0).([]entity.Recipe), args.Get(1).(int64), args.Error(2)
 }
 
 func (m *mockRepository) Update(
@@ -229,7 +237,7 @@ func TestService_Create(t *testing.T) {
 				tt.mockSetup(mockRepo, mockIDGen)
 			}
 
-			svc := application.NewService(mockRepo, mockIDGen, &logger)
+			svc := application.NewService(mockRepo, mockIDGen, &logger, 10, 10)
 			created, err := svc.Create(context.Background(), tt.input)
 
 			if tt.wantErr != nil {
@@ -296,7 +304,7 @@ func TestService_GetByID(t *testing.T) {
 			tt.mockSetup(mockRepo)
 
 			idGen := new(mockIDGenerator)
-			svc := application.NewService(mockRepo, idGen, &logger)
+			svc := application.NewService(mockRepo, idGen, &logger, 10, 10)
 			recipe, err := svc.GetByID(context.Background(), tt.id)
 
 			if tt.wantErr != nil {
@@ -326,37 +334,113 @@ func TestService_GetAll(t *testing.T) {
 	}
 
 	tests := []struct {
-		name      string
-		mockSetup func(*mockRepository)
-		wantErr   error
-		wantCount int
+		name         string
+		pagn         pagination.Request
+		defaultLimit int
+		maxLimit     int
+		mockSetup    func(*mockRepository)
+		wantErr      error
+		wantCount    int
+		wantPage     int
+		wantLimit    int
 	}{
 		{
-			name: "success with recipes",
+			name:         "success with recipes",
+			pagn:         pagination.Request{Page: 1, Limit: 10},
+			defaultLimit: 10,
+			maxLimit:     100,
 			mockSetup: func(m *mockRepository) {
-				m.On("FindAll", mock.Anything).
-					Return(recipes, nil)
+				m.On("FindAll", mock.Anything, int64(0), int64(10)).
+					Return(recipes, int64(recipesCount), nil)
 			},
 			wantErr:   nil,
 			wantCount: recipesCount,
+			wantPage:  1,
+			wantLimit: 10,
 		},
 		{
-			name: "success empty",
+			name:         "success empty",
+			pagn:         pagination.Request{Page: 1, Limit: 10},
+			defaultLimit: 10,
+			maxLimit:     100,
 			mockSetup: func(m *mockRepository) {
-				m.On("FindAll", mock.Anything).
-					Return([]entity.Recipe{}, nil)
+				m.On("FindAll", mock.Anything, int64(0), int64(10)).
+					Return([]entity.Recipe{}, int64(0), nil)
 			},
 			wantErr:   nil,
 			wantCount: 0,
+			wantPage:  1,
+			wantLimit: 10,
 		},
 		{
-			name: "repository error",
+			name:         "page 2 with skip",
+			pagn:         pagination.Request{Page: 2, Limit: 10},
+			defaultLimit: 10,
+			maxLimit:     100,
 			mockSetup: func(m *mockRepository) {
-				m.On("FindAll", mock.Anything).
-					Return(nil, domain.ErrDatabase)
+				m.On("FindAll", mock.Anything, int64(10), int64(10)).
+					Return(recipes, int64(recipesCount), nil)
+			},
+			wantErr:   nil,
+			wantCount: recipesCount,
+			wantPage:  2,
+			wantLimit: 10,
+		},
+		{
+			name:         "page less than 1 defaults to 1",
+			pagn:         pagination.Request{Page: 0, Limit: 10},
+			defaultLimit: 10,
+			maxLimit:     100,
+			mockSetup: func(m *mockRepository) {
+				m.On("FindAll", mock.Anything, int64(0), int64(10)).
+					Return(recipes, int64(recipesCount), nil)
+			},
+			wantErr:   nil,
+			wantCount: recipesCount,
+			wantPage:  1,
+			wantLimit: 10,
+		},
+		{
+			name:         "limit less than 1 defaults to defaultLimit",
+			pagn:         pagination.Request{Page: 1, Limit: 0},
+			defaultLimit: 20,
+			maxLimit:     100,
+			mockSetup: func(m *mockRepository) {
+				m.On("FindAll", mock.Anything, int64(0), int64(20)).
+					Return(recipes, int64(recipesCount), nil)
+			},
+			wantErr:   nil,
+			wantCount: recipesCount,
+			wantPage:  1,
+			wantLimit: 20,
+		},
+		{
+			name:         "limit greater than maxLimit caps to maxLimit",
+			pagn:         pagination.Request{Page: 1, Limit: 500},
+			defaultLimit: 20,
+			maxLimit:     100,
+			mockSetup: func(m *mockRepository) {
+				m.On("FindAll", mock.Anything, int64(0), int64(100)).
+					Return(recipes, int64(recipesCount), nil)
+			},
+			wantErr:   nil,
+			wantCount: recipesCount,
+			wantPage:  1,
+			wantLimit: 100,
+		},
+		{
+			name:         "repository error",
+			pagn:         pagination.Request{Page: 1, Limit: 10},
+			defaultLimit: 10,
+			maxLimit:     100,
+			mockSetup: func(m *mockRepository) {
+				m.On("FindAll", mock.Anything, mock.Anything, mock.Anything).
+					Return(nil, int64(0), domain.ErrDatabase)
 			},
 			wantErr:   application.ErrInternal,
 			wantCount: 0,
+			wantPage:  1,
+			wantLimit: 10,
 		},
 	}
 
@@ -366,16 +450,21 @@ func TestService_GetAll(t *testing.T) {
 			tt.mockSetup(mockRepo)
 
 			idGen := new(mockIDGenerator)
-			svc := application.NewService(mockRepo, idGen, &logger)
-			recipes, err := svc.GetAll(context.Background())
+			svc := application.NewService(mockRepo, idGen, &logger, tt.maxLimit, tt.defaultLimit)
+			result, err := svc.GetAll(
+				context.Background(),
+				tt.pagn,
+			)
 
 			if tt.wantErr != nil {
 				require.Error(t, err)
 				require.ErrorIs(t, err, tt.wantErr)
-				assert.Nil(t, recipes)
+				assert.Nil(t, result)
 			} else {
 				require.NoError(t, err)
-				assert.Len(t, recipes, tt.wantCount)
+				assert.Len(t, result.Items, tt.wantCount)
+				assert.Equal(t, tt.wantPage, result.Pagination.Page)
+				assert.Equal(t, tt.wantLimit, result.Pagination.Limit)
 			}
 
 			mockRepo.AssertExpectations(t)
@@ -396,39 +485,51 @@ func TestService_Search(t *testing.T) {
 	tests := []struct {
 		name      string
 		query     string
+		pagn      pagination.Request
 		mockSetup func(*mockRepository)
 		wantErr   error
 		wantCount int
+		wantPage  int
+		wantLimit int
 	}{
 		{
 			name:  "search with query",
 			query: "pasta",
+			pagn:  pagination.Request{Page: 1, Limit: 10},
 			mockSetup: func(m *mockRepository) {
-				m.On("Search", mock.Anything, "pasta").
-					Return(recipes[0:2], nil)
+				m.On("Search", mock.Anything, "pasta", mock.AnythingOfType("int64"), mock.AnythingOfType("int64")).
+					Return(recipes[0:2], int64(2), nil)
 			},
 			wantErr:   nil,
 			wantCount: 2,
+			wantPage:  1,
+			wantLimit: 10,
 		},
 		{
 			name:  "empty query - calls GetAll",
 			query: "",
+			pagn:  pagination.Request{Page: 1, Limit: 10},
 			mockSetup: func(m *mockRepository) {
-				m.On("FindAll", mock.Anything).
-					Return(recipes, nil)
+				m.On("FindAll", mock.Anything, mock.AnythingOfType("int64"), mock.AnythingOfType("int64")).
+					Return(recipes, int64(recipesCount), nil)
 			},
 			wantErr:   nil,
 			wantCount: recipesCount,
+			wantPage:  1,
+			wantLimit: 10,
 		},
 		{
 			name:  "search error",
 			query: "pasta",
+			pagn:  pagination.Request{Page: 1, Limit: 10},
 			mockSetup: func(m *mockRepository) {
-				m.On("Search", mock.Anything, "pasta").
-					Return(nil, domain.ErrDatabase)
+				m.On("Search", mock.Anything, "pasta", mock.AnythingOfType("int64"), mock.AnythingOfType("int64")).
+					Return(nil, int64(0), domain.ErrDatabase)
 			},
 			wantErr:   application.ErrInternal,
 			wantCount: 0,
+			wantPage:  1,
+			wantLimit: 10,
 		},
 	}
 
@@ -438,16 +539,22 @@ func TestService_Search(t *testing.T) {
 			tt.mockSetup(mockRepo)
 
 			idGen := new(mockIDGenerator)
-			svc := application.NewService(mockRepo, idGen, &logger)
-			recipes, err := svc.Search(context.Background(), tt.query)
+			svc := application.NewService(mockRepo, idGen, &logger, 10, 10)
+			result, err := svc.Search(
+				context.Background(),
+				tt.query,
+				tt.pagn,
+			)
 
 			if tt.wantErr != nil {
 				require.Error(t, err)
 				require.ErrorIs(t, err, tt.wantErr)
-				assert.Nil(t, recipes)
+				assert.Nil(t, result)
 			} else {
 				require.NoError(t, err)
-				assert.Len(t, recipes, tt.wantCount)
+				assert.Len(t, result.Items, tt.wantCount)
+				assert.Equal(t, tt.wantPage, result.Pagination.Page)
+				assert.Equal(t, tt.wantLimit, result.Pagination.Limit)
 			}
 
 			mockRepo.AssertExpectations(t)
@@ -608,7 +715,7 @@ func TestService_Update(t *testing.T) {
 			tt.mockSetup(mockRepo)
 
 			idGen := new(mockIDGenerator)
-			svc := application.NewService(mockRepo, idGen, &logger)
+			svc := application.NewService(mockRepo, idGen, &logger, 10, 10)
 			updated, err := svc.Update(context.Background(), tt.userID, tt.id, tt.input)
 
 			if tt.wantErr != nil {
@@ -692,7 +799,7 @@ func TestService_Delete(t *testing.T) {
 			tt.mockSetup(mockRepo)
 
 			idGen := new(mockIDGenerator)
-			svc := application.NewService(mockRepo, idGen, &logger)
+			svc := application.NewService(mockRepo, idGen, &logger, 10, 10)
 			err := svc.Delete(context.Background(), tt.userID, tt.id)
 
 			if tt.wantErr != nil {

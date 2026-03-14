@@ -13,14 +13,17 @@ import (
 	"recipes-desk/internal/modules/recipes/domain/entity"
 	"recipes-desk/internal/modules/recipes/domain/ports"
 	"recipes-desk/internal/modules/recipes/domain/valueobject"
+	"recipes-desk/pkg/pagination"
 	"recipes-desk/pkg/sliceutils"
 )
 
 // Service handles business logic for recipes.
 type Service struct {
-	repo  ports.RecipeRepository
-	idGen ports.IDGenerator
-	log   *zerolog.Logger
+	repo         ports.RecipeRepository
+	idGen        ports.IDGenerator
+	log          *zerolog.Logger
+	maxLimit     int
+	defaultLimit int
 }
 
 var _ in.RecipeService = (*Service)(nil)
@@ -29,11 +32,15 @@ func NewService(
 	repo ports.RecipeRepository,
 	idGen ports.IDGenerator,
 	log *zerolog.Logger,
+	maxLimit int,
+	defaultLimit int,
 ) *Service {
 	return &Service{
-		repo:  repo,
-		idGen: idGen,
-		log:   log,
+		repo:         repo,
+		idGen:        idGen,
+		log:          log,
+		maxLimit:     maxLimit,
+		defaultLimit: defaultLimit,
 	}
 }
 
@@ -124,8 +131,12 @@ func (s *Service) GetByID(ctx context.Context, id string) (*dto.Recipe, error) {
 	return mapper.ToRecipeDTO(recipe), nil
 }
 
-func (s *Service) GetAll(ctx context.Context) ([]dto.Recipe, error) {
-	recipes, err := s.repo.FindAll(ctx)
+func (s *Service) GetAll(
+	ctx context.Context,
+	pagn pagination.Request,
+) (*pagination.Result[dto.Recipe], error) {
+	s.normalizePagination(&pagn)
+	recipes, total, err := s.repo.FindAll(ctx, pagn.Skip(), int64(pagn.Limit))
 	if err != nil {
 		return nil, s.mapError(err, "GetAll")
 	}
@@ -135,15 +146,21 @@ func (s *Service) GetAll(ctx context.Context) ([]dto.Recipe, error) {
 		dtos[i] = *mapper.ToRecipeDTO(&recipe)
 	}
 
-	return dtos, nil
+	result := pagination.NewResult(dtos, &pagn, total)
+	return &result, nil
 }
 
-func (s *Service) Search(ctx context.Context, query string) ([]dto.Recipe, error) {
+func (s *Service) Search(
+	ctx context.Context,
+	query string,
+	pagn pagination.Request,
+) (*pagination.Result[dto.Recipe], error) {
 	if query == "" {
-		return s.GetAll(ctx)
+		return s.GetAll(ctx, pagn)
 	}
 
-	recipes, err := s.repo.Search(ctx, query)
+	s.normalizePagination(&pagn)
+	recipes, total, err := s.repo.Search(ctx, query, pagn.Skip(), int64(pagn.Limit))
 	if err != nil {
 		return nil, s.mapError(err, "Search")
 	}
@@ -152,7 +169,9 @@ func (s *Service) Search(ctx context.Context, query string) ([]dto.Recipe, error
 	for i, recipe := range recipes {
 		dtos[i] = *mapper.ToRecipeDTO(&recipe)
 	}
-	return dtos, nil
+
+	result := pagination.NewResult(dtos, &pagn, total)
+	return &result, nil
 }
 
 func (s *Service) Update(
@@ -252,6 +271,19 @@ func (s *Service) Delete(ctx context.Context, userID, id string) error {
 	}
 
 	return nil
+}
+
+// normalizePagination normalizes pagination request parameters using the service's default limit and maximum limit.
+func (s *Service) normalizePagination(req *pagination.Request) {
+	if req.Page < 1 {
+		req.Page = 1
+	}
+	if req.Limit < 1 {
+		req.Limit = s.defaultLimit
+	}
+	if req.Limit > s.maxLimit {
+		req.Limit = s.maxLimit
+	}
 }
 
 // mapError maps domain and infrastructure errors to application-level errors.
