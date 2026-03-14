@@ -34,17 +34,17 @@ func NewHandler(
 func handleError(c *gin.Context, err error) {
 	switch {
 	case errors.Is(err, application.ErrNotFound), errors.Is(err, application.ErrRecipeNotFound):
-		c.JSON(http.StatusNotFound, gin.H{"error": "recipe not found"})
+		c.JSON(http.StatusNotFound, gin.H{"error": err.Error()})
 	case errors.Is(err, application.ErrValidation):
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 	case errors.Is(err, application.ErrForbidden):
 		c.JSON(http.StatusForbidden, gin.H{"error": err.Error()})
 	case errors.Is(err, application.ErrConflict):
-		c.JSON(http.StatusConflict, gin.H{"error": "resource conflict"})
+		c.JSON(http.StatusConflict, gin.H{"error": err.Error()})
 	case errors.Is(err, application.ErrServiceUnavailable):
-		c.JSON(http.StatusServiceUnavailable, gin.H{"error": "service temporarily unavailable"})
+		c.JSON(http.StatusServiceUnavailable, gin.H{"error": err.Error()})
 	default:
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "internal server error"})
+		c.JSON(http.StatusInternalServerError, gin.H{"error": application.ErrInternal.Error()})
 	}
 }
 
