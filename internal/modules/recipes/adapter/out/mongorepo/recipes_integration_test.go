@@ -5,7 +5,6 @@ package mongorepo_test
 
 import (
 	"context"
-	"fmt"
 	"testing"
 	"time"
 
@@ -84,55 +83,6 @@ func TestIntegration_RecipeRepository_FindByID(t *testing.T) {
 		_, err := repo.FindByID(ctx, "invalid-id")
 		assert.ErrorIs(t, err, domain.ErrNotFound)
 	})
-}
-
-func TestIntegration_RecipeRepository_FindAll(t *testing.T) {
-	db, cleanup := testutils.SetupMongoContainer(t, _testDBName)
-	defer cleanup()
-
-	repo := mongorepo.NewRecipes(db)
-	ctx := context.Background()
-
-	const totalRecipes = 3
-	for i := 0; i < totalRecipes; i++ {
-		entity := fixtures.NewRecipe(
-			t,
-			primitive.NewObjectID().Hex(),
-			primitive.NewObjectID().Hex(),
-			fmt.Sprintf("Recipe %d", i),
-		)
-		entity, err := repo.Create(ctx, entity)
-		require.NoError(t, err)
-	}
-
-	tests := []struct {
-		name       string
-		skip       int64
-		limit      int64
-		wantRecipe int
-	}{
-		{
-			name:       "no skip",
-			skip:       0,
-			limit:      totalRecipes,
-			wantRecipe: totalRecipes,
-		},
-		{
-			name:       "skip 2 recipes",
-			skip:       2,
-			limit:      totalRecipes,
-			wantRecipe: totalRecipes - 2,
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			recipes, total, err := repo.FindAll(ctx, tt.skip, tt.limit)
-			require.NoError(t, err)
-			assert.Len(t, recipes, tt.wantRecipe)
-			assert.Equal(t, int64(totalRecipes), total)
-		})
-	}
 }
 
 func TestIntegration_RecipeRepository_Search(t *testing.T) {

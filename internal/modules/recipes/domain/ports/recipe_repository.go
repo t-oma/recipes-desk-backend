@@ -14,10 +14,8 @@ type RecipeRepository interface {
 	// FindByID finds a recipe by its ID
 	FindByID(ctx context.Context, id string) (*entity.Recipe, error)
 
-	// FindAll returns paginated recipes
-	FindAll(ctx context.Context, skip, limit int64) ([]entity.Recipe, int64, error)
-
 	// Search searches recipes by title (case-insensitive) with pagination
+	// Returns all recipes if query is empty.
 	Search(ctx context.Context, query string, skip, limit int64) ([]entity.Recipe, int64, error)
 
 	// Update updates an existing recipe

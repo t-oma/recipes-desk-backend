@@ -138,16 +138,7 @@ func (s *Service) Search(
 ) (*pagination.Result[dto.Recipe], error) {
 	s.normalizePagination(&pagn)
 
-	var (
-		recipes []entity.Recipe
-		total   int64
-		err     error
-	)
-	if query == "" {
-		recipes, total, err = s.repo.FindAll(ctx, pagn.Skip(), int64(pagn.Limit))
-	} else {
-		recipes, total, err = s.repo.Search(ctx, query, pagn.Skip(), int64(pagn.Limit))
-	}
+	recipes, total, err := s.repo.Search(ctx, query, pagn.Skip(), int64(pagn.Limit))
 	if err != nil {
 		return nil, s.mapError(err, "Search")
 	}

@@ -18,12 +18,12 @@ import (
 
 const collectionName = "recipes"
 
-// Verify MongoRepository implements ports.RecipeRepository.
-var _ ports.RecipeRepository = (*RecipeRepository)(nil)
-
 type RecipeRepository struct {
 	collection *mongo.Collection
 }
+
+// Verify MongoRepository implements ports.RecipeRepository.
+var _ ports.RecipeRepository = (*RecipeRepository)(nil)
 
 func NewRecipes(db *mongo.Database) *RecipeRepository {
 	return &RecipeRepository{
@@ -63,54 +63,20 @@ func (r *RecipeRepository) FindByID(ctx context.Context, id string) (*entity.Rec
 	return model.toDomain()
 }
 
-func (r *RecipeRepository) FindAll(
-	ctx context.Context,
-	skip, limit int64,
-) ([]entity.Recipe, int64, error) {
-	opts := options.Find().
-		SetSkip(skip).
-		SetLimit(limit)
-
-	cursor, err := r.collection.Find(ctx, bson.M{}, opts)
-	if err != nil {
-		return nil, 0, r.wrapError(err, "find all recipes")
-	}
-	defer cursor.Close(ctx)
-
-	var recipeModels []recipeModel
-	if err = cursor.All(ctx, &recipeModels); err != nil {
-		return nil, 0, r.wrapError(err, "decode recipes")
-	}
-
-	recipes := make([]entity.Recipe, len(recipeModels))
-	for i, recipeModel := range recipeModels {
-		var recipe *entity.Recipe
-		recipe, err = recipeModel.toDomain()
-		if err != nil {
-			return nil, 0, err
-		}
-		recipes[i] = *recipe
-	}
-
-	total, err := r.collection.CountDocuments(ctx, bson.M{})
-	if err != nil {
-		return nil, 0, r.wrapError(err, "count recipes")
-	}
-
-	return recipes, total, nil
-}
-
 // Search searches recipes by title (case-insensitive) with pagination.
 func (r *RecipeRepository) Search(
 	ctx context.Context,
 	query string,
 	skip, limit int64,
 ) ([]entity.Recipe, int64, error) {
-	filter := bson.M{
-		"title": bson.M{
-			"$regex":   query,
-			"$options": "i", // case-insensitive
-		},
+	filter := bson.M{}
+	if query != "" {
+		filter = bson.M{
+			"title": bson.M{
+				"$regex":   query,
+				"$options": "i", // case-insensitive
+			},
+		}
 	}
 
 	opts := options.Find().

@@ -47,17 +47,6 @@ func (m *mockRepository) FindByID(ctx context.Context, id string) (*entity.Recip
 	return args.Get(0).(*entity.Recipe), args.Error(1)
 }
 
-func (m *mockRepository) FindAll(
-	ctx context.Context,
-	skip, limit int64,
-) ([]entity.Recipe, int64, error) {
-	args := m.Called(ctx, skip, limit)
-	if args.Get(0) == nil {
-		return nil, args.Get(1).(int64), args.Error(2)
-	}
-	return args.Get(0).([]entity.Recipe), args.Get(1).(int64), args.Error(2)
-}
-
 func (m *mockRepository) Search(
 	ctx context.Context,
 	query string,
@@ -348,7 +337,7 @@ func TestService_Search(t *testing.T) {
 			query: "pasta",
 			pagn:  pagination.Request{Page: 1, Limit: 10},
 			mockSetup: func(m *mockRepository) {
-				m.On("Search", mock.Anything, "pasta", mock.AnythingOfType("int64"), mock.AnythingOfType("int64")).
+				m.On("Search", mock.Anything, "pasta", pagination.Skip(1, 10), int64(10)).
 					Return(recipes[0:2], int64(2), nil)
 			},
 			wantErr:   nil,
@@ -357,11 +346,11 @@ func TestService_Search(t *testing.T) {
 			wantLimit: 10,
 		},
 		{
-			name:  "empty query - calls GetAll",
+			name:  "empty query",
 			query: "",
 			pagn:  pagination.Request{Page: 1, Limit: 10},
 			mockSetup: func(m *mockRepository) {
-				m.On("FindAll", mock.Anything, mock.AnythingOfType("int64"), mock.AnythingOfType("int64")).
+				m.On("Search", mock.Anything, "", pagination.Skip(1, 10), int64(10)).
 					Return(recipes, int64(recipesCount), nil)
 			},
 			wantErr:   nil,
@@ -374,7 +363,7 @@ func TestService_Search(t *testing.T) {
 			query: "pasta",
 			pagn:  pagination.Request{Page: 1, Limit: 10},
 			mockSetup: func(m *mockRepository) {
-				m.On("Search", mock.Anything, "pasta", mock.AnythingOfType("int64"), mock.AnythingOfType("int64")).
+				m.On("Search", mock.Anything, "pasta", pagination.Skip(1, 10), int64(10)).
 					Return(nil, int64(0), domain.ErrDatabase)
 			},
 			wantErr:   application.ErrInternal,
