@@ -57,6 +57,22 @@ func NewRecipe(t *testing.T, id, authorID, title string) *entity.Recipe {
 	return entity
 }
 
+// MustRecipeID creates a recipe id with valid test data.
+func MustRecipeID(t *testing.T, id string) valueobject.RecipeID {
+	t.Helper()
+	recipeID, err := valueobject.NewRecipeID(id)
+	require.NoError(t, err)
+	return recipeID
+}
+
+// MustTitle creates a title or fails the test.
+func MustTitle(t *testing.T, title string) valueobject.Title {
+	t.Helper()
+	recipeTitle, err := valueobject.NewTitle(title)
+	require.NoError(t, err)
+	return recipeTitle
+}
+
 // MustIngredient creates an ingredient or fails the test.
 func MustIngredient(t *testing.T, name string, amount float64, unit string) valueobject.Ingredient {
 	t.Helper()
@@ -79,4 +95,12 @@ func MustTagName(t *testing.T, name string) valueobject.TagName {
 	tag, err := valueobject.NewTagName(name)
 	require.NoError(t, err)
 	return tag
+}
+
+// MustAuthorID creates an author ID or fails the test.
+func MustAuthorID(t *testing.T, id string) valueobject.AuthorID {
+	t.Helper()
+	authorID, err := valueobject.NewAuthorID(id)
+	require.NoError(t, err)
+	return authorID
 }
