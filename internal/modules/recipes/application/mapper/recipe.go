@@ -30,7 +30,7 @@ func ToRecipeDTO(recipe *entity.Recipe) *dto.Recipe {
 	recipeTags := recipe.Tags()
 	tags := make([]string, len(recipeTags))
 	for i, tag := range recipeTags {
-		tags[i] = tag.Name()
+		tags[i] = tag.String()
 	}
 
 	return &dto.Recipe{

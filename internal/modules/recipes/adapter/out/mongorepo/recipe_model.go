@@ -18,7 +18,7 @@ type recipeModel struct {
 	Steps       []stepModel        `bson:"steps"`
 	CookingTime int64              `bson:"cookingTime"`
 	Portions    int                `bson:"portions"`
-	Tags        []tagModel         `bson:"tags"`
+	Tags        []tagNameModel     `bson:"tags"`
 	AuthorID    primitive.ObjectID `bson:"authorId"`
 	CreatedAt   time.Time          `bson:"createdAt"`
 	UpdatedAt   time.Time          `bson:"updatedAt"`
@@ -96,7 +96,7 @@ func (m *recipeModel) toDomain() (*entity.Recipe, error) {
 
 	tags, err := sliceutils.MapSliceWithErr(
 		m.Tags,
-		func(tag tagModel) (valueobject.Tag, error) {
+		func(tag tagNameModel) (valueobject.TagName, error) {
 			return tag.toDomain()
 		},
 	)
@@ -149,7 +149,7 @@ func recipeModelFromDomain(recipe *entity.Recipe) (*recipeModel, error) {
 	}
 
 	recipeTags := recipe.Tags()
-	tags := make([]tagModel, len(recipeTags))
+	tags := make([]tagNameModel, len(recipeTags))
 	for i, tag := range recipeTags {
 		tags[i] = tagModelFromDomain(tag)
 	}

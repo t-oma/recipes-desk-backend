@@ -16,7 +16,7 @@ func TestNewRecipe(t *testing.T) {
 		name            string
 		makeIngredients func(t *testing.T) []valueobject.Ingredient
 		makeSteps       func(t *testing.T) []valueobject.Step
-		makeTags        func(t *testing.T) []valueobject.Tag
+		makeTags        func(t *testing.T) []valueobject.TagName
 		wantErr         error
 	}{
 		{
@@ -48,8 +48,8 @@ func TestNewRecipe(t *testing.T) {
 			name:            "no tags",
 			makeIngredients: fixtures.ValidIngredients,
 			makeSteps:       fixtures.ValidSteps,
-			makeTags: func(_ *testing.T) []valueobject.Tag {
-				return []valueobject.Tag{}
+			makeTags: func(_ *testing.T) []valueobject.TagName {
+				return []valueobject.TagName{}
 			},
 			wantErr: domain.ErrNoTags,
 		},

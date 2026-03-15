@@ -28,14 +28,14 @@ func ValidSteps(t *testing.T) []vo.Step {
 	return []vo.Step{step1, step2}
 }
 
-func ValidTags(t *testing.T) []vo.Tag {
+func ValidTags(t *testing.T) []vo.TagName {
 	t.Helper()
 
-	tag1, err := vo.NewTag("italian")
+	tag1, err := vo.NewTagName("italian")
 	require.NoError(t, err)
-	tag2, err := vo.NewTag("pasta")
+	tag2, err := vo.NewTagName("pasta")
 	require.NoError(t, err)
-	return []vo.Tag{tag1, tag2}
+	return []vo.TagName{tag1, tag2}
 }
 
 func ValidID(t *testing.T) vo.RecipeID {

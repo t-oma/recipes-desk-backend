@@ -8,32 +8,28 @@ import (
 )
 
 const (
-	TagMaxLength = 50
+	TagNameMaxLength = 50
 )
 
-type Tag struct {
-	name string
+type TagName struct {
+	value string
 }
 
-func NewTag(name string) (Tag, error) {
+func NewTagName(name string) (TagName, error) {
 	name = strings.TrimSpace(name)
 	if name == "" {
-		return Tag{}, ErrTagEmptyName
+		return TagName{}, ErrTagEmptyName
 	}
-	if len(name) > TagMaxLength {
-		return Tag{}, ErrTagNameTooLong
+	if len(name) > TagNameMaxLength {
+		return TagName{}, ErrTagNameTooLong
 	}
-	return Tag{
-		name: name,
+	return TagName{
+		value: name,
 	}, nil
 }
 
-func (t Tag) Name() string {
-	return t.name
-}
-
-func (t Tag) String() string {
-	return t.name
+func (t TagName) String() string {
+	return t.value
 }
 
 var (
@@ -44,6 +40,6 @@ var (
 	ErrTagNameTooLong = fmt.Errorf(
 		"%w: tag name must be at most %d characters",
 		domain.ErrValidation,
-		TagMaxLength,
+		TagNameMaxLength,
 	)
 )

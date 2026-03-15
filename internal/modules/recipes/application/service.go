@@ -88,7 +88,7 @@ func (s *Service) Create(ctx context.Context, input dto.CreateRecipeInput) (*dto
 
 	tags, err := sliceutils.MapSliceWithErr(
 		input.Tags,
-		valueobject.NewTag,
+		valueobject.NewTagName,
 	)
 	if err != nil {
 		return nil, s.mapError(err, "Create")
@@ -197,7 +197,7 @@ func (s *Service) Update(
 
 	tags, err := sliceutils.MapSliceWithErr(
 		input.Tags,
-		valueobject.NewTag,
+		valueobject.NewTagName,
 	)
 	if err != nil {
 		return nil, s.mapError(err, "Update")

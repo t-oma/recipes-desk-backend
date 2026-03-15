@@ -21,9 +21,9 @@ func NewRecipe(t *testing.T, id, authorID, title string) *entity.Recipe {
 		MustStep(t, 1, "Mix ingredients", 300),
 		MustStep(t, 2, "Bake", 1800),
 	}
-	tags := []valueobject.Tag{
-		MustTag(t, "test"),
-		MustTag(t, "integration"),
+	tags := []valueobject.TagName{
+		MustTagName(t, "test"),
+		MustTagName(t, "integration"),
 	}
 
 	idVO, err := valueobject.NewRecipeID(id)
@@ -73,10 +73,10 @@ func MustStep(t *testing.T, order int, description string, durationSec int64) va
 	return step
 }
 
-// MustTag creates a tag or fails the test.
-func MustTag(t *testing.T, name string) valueobject.Tag {
+// MustTagName creates a tag or fails the test.
+func MustTagName(t *testing.T, name string) valueobject.TagName {
 	t.Helper()
-	tag, err := valueobject.NewTag(name)
+	tag, err := valueobject.NewTagName(name)
 	require.NoError(t, err)
 	return tag
 }

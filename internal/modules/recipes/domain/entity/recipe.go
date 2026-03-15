@@ -17,7 +17,7 @@ type Recipe struct { //nolint:recvcheck // intentionally mixed pointer and value
 	steps       []vo.Step
 	cookingTime vo.CookingTime
 	portions    vo.Portions
-	tags        []vo.Tag
+	tags        []vo.TagName
 	authorID    vo.AuthorID
 	createdAt   time.Time
 	updatedAt   time.Time
@@ -31,7 +31,7 @@ func NewRecipe(
 	steps []vo.Step,
 	cookingTime vo.CookingTime,
 	portions vo.Portions,
-	tags []vo.Tag,
+	tags []vo.TagName,
 	authorID vo.AuthorID,
 ) (*Recipe, error) {
 	if len(ingredients) == 0 {
@@ -86,7 +86,7 @@ func (r *Recipe) AddStep(step vo.Step) error {
 	return nil
 }
 
-func (r *Recipe) AddTag(tag vo.Tag) {
+func (r *Recipe) AddTag(tag vo.TagName) {
 	r.tags = append(r.tags, tag)
 }
 
@@ -126,8 +126,8 @@ func (r Recipe) Portions() vo.Portions {
 	return r.portions
 }
 
-func (r Recipe) Tags() []vo.Tag {
-	copied := make([]vo.Tag, len(r.tags))
+func (r Recipe) Tags() []vo.TagName {
+	copied := make([]vo.TagName, len(r.tags))
 	copy(copied, r.tags)
 	return copied
 }
