@@ -48,7 +48,6 @@ func (m *recipeModel) prepareForUpdate() {
 }
 
 func (m *recipeModel) toDomain() (*entity.Recipe, error) {
-	var err error
 	id, err := valueobject.NewRecipeID(m.ID.Hex())
 	if err != nil {
 		return nil, err
@@ -73,7 +72,6 @@ func (m *recipeModel) toDomain() (*entity.Recipe, error) {
 	if err != nil {
 		return nil, err
 	}
-
 	ingredients, err := sliceutils.MapSliceWithErr(
 		m.Ingredients,
 		func(ing ingredientModel) (valueobject.Ingredient, error) {
@@ -83,7 +81,6 @@ func (m *recipeModel) toDomain() (*entity.Recipe, error) {
 	if err != nil {
 		return nil, err
 	}
-
 	steps, err := sliceutils.MapSliceWithErr(
 		m.Steps,
 		func(step stepModel) (valueobject.Step, error) {
@@ -93,7 +90,6 @@ func (m *recipeModel) toDomain() (*entity.Recipe, error) {
 	if err != nil {
 		return nil, err
 	}
-
 	tags, err := sliceutils.MapSliceWithErr(
 		m.Tags,
 		func(tag tagNameModel) (valueobject.TagName, error) {
@@ -104,7 +100,7 @@ func (m *recipeModel) toDomain() (*entity.Recipe, error) {
 		return nil, err
 	}
 
-	recipe, err := entity.NewRecipe(
+	return entity.RecipeFrom(
 		id,
 		title,
 		desc,
@@ -114,12 +110,9 @@ func (m *recipeModel) toDomain() (*entity.Recipe, error) {
 		portions,
 		tags,
 		authorID,
+		m.CreatedAt,
+		m.UpdatedAt,
 	)
-	if err != nil {
-		return nil, err
-	}
-	recipe.RestoreFromPersistence(m.UpdatedAt, m.CreatedAt)
-	return recipe, nil
 }
 
 func recipeModelFromDomain(recipe *entity.Recipe) (*recipeModel, error) {

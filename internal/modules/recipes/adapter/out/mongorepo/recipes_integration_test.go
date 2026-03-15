@@ -30,11 +30,23 @@ func TestIntegration_RecipeRepository_Create(t *testing.T) {
 	ctx := context.Background()
 
 	t.Run("create new recipe", func(t *testing.T) {
-		entity := fixtures.NewRecipe(
-			t,
-			primitive.NewObjectID().Hex(),
-			primitive.NewObjectID().Hex(),
-			"Integration Test Recipe",
+		idVO, err := valueobject.NewRecipeID(primitive.NewObjectID().Hex())
+		require.NoError(t, err)
+		titleVO, err := valueobject.NewTitle("Integration Test Recipe")
+		require.NoError(t, err)
+		authorIDVO, err := valueobject.NewAuthorID(primitive.NewObjectID().Hex())
+		require.NoError(t, err)
+
+		entity, err := entity.NewRecipe(
+			idVO,
+			titleVO,
+			fixtures.ValidDescription(t),
+			fixtures.ValidIngredients(t),
+			fixtures.ValidSteps(t),
+			fixtures.ValidCookingTime(t),
+			fixtures.ValidPortions(t),
+			fixtures.ValidTags(t),
+			authorIDVO,
 		)
 		created, err := repo.Create(ctx, entity)
 		require.NoError(t, err)
@@ -54,12 +66,16 @@ func TestIntegration_RecipeRepository_FindByID(t *testing.T) {
 	repo := mongorepo.NewRecipes(db)
 	ctx := context.Background()
 
-	// Create a recipe first
-	entity := fixtures.NewRecipe(
-		t,
-		primitive.NewObjectID().Hex(),
-		primitive.NewObjectID().Hex(),
-		"Test Recipe",
+	entity, err := entity.NewRecipe(
+		fixtures.MustRecipeID(t, primitive.NewObjectID().Hex()),
+		fixtures.MustTitle(t, "Test Recipe"),
+		fixtures.ValidDescription(t),
+		fixtures.ValidIngredients(t),
+		fixtures.ValidSteps(t),
+		fixtures.ValidCookingTime(t),
+		fixtures.ValidPortions(t),
+		fixtures.ValidTags(t),
+		fixtures.MustAuthorID(t, primitive.NewObjectID().Hex()),
 	)
 	created, err := repo.Create(ctx, entity)
 	require.NoError(t, err)
@@ -151,12 +167,23 @@ func TestIntegration_RecipeRepository_Update(t *testing.T) {
 	repo := mongorepo.NewRecipes(db)
 	ctx := context.Background()
 
-	// Create a recipe
-	recipe := fixtures.NewRecipe(
-		t,
-		primitive.NewObjectID().Hex(),
-		primitive.NewObjectID().Hex(),
-		"Original Title",
+	idVO, err := valueobject.NewRecipeID(primitive.NewObjectID().Hex())
+	require.NoError(t, err)
+	titleVO, err := valueobject.NewTitle("Original Title")
+	require.NoError(t, err)
+	authorIDVO, err := valueobject.NewAuthorID(primitive.NewObjectID().Hex())
+	require.NoError(t, err)
+
+	recipe, err := entity.NewRecipe(
+		idVO,
+		titleVO,
+		fixtures.ValidDescription(t),
+		fixtures.ValidIngredients(t),
+		fixtures.ValidSteps(t),
+		fixtures.ValidCookingTime(t),
+		fixtures.ValidPortions(t),
+		fixtures.ValidTags(t),
+		authorIDVO,
 	)
 	created, err := repo.Create(ctx, recipe)
 	require.NoError(t, err)
@@ -180,7 +207,7 @@ func TestIntegration_RecipeRepository_Update(t *testing.T) {
 		updatedTitle, err := valueobject.NewTitle("Updated Title")
 		require.NoError(t, err)
 
-		updatedEntity, err := entity.NewRecipe(
+		updatedEntity, err := entity.RecipeFrom(
 			id,
 			updatedTitle,
 			recipeToUpdate.Description(),
@@ -190,12 +217,10 @@ func TestIntegration_RecipeRepository_Update(t *testing.T) {
 			recipeToUpdate.Portions(),
 			tags,
 			recipeToUpdate.AuthorID(),
+			recipeToUpdate.CreatedAt(),
+			recipeToUpdate.UpdatedAt(),
 		)
 		require.NoError(t, err)
-		updatedEntity.RestoreFromPersistence(
-			recipeToUpdate.UpdatedAt(),
-			recipeToUpdate.CreatedAt(),
-		)
 
 		result, err := repo.Update(ctx, updatedEntity)
 		require.NoError(t, err)

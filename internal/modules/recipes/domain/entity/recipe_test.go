@@ -7,7 +7,7 @@ import (
 
 	"recipes-desk/internal/modules/recipes/domain"
 	"recipes-desk/internal/modules/recipes/domain/entity"
-	"recipes-desk/internal/modules/recipes/domain/fixtures"
+	fxt "recipes-desk/internal/modules/recipes/domain/fixtures"
 	"recipes-desk/internal/modules/recipes/domain/valueobject"
 )
 
@@ -21,9 +21,9 @@ func TestNewRecipe(t *testing.T) {
 	}{
 		{
 			name:            "valid recipe",
-			makeIngredients: fixtures.ValidIngredients,
-			makeSteps:       fixtures.ValidSteps,
-			makeTags:        fixtures.ValidTags,
+			makeIngredients: fxt.ValidIngredients,
+			makeSteps:       fxt.ValidSteps,
+			makeTags:        fxt.ValidTags,
 			wantErr:         nil,
 		},
 		{
@@ -31,23 +31,23 @@ func TestNewRecipe(t *testing.T) {
 			makeIngredients: func(_ *testing.T) []valueobject.Ingredient {
 				return []valueobject.Ingredient{}
 			},
-			makeSteps: fixtures.ValidSteps,
-			makeTags:  fixtures.ValidTags,
+			makeSteps: fxt.ValidSteps,
+			makeTags:  fxt.ValidTags,
 			wantErr:   domain.ErrNoIngredients,
 		},
 		{
 			name:            "no steps",
-			makeIngredients: fixtures.ValidIngredients,
+			makeIngredients: fxt.ValidIngredients,
 			makeSteps: func(_ *testing.T) []valueobject.Step {
 				return []valueobject.Step{}
 			},
-			makeTags: fixtures.ValidTags,
+			makeTags: fxt.ValidTags,
 			wantErr:  domain.ErrNoSteps,
 		},
 		{
 			name:            "no tags",
-			makeIngredients: fixtures.ValidIngredients,
-			makeSteps:       fixtures.ValidSteps,
+			makeIngredients: fxt.ValidIngredients,
+			makeSteps:       fxt.ValidSteps,
 			makeTags: func(_ *testing.T) []valueobject.TagName {
 				return []valueobject.TagName{}
 			},
@@ -58,15 +58,15 @@ func TestNewRecipe(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			recipe, err := entity.NewRecipe(
-				fixtures.ValidID(t),
-				fixtures.ValidTitle(t),
-				fixtures.ValidDescription(t),
+				fxt.ValidID(t),
+				fxt.ValidTitle(t),
+				fxt.ValidDescription(t),
 				tt.makeIngredients(t),
 				tt.makeSteps(t),
-				fixtures.ValidCookingTime(t),
-				fixtures.ValidPortions(t),
+				fxt.ValidCookingTime(t),
+				fxt.ValidPortions(t),
 				tt.makeTags(t),
-				fixtures.ValidAuthorID(t),
+				fxt.ValidAuthorID(t),
 			)
 			if tt.wantErr != nil {
 				require.Error(t, err)
@@ -96,26 +96,26 @@ func TestEntity_Equals(t *testing.T) {
 				t.Helper()
 
 				recipe1, _ := entity.NewRecipe(
-					fixtures.ValidID(t),
-					fixtures.ValidTitle(t),
-					fixtures.ValidDescription(t),
-					fixtures.ValidIngredients(t),
-					fixtures.ValidSteps(t),
-					fixtures.ValidCookingTime(t),
-					fixtures.ValidPortions(t),
-					fixtures.ValidTags(t),
-					fixtures.ValidAuthorID(t),
+					fxt.ValidID(t),
+					fxt.ValidTitle(t),
+					fxt.ValidDescription(t),
+					fxt.ValidIngredients(t),
+					fxt.ValidSteps(t),
+					fxt.ValidCookingTime(t),
+					fxt.ValidPortions(t),
+					fxt.ValidTags(t),
+					fxt.ValidAuthorID(t),
 				)
 				recipe2, _ := entity.NewRecipe(
-					fixtures.ValidID(t),
-					fixtures.ValidTitle(t),
-					fixtures.ValidDescription(t),
-					fixtures.ValidIngredients(t),
-					fixtures.ValidSteps(t),
-					fixtures.ValidCookingTime(t),
-					fixtures.ValidPortions(t),
-					fixtures.ValidTags(t),
-					fixtures.ValidAuthorID(t),
+					fxt.ValidID(t),
+					fxt.ValidTitle(t),
+					fxt.ValidDescription(t),
+					fxt.ValidIngredients(t),
+					fxt.ValidSteps(t),
+					fxt.ValidCookingTime(t),
+					fxt.ValidPortions(t),
+					fxt.ValidTags(t),
+					fxt.ValidAuthorID(t),
 				)
 				return recipe1, recipe2
 			},
@@ -127,32 +127,32 @@ func TestEntity_Equals(t *testing.T) {
 				t.Helper()
 
 				recipe1, _ := entity.NewRecipe(
-					fixtures.ValidID(t),
-					fixtures.ValidTitle(t),
-					fixtures.ValidDescription(t),
-					fixtures.ValidIngredients(t),
-					fixtures.ValidSteps(t),
-					fixtures.ValidCookingTime(t),
-					fixtures.ValidPortions(t),
-					fixtures.ValidTags(t),
-					fixtures.ValidAuthorID(t),
+					fxt.ValidID(t),
+					fxt.ValidTitle(t),
+					fxt.ValidDescription(t),
+					fxt.ValidIngredients(t),
+					fxt.ValidSteps(t),
+					fxt.ValidCookingTime(t),
+					fxt.ValidPortions(t),
+					fxt.ValidTags(t),
+					fxt.ValidAuthorID(t),
 				)
 				diffIngredients := []valueobject.Ingredient{
-					fixtures.MustIngredient(t, "Milk", 100, "ml"),
+					fxt.MustIngredient(t, "Milk", 100, "ml"),
 				}
 				diffID, err := valueobject.NewRecipeID("id456")
 				require.NoError(t, err)
 
 				recipe2, _ := entity.NewRecipe(
 					diffID,
-					fixtures.ValidTitle(t),
-					fixtures.ValidDescription(t),
+					fxt.ValidTitle(t),
+					fxt.ValidDescription(t),
 					diffIngredients,
-					fixtures.ValidSteps(t),
-					fixtures.ValidCookingTime(t),
-					fixtures.ValidPortions(t),
-					fixtures.ValidTags(t),
-					fixtures.ValidAuthorID(t),
+					fxt.ValidSteps(t),
+					fxt.ValidCookingTime(t),
+					fxt.ValidPortions(t),
+					fxt.ValidTags(t),
+					fxt.ValidAuthorID(t),
 				)
 				return recipe1, recipe2
 			},
@@ -164,15 +164,15 @@ func TestEntity_Equals(t *testing.T) {
 				t.Helper()
 
 				recipe1, err := entity.NewRecipe(
-					fixtures.ValidID(t),
-					fixtures.ValidTitle(t),
-					fixtures.ValidDescription(t),
-					fixtures.ValidIngredients(t),
-					fixtures.ValidSteps(t),
-					fixtures.ValidCookingTime(t),
-					fixtures.ValidPortions(t),
-					fixtures.ValidTags(t),
-					fixtures.ValidAuthorID(t),
+					fxt.ValidID(t),
+					fxt.ValidTitle(t),
+					fxt.ValidDescription(t),
+					fxt.ValidIngredients(t),
+					fxt.ValidSteps(t),
+					fxt.ValidCookingTime(t),
+					fxt.ValidPortions(t),
+					fxt.ValidTags(t),
+					fxt.ValidAuthorID(t),
 				)
 				require.NoError(t, err)
 				return recipe1, nil
@@ -195,7 +195,7 @@ func TestEntity_Equals(t *testing.T) {
 }
 
 func TestRecipe_UpdateTitle(t *testing.T) {
-	recipe := fixtures.NewRecipe(t, "id123", "author123", "Test Recipe")
+	recipe := fxt.NewRecipe(t, "id123", "author123", "Test Recipe")
 
 	t.Run("new title", func(t *testing.T) {
 		newTitle, _ := valueobject.NewTitle("")
@@ -206,7 +206,7 @@ func TestRecipe_UpdateTitle(t *testing.T) {
 }
 
 func TestRecipe_UpdateDescription(t *testing.T) {
-	recipe := fixtures.NewRecipe(t, "id123", "author123", "Test Recipe")
+	recipe := fxt.NewRecipe(t, "id123", "author123", "Test Recipe")
 
 	t.Run("new description", func(t *testing.T) {
 		newDescription, _ := valueobject.NewDescription("")
@@ -217,7 +217,7 @@ func TestRecipe_UpdateDescription(t *testing.T) {
 }
 
 func TestRecipe_AddIngredient(t *testing.T) {
-	recipe := fixtures.NewRecipe(t, "id123", "author123", "Test Recipe")
+	recipe := fxt.NewRecipe(t, "id123", "author123", "Test Recipe")
 	ingredients := recipe.Ingredients()
 
 	t.Run("existing ingredient", func(t *testing.T) {
@@ -238,7 +238,7 @@ func TestRecipe_AddIngredient(t *testing.T) {
 }
 
 func TestRecipe_AddStep(t *testing.T) {
-	recipe := fixtures.NewRecipe(t, "id123", "author123", "Test Recipe")
+	recipe := fxt.NewRecipe(t, "id123", "author123", "Test Recipe")
 	steps := recipe.Steps()
 
 	t.Run("wrong order", func(t *testing.T) {

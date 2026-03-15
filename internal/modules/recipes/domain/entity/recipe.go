@@ -34,6 +34,34 @@ func NewRecipe(
 	tags []vo.TagName,
 	authorID vo.AuthorID,
 ) (*Recipe, error) {
+	return RecipeFrom(
+		id,
+		title,
+		description,
+		ingredients,
+		steps,
+		cookingTime,
+		portions,
+		tags,
+		authorID,
+		time.Now(),
+		time.Now(),
+	)
+}
+
+func RecipeFrom(
+	id vo.RecipeID,
+	title vo.Title,
+	description vo.Description,
+	ingredients []vo.Ingredient,
+	steps []vo.Step,
+	cookingTime vo.CookingTime,
+	portions vo.Portions,
+	tags []vo.TagName,
+	authorID vo.AuthorID,
+	createdAt time.Time,
+	updatedAt time.Time,
+) (*Recipe, error) {
 	if len(ingredients) == 0 {
 		return nil, domain.ErrNoIngredients
 	}
@@ -54,9 +82,13 @@ func NewRecipe(
 		portions:    portions,
 		tags:        tags,
 		authorID:    authorID,
-		createdAt:   time.Time{},
-		updatedAt:   time.Time{},
+		createdAt:   createdAt,
+		updatedAt:   updatedAt,
 	}, nil
+}
+
+func (r *Recipe) AssignID(id vo.RecipeID) {
+	r.id = id
 }
 
 func (r *Recipe) UpdateTitle(title vo.Title) {
@@ -148,19 +180,10 @@ func (r Recipe) CanBeModified(userID string) bool {
 	return r.authorID.String() == userID
 }
 
-func (r *Recipe) AssignID(id vo.RecipeID) {
-	r.id = id
-}
-
 func (r Recipe) Equals(other *Recipe) bool {
 	if other == nil {
 		return false
 	}
 
 	return r.ID().String() == other.ID().String()
-}
-
-func (r *Recipe) RestoreFromPersistence(updatedAt time.Time, createdAt time.Time) {
-	r.updatedAt = updatedAt
-	r.createdAt = createdAt
 }
