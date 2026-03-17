@@ -31,15 +31,6 @@ type Consumer struct {
 	declaredQueues map[string]bool
 }
 
-type ConsumerConfig struct {
-	Exchange   string
-	Queue      string
-	RoutingKey string
-	Handler    HandlerFunc
-	MaxRetries int
-	RetryTTLs  []time.Duration // e.g., 5s, 30s, 2m
-}
-
 // NewConsumer creates a new RabbitMQ consumer.
 func NewConsumer(
 	conn *amqp.Connection,

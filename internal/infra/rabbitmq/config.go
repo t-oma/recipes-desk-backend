@@ -60,3 +60,12 @@ func (c ConnectionManagerConfig) Validate() error {
 
 	return nil
 }
+
+type ConsumerConfig struct {
+	Exchange   string
+	Queue      string
+	RoutingKey string
+	Handler    HandlerFunc
+	MaxRetries int
+	RetryTTLs  []time.Duration // e.g., 5s, 30s, 2m
+}
