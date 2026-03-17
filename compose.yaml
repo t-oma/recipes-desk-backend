@@ -53,6 +53,30 @@ services:
     ports:
       - "${MONGO_EXPRESS_PORT:-8081}:8081"
 
+  rabbitmq:
+    image: rabbitmq:4.2-management
+    container_name: rabbitmq
+    restart: always
+    environment:
+      RABBITMQ_DEFAULT_USER: ${RABBITMQ_USER:-admin}
+      RABBITMQ_DEFAULT_PASS: ${RABBITMQ_PASS:-admin}
+      RABBITMQ_LOG_BASE: /var/log/rabbitmq
+      RABBITMQ_LOGS: /var/log/rabbitmq/rabbit.log
+    ports:
+      - "5672:5672"
+      - "${RABBITMQ_MANAGEMENT_PORT:-15672}:15672"
+    healthcheck:
+      test: rabbitmq-diagnostics -q ping
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+    volumes:
+      - rabbitmq_data:/var/lib/rabbitmq
+      - rabbitmq_logs:/var/log/rabbitmq
+
 volumes:
+  rabbitmq_data:
+  rabbitmq_logs:
   mongodb0_data:
   mongodb1_data:
