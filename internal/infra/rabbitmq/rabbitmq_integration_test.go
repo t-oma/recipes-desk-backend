@@ -46,6 +46,7 @@ func setupPublisher(t *testing.T, conn *amqp.Connection) *rabbitmq.Publisher {
 
 	log := zerolog.New(zerolog.NewConsoleWriter())
 	publisher := rabbitmq.NewPublisher(conn, _testExchange, &log)
+	publisher.ExchangeDeclare()
 
 	return publisher
 }

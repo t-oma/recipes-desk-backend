@@ -36,8 +36,7 @@ func NewPublisher(conn *amqp.Connection, exchange string, log *zerolog.Logger) *
 	}
 }
 
-// Publish publishes an event to RabbitMQ without waiting for confirmation.
-func (p *Publisher) Publish(_ context.Context, event Event) error {
+func (p *Publisher) ExchangeDeclare() error {
 	ch, err := p.conn.Channel()
 	if err != nil {
 		return fmt.Errorf("failed to get channel: %w", err)
@@ -55,6 +54,17 @@ func (p *Publisher) Publish(_ context.Context, event Event) error {
 	); err != nil {
 		return fmt.Errorf("failed to declare exchange: %w", err)
 	}
+
+	return nil
+}
+
+// Publish publishes an event to RabbitMQ without waiting for confirmation.
+func (p *Publisher) Publish(_ context.Context, event Event) error {
+	ch, err := p.conn.Channel()
+	if err != nil {
+		return fmt.Errorf("failed to get channel: %w", err)
+	}
+	defer ch.Close()
 
 	body, err := json.Marshal(event)
 	if err != nil {
@@ -93,18 +103,6 @@ func (p *Publisher) PublishWithConfirm(
 		return fmt.Errorf("failed to get channel: %w", err)
 	}
 	defer ch.Close()
-
-	if err = ch.ExchangeDeclare(
-		p.exchange,     // name
-		p.exchangeType, // type
-		true,           // durable
-		false,          // auto-deleted
-		false,          // internal
-		false,          // noWait
-		nil,
-	); err != nil {
-		return fmt.Errorf("failed to declare exchange: %w", err)
-	}
 
 	// Enable publisher confirms
 	if err = ch.Confirm(false); err != nil {
