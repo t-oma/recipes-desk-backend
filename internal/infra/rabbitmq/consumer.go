@@ -130,6 +130,27 @@ func (c *Consumer) Setup() error {
 
 // Start begins consuming messages.
 func (c *Consumer) Start(ctx context.Context) error {
+	for {
+		select {
+		case <-ctx.Done():
+			c.log.Info().Msg("Consumer stopped")
+			return nil
+		default:
+		}
+
+		if err := c.consumeLoop(ctx); err != nil {
+			c.log.Error().Err(err).Msg("Consume loop error, restarting...")
+			select {
+			case <-ctx.Done():
+				return nil
+			case <-time.After(1 * time.Second):
+				continue
+			}
+		}
+	}
+}
+
+func (c *Consumer) consumeLoop(ctx context.Context) error {
 	ch, err := c.conn.Channel()
 	if err != nil {
 		return fmt.Errorf("failed to get channel: %w", err)
@@ -153,6 +174,7 @@ func (c *Consumer) Start(ctx context.Context) error {
 	if err != nil {
 		return fmt.Errorf("failed to start consuming: %w", err)
 	}
+
 	c.log.Info().Str("queue", c.queue).Msg("Started consuming messages")
 
 	for {
