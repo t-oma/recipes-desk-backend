@@ -6,7 +6,7 @@ import (
 	"time"
 )
 
-type Config struct {
+type ConnectionManagerConfig struct {
 	Host              string
 	Port              int
 	User              string
@@ -19,7 +19,7 @@ type Config struct {
 	EnableTLS         bool          `yaml:"enableTLS"` //nolint:tagliatelle // TLS is abbreviation
 }
 
-func (c Config) URI() string {
+func (c ConnectionManagerConfig) URI() string {
 	return fmt.Sprintf("amqp://%s:%s@%s:%d%s",
 		c.User,
 		c.Password,
@@ -29,7 +29,7 @@ func (c Config) URI() string {
 	)
 }
 
-func (c Config) Validate() error {
+func (c ConnectionManagerConfig) Validate() error {
 	if c.Host == "" {
 		return errors.New("host is required")
 	}

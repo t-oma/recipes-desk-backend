@@ -13,7 +13,7 @@ import (
 )
 
 type ConnectionManager struct {
-	config    Config
+	config    ConnectionManagerConfig
 	conn      *amqp.Connection
 	mu        sync.RWMutex
 	log       *zerolog.Logger
@@ -21,7 +21,7 @@ type ConnectionManager struct {
 	isRunning bool
 }
 
-func NewConnectionManager(config Config, log *zerolog.Logger) *ConnectionManager {
+func NewConnectionManager(config ConnectionManagerConfig, log *zerolog.Logger) *ConnectionManager {
 	return &ConnectionManager{
 		config:    config,
 		conn:      nil,
