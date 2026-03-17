@@ -25,87 +25,48 @@ type Publisher struct {
 	exchange     string
 	exchangeType string
 	log          *zerolog.Logger
-	channelPool  chan *amqp.Channel
-	poolSize     int
+	pool         *ChannelPool
 	mu           sync.RWMutex
 	closed       bool
 }
 
 // NewPublisher creates a new RabbitMQ event publisher.
 func NewPublisher(
+	ctx context.Context,
 	connManager *ConnectionManager,
 	exchange string,
 	log *zerolog.Logger,
 	poolSize int,
-) *Publisher {
-	if poolSize <= 0 {
-		poolSize = 10
+) (*Publisher, error) {
+	pool, err := NewChannelPool(connManager, poolSize, log)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create channel pool: %w", err)
 	}
 
-	return &Publisher{
+	publisher := &Publisher{
 		connManager:  connManager,
 		exchange:     exchange,
 		exchangeType: "topic",
 		log:          log,
-		channelPool:  make(chan *amqp.Channel, poolSize),
-		poolSize:     poolSize,
+		pool:         pool,
 		mu:           sync.RWMutex{},
 		closed:       false,
 	}
-}
 
-// Initialize creates the channel pool.
-func (p *Publisher) Initialize() error {
-	if p.IsClosed() {
-		return errors.New("publisher is closed")
+	if err = publisher.exchangeDeclare(ctx); err != nil {
+		return nil, fmt.Errorf("failed to declare exchange: %w", err)
 	}
 
-	p.mu.Lock()
-	defer p.mu.Unlock()
-
-	for i := 0; i < p.poolSize; i++ {
-		ch, err := p.createChannel()
-		if err != nil {
-			// Close already created channels
-			p.closePool()
-			return fmt.Errorf("failed to create channel %d: %w", i, err)
-		}
-		p.channelPool <- ch
-	}
-
-	return nil
-}
-
-// ExchangeDeclare declares the exchange on RabbitMQ.
-func (p *Publisher) ExchangeDeclare() error {
-	ch, err := p.getChannel()
-	if err != nil {
-		return fmt.Errorf("failed to get channel: %w", err)
-	}
-	defer p.returnChannel(ch)
-
-	if err = ch.ExchangeDeclare(
-		p.exchange,
-		p.exchangeType,
-		true,
-		false,
-		false,
-		false,
-		nil,
-	); err != nil {
-		return fmt.Errorf("failed to declare exchange: %w", err)
-	}
-
-	return nil
+	return publisher, nil
 }
 
 // Publish publishes an event to RabbitMQ without waiting for confirmation.
-func (p *Publisher) Publish(_ context.Context, event Event) error {
-	ch, err := p.getChannel()
+func (p *Publisher) Publish(ctx context.Context, event Event) error {
+	ch, err := p.pool.Get(ctx)
 	if err != nil {
 		return fmt.Errorf("failed to get channel: %w", err)
 	}
-	defer p.returnChannel(ch)
+	defer p.pool.Put(ch)
 
 	body, err := json.Marshal(event)
 	if err != nil {
@@ -139,11 +100,11 @@ func (p *Publisher) Publish(_ context.Context, event Event) error {
 
 // PublishWithConfirm publishes an event and waits for confirmation from RabbitMQ.
 func (p *Publisher) PublishWithConfirm(ctx context.Context, event Event) error {
-	ch, err := p.getChannel()
+	ch, err := p.pool.Get(ctx)
 	if err != nil {
 		return fmt.Errorf("failed to get channel: %w", err)
 	}
-	defer p.returnChannel(ch)
+	defer p.pool.Put(ch)
 
 	// Enable publisher confirms
 	if err = ch.Confirm(false); err != nil {
@@ -207,8 +168,7 @@ func (p *Publisher) Close() error {
 	defer p.mu.Unlock()
 
 	p.closed = true
-	close(p.channelPool)
-	p.closePool()
+	p.pool.Close()
 
 	return nil
 }
@@ -219,76 +179,25 @@ func (p *Publisher) IsClosed() bool {
 	return p.closed
 }
 
-// getChannel retrieves a channel from the pool.
-func (p *Publisher) getChannel() (*amqp.Channel, error) {
-	if p.IsClosed() {
-		return nil, errors.New("publisher is closed")
-	}
-
-	select {
-	case ch := <-p.channelPool:
-		// Check if channel is still valid
-		if ch.IsClosed() {
-			// Recreate channel
-			newCh, err := p.createChannel()
-			if err != nil {
-				return nil, err
-			}
-			return newCh, nil
-		}
-		return ch, nil
-	case <-time.After(5 * time.Second):
-		return nil, errors.New("timeout waiting for channel from pool")
-	}
-}
-
-// returnChannel returns a channel to the pool.
-func (p *Publisher) returnChannel(ch *amqp.Channel) {
-	if ch == nil || ch.IsClosed() {
-		return
-	}
-
-	if p.IsClosed() {
-		ch.Close()
-		return
-	}
-
-	p.mu.Lock()
-	defer p.mu.Unlock()
-
-	select {
-	case p.channelPool <- ch:
-	default:
-		// Pool is full, close the channel
-		ch.Close()
-	}
-}
-
-// createChannel creates a new channel from the connection.
-func (p *Publisher) createChannel() (*amqp.Channel, error) {
-	conn, err := p.connManager.Connection()
+// exchangeDeclare declares the exchange on RabbitMQ.
+func (p *Publisher) exchangeDeclare(ctx context.Context) error {
+	ch, err := p.pool.Get(ctx)
 	if err != nil {
-		return nil, fmt.Errorf("failed to get connection: %w", err)
+		return fmt.Errorf("failed to get channel: %w", err)
+	}
+	defer p.pool.Put(ch)
+
+	if err = ch.ExchangeDeclare(
+		p.exchange,
+		p.exchangeType,
+		true,
+		false,
+		false,
+		false,
+		nil,
+	); err != nil {
+		return fmt.Errorf("failed to declare exchange: %w", err)
 	}
 
-	ch, err := conn.Channel()
-	if err != nil {
-		return nil, fmt.Errorf("failed to create channel: %w", err)
-	}
-
-	return ch, nil
-}
-
-// closePool closes all channels in the pool.
-func (p *Publisher) closePool() {
-	for {
-		select {
-		case ch := <-p.channelPool:
-			if ch != nil {
-				ch.Close()
-			}
-		default:
-			return
-		}
-	}
+	return nil
 }

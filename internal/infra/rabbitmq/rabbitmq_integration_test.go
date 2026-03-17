@@ -74,10 +74,13 @@ func setupRabbitMQFromContainer(
 func setupPublisher(t *testing.T, connManager *rabbitmq.ConnectionManager) *rabbitmq.Publisher {
 	t.Helper()
 
+	ctx, cancel := context.WithTimeout(context.Background(), _testTimeout)
+	defer cancel()
+
 	log := zerolog.New(zerolog.NewConsoleWriter())
-	publisher := rabbitmq.NewPublisher(connManager, _testExchange, &log, 5)
-	require.NoError(t, publisher.Initialize())
-	require.NoError(t, publisher.ExchangeDeclare())
+	publisher, err := rabbitmq.NewPublisher(ctx, connManager, _testExchange, &log, 5)
+
+	require.NoError(t, err)
 
 	return publisher
 }
