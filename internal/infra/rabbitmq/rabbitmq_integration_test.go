@@ -14,7 +14,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	amqp "github.com/rabbitmq/amqp091-go"
+	rabbitmqtc "github.com/testcontainers/testcontainers-go/modules/rabbitmq"
 
 	"recipes-desk/internal/infra/rabbitmq"
 	"recipes-desk/pkg/testutils"
@@ -41,11 +41,42 @@ const (
 	_testTimeout  = 3 * time.Second
 )
 
-func setupPublisher(t *testing.T, conn *amqp.Connection) *rabbitmq.Publisher {
+// setupRabbitMQFromContainer creates ConnectionManager from container.
+func setupRabbitMQFromContainer(
+	t *testing.T,
+	container *rabbitmqtc.RabbitMQContainer,
+) *rabbitmq.ConnectionManager {
+	t.Helper()
+
+	ctx := context.Background()
+
+	host, err := container.Host(ctx)
+	require.NoError(t, err)
+
+	port, err := container.MappedPort(ctx, "5672")
+	require.NoError(t, err)
+
+	config := rabbitmq.ConnectionManagerConfig{
+		Host:     host,
+		Port:     port.Int(),
+		User:     "guest",
+		Password: "guest",
+		VHost:    "/",
+	}
+
+	log := zerolog.New(zerolog.NewConsoleWriter())
+	connManager := rabbitmq.NewConnectionManager(config, &log)
+	require.NoError(t, connManager.Start(ctx))
+
+	return connManager
+}
+
+func setupPublisher(t *testing.T, connManager *rabbitmq.ConnectionManager) *rabbitmq.Publisher {
 	t.Helper()
 
 	log := zerolog.New(zerolog.NewConsoleWriter())
-	publisher := rabbitmq.NewPublisher(conn, _testExchange, &log)
+	publisher := rabbitmq.NewPublisher(connManager, _testExchange, &log, 5)
+	require.NoError(t, publisher.Initialize())
 	require.NoError(t, publisher.ExchangeDeclare())
 
 	return publisher
@@ -53,13 +84,17 @@ func setupPublisher(t *testing.T, conn *amqp.Connection) *rabbitmq.Publisher {
 
 func setupConsumer(
 	t *testing.T,
-	conn *amqp.Connection,
+	connManager *rabbitmq.ConnectionManager,
 	queueName string,
 	handler rabbitmq.HandlerFunc,
 ) *rabbitmq.Consumer {
 	t.Helper()
 
 	log := zerolog.New(zerolog.NewConsoleWriter())
+
+	conn, err := connManager.Connection()
+	require.NoError(t, err)
+
 	consumer := rabbitmq.NewConsumer(conn, rabbitmq.ConsumerConfig{
 		Exchange:   _testExchange,
 		Queue:      queueName,
@@ -77,10 +112,13 @@ func setupConsumer(
 }
 
 func TestIntegration_Publisher_PublishWithConfirm(t *testing.T) {
-	conn, cleanup := testutils.SetupRabbitMQContainer(t)
+	container, cleanup := testutils.SetupRabbitMQContainer(t)
 	defer cleanup()
 
-	publisher := setupPublisher(t, conn)
+	connManager := setupRabbitMQFromContainer(t, container)
+	defer connManager.Stop()
+
+	publisher := setupPublisher(t, connManager)
 
 	event := TestLogSent{
 		Message:     "Test message",
@@ -102,10 +140,13 @@ func TestIntegration_Publisher_PublishWithConfirm(t *testing.T) {
 }
 
 func TestIntegration_Consumer_BasicConsume(t *testing.T) {
-	conn, cleanup := testutils.SetupRabbitMQContainer(t)
+	container, cleanup := testutils.SetupRabbitMQContainer(t)
 	defer cleanup()
 
-	publisher := setupPublisher(t, conn)
+	connManager := setupRabbitMQFromContainer(t, container)
+	defer connManager.Stop()
+
+	publisher := setupPublisher(t, connManager)
 
 	received := make(chan TestLogSent, 1)
 	handler := func(ctx context.Context, routingKey string, body []byte) error {
@@ -117,7 +158,7 @@ func TestIntegration_Consumer_BasicConsume(t *testing.T) {
 		return nil
 	}
 
-	consumer := setupConsumer(t, conn, _testQueue, handler)
+	consumer := setupConsumer(t, connManager, _testQueue, handler)
 	require.NoError(t, consumer.Setup())
 
 	ctx, cancel := context.WithTimeout(context.Background(), _testTimeout)
@@ -132,6 +173,7 @@ func TestIntegration_Consumer_BasicConsume(t *testing.T) {
 	// Give consumer time to start
 	time.Sleep(10 * time.Millisecond)
 
+	// Publish event
 	event := TestLogSent{
 		Message:     "Test message",
 		ServerBlown: true,
@@ -151,10 +193,13 @@ func TestIntegration_Consumer_BasicConsume(t *testing.T) {
 }
 
 func TestIntegration_Consumer_Retry(t *testing.T) {
-	conn, cleanup := testutils.SetupRabbitMQContainer(t)
+	container, cleanup := testutils.SetupRabbitMQContainer(t)
 	defer cleanup()
 
-	publisher := setupPublisher(t, conn)
+	connManager := setupRabbitMQFromContainer(t, container)
+	defer connManager.Stop()
+
+	publisher := setupPublisher(t, connManager)
 
 	wg := sync.WaitGroup{}
 	wg.Add(3)
@@ -169,7 +214,7 @@ func TestIntegration_Consumer_Retry(t *testing.T) {
 		return nil
 	}
 
-	consumer := setupConsumer(t, conn, _testQueue, handler)
+	consumer := setupConsumer(t, connManager, _testQueue, handler)
 	require.NoError(t, consumer.Setup())
 
 	ctx, cancel := context.WithTimeout(context.Background(), _testTimeout)
@@ -184,6 +229,7 @@ func TestIntegration_Consumer_Retry(t *testing.T) {
 	// Give consumer time to start
 	time.Sleep(10 * time.Millisecond)
 
+	// Publish event
 	event := TestLogSent{
 		Message:     "Test message",
 		ServerBlown: false,

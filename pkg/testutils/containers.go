@@ -10,7 +10,6 @@ import (
 	"go.mongodb.org/mongo-driver/mongo"
 	"go.mongodb.org/mongo-driver/mongo/options"
 
-	amqp "github.com/rabbitmq/amqp091-go"
 	mongodbtc "github.com/testcontainers/testcontainers-go/modules/mongodb"
 	rabbitmqtc "github.com/testcontainers/testcontainers-go/modules/rabbitmq"
 )
@@ -53,7 +52,7 @@ func SetupMongoContainer(t *testing.T, dbName string) (*mongo.Database, func()) 
 }
 
 // SetupRabbitMQContainer starts a RabbitMQ container for testing.
-func SetupRabbitMQContainer(t *testing.T) (*amqp.Connection, func()) {
+func SetupRabbitMQContainer(t *testing.T) (*rabbitmqtc.RabbitMQContainer, func()) {
 	t.Helper()
 
 	ctx := context.Background()
@@ -64,20 +63,9 @@ func SetupRabbitMQContainer(t *testing.T) (*amqp.Connection, func()) {
 	)
 	require.NoError(t, err)
 
-	url, err := rmqContainer.AmqpURL(ctx)
-	require.NoError(t, err)
-
-	conn, err := amqp.Dial(url)
-	require.NoError(t, err)
-
-	cleanup := func() {
-		if err = conn.Close(); err != nil {
-			t.Logf("Failed to stop RabbitMQ connection: %v", err)
-		}
+	return rmqContainer, func() {
 		if err = rmqContainer.Terminate(ctx); err != nil {
 			t.Logf("Failed to terminate RabbitMQ container: %v", err)
 		}
 	}
-
-	return conn, cleanup
 }
