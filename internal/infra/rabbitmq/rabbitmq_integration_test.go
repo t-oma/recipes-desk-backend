@@ -46,7 +46,7 @@ func setupPublisher(t *testing.T, conn *amqp.Connection) *rabbitmq.Publisher {
 
 	log := zerolog.New(zerolog.NewConsoleWriter())
 	publisher := rabbitmq.NewPublisher(conn, _testExchange, &log)
-	publisher.ExchangeDeclare()
+	require.NoError(t, publisher.ExchangeDeclare())
 
 	return publisher
 }
@@ -132,7 +132,6 @@ func TestIntegration_Consumer_BasicConsume(t *testing.T) {
 	// Give consumer time to start
 	time.Sleep(10 * time.Millisecond)
 
-	// Publish event
 	event := TestLogSent{
 		Message:     "Test message",
 		ServerBlown: true,
@@ -155,7 +154,6 @@ func TestIntegration_Consumer_Retry(t *testing.T) {
 	conn, cleanup := testutils.SetupRabbitMQContainer(t)
 	defer cleanup()
 
-	// Setup publisher
 	publisher := setupPublisher(t, conn)
 
 	wg := sync.WaitGroup{}
@@ -186,7 +184,6 @@ func TestIntegration_Consumer_Retry(t *testing.T) {
 	// Give consumer time to start
 	time.Sleep(10 * time.Millisecond)
 
-	// Publish event
 	event := TestLogSent{
 		Message:     "Test message",
 		ServerBlown: false,

@@ -13,8 +13,6 @@ import (
 	amqp "github.com/rabbitmq/amqp091-go"
 	mongodbtc "github.com/testcontainers/testcontainers-go/modules/mongodb"
 	rabbitmqtc "github.com/testcontainers/testcontainers-go/modules/rabbitmq"
-
-	"recipes-desk/internal/infra/rabbitmq"
 )
 
 func SetupMongoContainer(t *testing.T, dbName string) (*mongo.Database, func()) {
@@ -66,27 +64,15 @@ func SetupRabbitMQContainer(t *testing.T) (*amqp.Connection, func()) {
 	)
 	require.NoError(t, err)
 
-	// Get connection details
-	host, err := rmqContainer.Host(ctx)
-	require.NoError(t, err)
-	port, err := rmqContainer.MappedPort(ctx, "5672")
+	url, err := rmqContainer.AmqpURL(ctx)
 	require.NoError(t, err)
 
-	// Create RabbitMQ connection
-	config := rabbitmq.Config{
-		Host:     host,
-		Port:     port.Int(),
-		User:     "guest",
-		Password: "guest",
-		VHost:    "/",
-	}
-
-	conn, err := rabbitmq.Connect(config)
+	conn, err := amqp.Dial(url)
 	require.NoError(t, err)
 
 	cleanup := func() {
 		if err = conn.Close(); err != nil {
-			t.Logf("Failed to close RabbitMQ connection: %v", err)
+			t.Logf("Failed to stop RabbitMQ connection: %v", err)
 		}
 		if err = rmqContainer.Terminate(ctx); err != nil {
 			t.Logf("Failed to terminate RabbitMQ container: %v", err)
