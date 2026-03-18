@@ -99,7 +99,7 @@ func setupConsumer(
 ) *rabbitmq.Consumer {
 	t.Helper()
 
-	consumer := rabbitmq.NewConsumer(rabbitmq.ConsumerConfig{
+	consumer, err := rabbitmq.NewConsumer(context.Background(), rabbitmq.ConsumerConfig{
 		Exchange:   _testExchange,
 		Queue:      _testQueue,
 		RoutingKey: "logs.sent",
@@ -111,6 +111,7 @@ func setupConsumer(
 			500 * time.Millisecond,
 		},
 	}, pool, log)
+	require.NoError(t, err)
 
 	return consumer
 }

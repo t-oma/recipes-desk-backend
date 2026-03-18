@@ -23,18 +23,25 @@ type Consumer struct {
 
 // NewConsumer creates a new RabbitMQ consumer.
 func NewConsumer(
+	ctx context.Context,
 	config ConsumerConfig,
 	pool *ChannelPool,
 	log *zerolog.Logger,
-) *Consumer {
+) (*Consumer, error) {
 	config = config.WithDefaults()
 
-	return &Consumer{
+	consumer := &Consumer{
 		config:         config,
 		pool:           pool,
 		log:            log,
 		declaredQueues: make(map[string]bool),
 	}
+
+	if err := consumer.exchangeDeclare(ctx); err != nil {
+		return nil, fmt.Errorf("failed to declare exchange: %w", err)
+	}
+
+	return consumer, nil
 }
 
 // Setup declares exchange, main queue, retry queues, and DLQ.
@@ -44,18 +51,6 @@ func (c *Consumer) Setup(ctx context.Context) error {
 		return fmt.Errorf("failed to get channel: %w", err)
 	}
 	defer ch.Close()
-
-	if err = ch.ExchangeDeclare(
-		c.config.Exchange, // name
-		"topic",           // kind
-		true,              // durable
-		false,             // auto-deleted
-		false,             // internal
-		false,             // noWait
-		nil,
-	); err != nil {
-		return fmt.Errorf("failed to declare exchange: %w", err)
-	}
 
 	dlqName, err := c.declareDLQ(ch)
 	if err != nil {
@@ -163,6 +158,28 @@ func (c *Consumer) consumeLoop(ctx context.Context) error {
 			}
 		}
 	}
+}
+
+func (c *Consumer) exchangeDeclare(ctx context.Context) error {
+	ch, err := c.pool.Get(ctx)
+	if err != nil {
+		return fmt.Errorf("failed to get channel: %w", err)
+	}
+	defer ch.Close()
+
+	if err = ch.ExchangeDeclare(
+		c.config.Exchange, // name
+		"topic",           // kind
+		true,              // durable
+		false,             // auto-deleted
+		false,             // internal
+		false,             // noWait
+		nil,
+	); err != nil {
+		return fmt.Errorf("failed to declare exchange: %w", err)
+	}
+
+	return nil
 }
 
 // declareDLQ declares the Dead Letter Queue (DLQ).
