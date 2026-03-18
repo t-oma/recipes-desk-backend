@@ -71,14 +71,20 @@ func setupRabbitMQFromContainer(
 	return connManager
 }
 
-func setupPublisher(t *testing.T, connManager *rabbitmq.ConnectionManager) *rabbitmq.Publisher {
+func setupPublisher(
+	t *testing.T,
+	pool *rabbitmq.ChannelPool,
+	log *zerolog.Logger,
+) *rabbitmq.Publisher {
 	t.Helper()
 
 	ctx, cancel := context.WithTimeout(context.Background(), _testTimeout)
 	defer cancel()
 
-	log := zerolog.New(zerolog.NewConsoleWriter())
-	publisher, err := rabbitmq.NewPublisher(ctx, connManager, _testExchange, &log, 5)
+	publisher, err := rabbitmq.NewPublisher(ctx, rabbitmq.PublisherConfig{
+		Exchange:     _testExchange,
+		ExchangeType: "topic",
+	}, pool, log)
 
 	require.NoError(t, err)
 
@@ -87,20 +93,15 @@ func setupPublisher(t *testing.T, connManager *rabbitmq.ConnectionManager) *rabb
 
 func setupConsumer(
 	t *testing.T,
-	connManager *rabbitmq.ConnectionManager,
-	queueName string,
+	pool *rabbitmq.ChannelPool,
 	handler rabbitmq.HandlerFunc,
+	log *zerolog.Logger,
 ) *rabbitmq.Consumer {
 	t.Helper()
 
-	log := zerolog.New(zerolog.NewConsoleWriter())
-
-	conn, err := connManager.Connection()
-	require.NoError(t, err)
-
-	consumer := rabbitmq.NewConsumer(conn, rabbitmq.ConsumerConfig{
+	consumer := rabbitmq.NewConsumer(rabbitmq.ConsumerConfig{
 		Exchange:   _testExchange,
-		Queue:      queueName,
+		Queue:      _testQueue,
 		RoutingKey: "logs.sent",
 		Handler:    handler,
 		MaxRetries: 3,
@@ -109,7 +110,7 @@ func setupConsumer(
 			200 * time.Millisecond,
 			500 * time.Millisecond,
 		},
-	}, &log)
+	}, pool, log)
 
 	return consumer
 }
@@ -121,7 +122,12 @@ func TestIntegration_Publisher_PublishWithConfirm(t *testing.T) {
 	connManager := setupRabbitMQFromContainer(t, container)
 	defer connManager.Stop()
 
-	publisher := setupPublisher(t, connManager)
+	log := zerolog.New(zerolog.NewConsoleWriter())
+	pool, err := rabbitmq.NewChannelPool(context.Background(), connManager, 5, &log)
+	require.NoError(t, err)
+	defer pool.Close(context.Background())
+
+	publisher := setupPublisher(t, pool, &log)
 
 	event := TestLogSent{
 		Message:     "Test message",
@@ -149,7 +155,12 @@ func TestIntegration_Consumer_BasicConsume(t *testing.T) {
 	connManager := setupRabbitMQFromContainer(t, container)
 	defer connManager.Stop()
 
-	publisher := setupPublisher(t, connManager)
+	log := zerolog.New(zerolog.NewConsoleWriter())
+	pool, err := rabbitmq.NewChannelPool(context.Background(), connManager, 5, &log)
+	require.NoError(t, err)
+	defer pool.Close(context.Background())
+
+	publisher := setupPublisher(t, pool, &log)
 
 	received := make(chan TestLogSent, 1)
 	handler := func(ctx context.Context, routingKey string, body []byte) error {
@@ -161,8 +172,8 @@ func TestIntegration_Consumer_BasicConsume(t *testing.T) {
 		return nil
 	}
 
-	consumer := setupConsumer(t, connManager, _testQueue, handler)
-	require.NoError(t, consumer.Setup())
+	consumer := setupConsumer(t, pool, handler, &log)
+	require.NoError(t, consumer.Setup(context.Background()))
 
 	ctx, cancel := context.WithTimeout(context.Background(), _testTimeout)
 	defer cancel()
@@ -182,7 +193,7 @@ func TestIntegration_Consumer_BasicConsume(t *testing.T) {
 		ServerBlown: true,
 	}
 
-	err := publisher.PublishWithConfirm(ctx, event)
+	err = publisher.PublishWithConfirm(ctx, event)
 	require.NoError(t, err)
 
 	// Wait for message
@@ -202,7 +213,12 @@ func TestIntegration_Consumer_Retry(t *testing.T) {
 	connManager := setupRabbitMQFromContainer(t, container)
 	defer connManager.Stop()
 
-	publisher := setupPublisher(t, connManager)
+	log := zerolog.New(zerolog.NewConsoleWriter())
+	pool, err := rabbitmq.NewChannelPool(context.Background(), connManager, 5, &log)
+	require.NoError(t, err)
+	defer pool.Close(context.Background())
+
+	publisher := setupPublisher(t, pool, &log)
 
 	wg := sync.WaitGroup{}
 	wg.Add(3)
@@ -217,8 +233,8 @@ func TestIntegration_Consumer_Retry(t *testing.T) {
 		return nil
 	}
 
-	consumer := setupConsumer(t, connManager, _testQueue, handler)
-	require.NoError(t, consumer.Setup())
+	consumer := setupConsumer(t, pool, handler, &log)
+	require.NoError(t, consumer.Setup(context.Background()))
 
 	ctx, cancel := context.WithTimeout(context.Background(), _testTimeout)
 	defer cancel()
@@ -238,7 +254,7 @@ func TestIntegration_Consumer_Retry(t *testing.T) {
 		ServerBlown: false,
 	}
 
-	err := publisher.PublishWithConfirm(ctx, event)
+	err = publisher.PublishWithConfirm(ctx, event)
 	require.NoError(t, err)
 
 	// Wait for all retry attempts
