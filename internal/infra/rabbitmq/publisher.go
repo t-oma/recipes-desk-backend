@@ -159,7 +159,7 @@ func (p *Publisher) PublishWithConfirm(ctx context.Context, event Event) error {
 }
 
 // Close closes the publisher and releases all resources.
-func (p *Publisher) Close() error {
+func (p *Publisher) Close(ctx context.Context) error {
 	if p.IsClosed() {
 		return nil
 	}
@@ -167,8 +167,8 @@ func (p *Publisher) Close() error {
 	p.mu.Lock()
 	defer p.mu.Unlock()
 
+	p.pool.Close(ctx)
 	p.closed = true
-	p.pool.Close()
 
 	return nil
 }

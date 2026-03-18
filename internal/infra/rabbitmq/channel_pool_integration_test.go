@@ -31,7 +31,7 @@ func TestIntegration_ChannelPool_Initialize(t *testing.T) {
 	t.Run("initialize with valid size", func(t *testing.T) {
 		pool, err := rabbitmq.NewChannelPool(connManager, 5, &log)
 		require.NoError(t, err)
-		defer pool.Close()
+		defer pool.Close(context.Background())
 
 		stats := pool.Stats()
 		assert.Equal(t, 5, stats.Available)
@@ -42,7 +42,7 @@ func TestIntegration_ChannelPool_Initialize(t *testing.T) {
 	t.Run("initialize with zero size uses default", func(t *testing.T) {
 		pool, err := rabbitmq.NewChannelPool(connManager, 0, &log)
 		require.NoError(t, err)
-		defer pool.Close()
+		defer pool.Close(context.Background())
 
 		stats := pool.Stats()
 		assert.Equal(t, rabbitmq.ChannelPoolMinSize, stats.Available)
@@ -60,16 +60,14 @@ func TestIntegration_ChannelPool_GetAndPut(t *testing.T) {
 	poolSize := 3
 	pool, err := rabbitmq.NewChannelPool(connManager, poolSize, &log)
 	require.NoError(t, err)
-	defer pool.Close()
+	defer pool.Close(context.Background())
 
 	t.Run("get channel from pool", func(t *testing.T) {
-		ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
-		defer cancel()
-
-		ch, err := pool.Get(ctx)
+		ch, err := pool.Get(context.Background())
 		require.NoError(t, err)
 		require.NotNil(t, ch)
 		assert.False(t, ch.IsClosed())
+
 		stats := pool.Stats()
 		assert.Equal(t, 1, stats.InUse)
 		assert.Equal(t, 2, stats.Available)
@@ -140,7 +138,7 @@ func TestIntegration_ChannelPool_ConcurrentAccess(t *testing.T) {
 	log := zerolog.New(zerolog.NewConsoleWriter())
 	pool, err := rabbitmq.NewChannelPool(connManager, 10, &log)
 	require.NoError(t, err)
-	defer pool.Close()
+	defer pool.Close(context.Background())
 
 	t.Run("concurrent get and put", func(t *testing.T) {
 		var wg sync.WaitGroup
@@ -183,7 +181,7 @@ func TestIntegration_ChannelPool_ClosedChannel(t *testing.T) {
 	log := zerolog.New(zerolog.NewConsoleWriter())
 	pool, err := rabbitmq.NewChannelPool(connManager, 3, &log)
 	require.NoError(t, err)
-	defer pool.Close()
+	defer pool.Close(context.Background())
 
 	t.Run("get handles closed channel", func(t *testing.T) {
 		// Get channel and close it manually
@@ -218,7 +216,10 @@ func TestIntegration_ChannelPool_Close(t *testing.T) {
 	require.NoError(t, err)
 
 	t.Run("close pool", func(t *testing.T) {
-		err := pool.Close()
+		ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+		defer cancel()
+
+		err := pool.Close(ctx)
 		require.NoError(t, err)
 
 		// Try to get channel from closed pool
@@ -228,7 +229,10 @@ func TestIntegration_ChannelPool_Close(t *testing.T) {
 	})
 
 	t.Run("double close is safe", func(t *testing.T) {
-		err := pool.Close()
+		ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+		defer cancel()
+
+		err := pool.Close(ctx)
 		require.NoError(t, err) // Should not error
 	})
 }
@@ -240,10 +244,13 @@ func TestIntegration_ChannelPool_Stats(t *testing.T) {
 	connManager := setupRabbitMQFromContainer(t, container)
 	defer connManager.Stop()
 
+	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+	defer cancel()
+
 	log := zerolog.New(zerolog.NewConsoleWriter())
 	pool, err := rabbitmq.NewChannelPool(connManager, 5, &log)
 	require.NoError(t, err)
-	defer pool.Close()
+	defer pool.Close(ctx)
 
 	t.Run("stats reflect pool state", func(t *testing.T) {
 		// Initial state
