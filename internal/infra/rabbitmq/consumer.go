@@ -2,7 +2,6 @@ package rabbitmq
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 	"time"
 
@@ -11,71 +10,48 @@ import (
 	amqp "github.com/rabbitmq/amqp091-go"
 )
 
-func newRetryQueueName(queue string, retry int) string {
-	return fmt.Sprintf("%s-retry-%d", queue, retry)
-}
-
 // HandlerFunc is the function signature for event handlers.
 type HandlerFunc func(ctx context.Context, routingKey string, body []byte) error
 
 // Consumer handles consuming events from RabbitMQ with retry and DLQ.
 type Consumer struct {
-	conn           *amqp.Connection
-	exchange       string
-	queue          string
-	routingKey     string
-	handler        HandlerFunc
+	config         ConsumerConfig
+	pool           *ChannelPool
 	log            *zerolog.Logger
-	maxRetries     int
-	retryTTLs      []time.Duration // TTL for each retry attempt
 	declaredQueues map[string]bool
 }
 
 // NewConsumer creates a new RabbitMQ consumer.
 func NewConsumer(
-	conn *amqp.Connection,
 	config ConsumerConfig,
+	pool *ChannelPool,
 	log *zerolog.Logger,
 ) *Consumer {
-	if config.MaxRetries == 0 {
-		config.MaxRetries = 3
-	}
-	if len(config.RetryTTLs) == 0 {
-		config.RetryTTLs = []time.Duration{
-			5 * time.Second,
-			30 * time.Second,
-			90 * time.Second,
-		}
-	}
+	config = config.WithDefaults()
 
 	return &Consumer{
-		conn:           conn,
-		exchange:       config.Exchange,
-		queue:          config.Queue,
-		routingKey:     config.RoutingKey,
-		handler:        config.Handler,
+		config:         config,
+		pool:           pool,
 		log:            log,
-		maxRetries:     config.MaxRetries,
-		retryTTLs:      config.RetryTTLs,
 		declaredQueues: make(map[string]bool),
 	}
 }
 
 // Setup declares exchange, main queue, retry queues, and DLQ.
-func (c *Consumer) Setup() error {
-	ch, err := c.conn.Channel()
+func (c *Consumer) Setup(ctx context.Context) error {
+	ch, err := c.pool.Get(ctx)
 	if err != nil {
 		return fmt.Errorf("failed to get channel: %w", err)
 	}
 	defer ch.Close()
 
 	if err = ch.ExchangeDeclare(
-		c.exchange, // name
-		"topic",    // kind
-		true,       // durable
-		false,      // auto-deleted
-		false,      // internal
-		false,      // noWait
+		c.config.Exchange, // name
+		"topic",           // kind
+		true,              // durable
+		false,             // auto-deleted
+		false,             // internal
+		false,             // noWait
 		nil,
 	); err != nil {
 		return fmt.Errorf("failed to declare exchange: %w", err)
@@ -87,7 +63,7 @@ func (c *Consumer) Setup() error {
 	}
 
 	// Declare retry queues with TTL
-	for retry := 1; retry <= c.maxRetries; retry++ {
+	for retry := 1; retry <= c.config.MaxRetries; retry++ {
 		if _, err = c.declareRetryQueue(ch, retry); err != nil {
 			return fmt.Errorf("failed to declare retry queue %d: %w", retry, err)
 		}
@@ -100,9 +76,9 @@ func (c *Consumer) Setup() error {
 
 	// Bind main queue to exchange
 	if err = ch.QueueBind(
-		c.queue,
-		c.routingKey,
-		c.exchange,
+		c.config.Queue,
+		c.config.RoutingKey,
+		c.config.Exchange,
 		false,
 		nil,
 	); err != nil {
@@ -110,10 +86,10 @@ func (c *Consumer) Setup() error {
 	}
 
 	c.log.Info().
-		Str("exchange", c.exchange).
-		Str("queue", c.queue).
-		Str("routing_key", c.routingKey).
-		Int("max_retries", c.maxRetries).
+		Str("exchange", c.config.Exchange).
+		Str("queue", c.config.Queue).
+		Str("routing_key", c.config.RoutingKey).
+		Int("max_retries", c.config.MaxRetries).
 		Msg("Consumer setup complete")
 
 	return nil
@@ -142,7 +118,7 @@ func (c *Consumer) Start(ctx context.Context) error {
 }
 
 func (c *Consumer) consumeLoop(ctx context.Context) error {
-	ch, err := c.conn.Channel()
+	ch, err := c.pool.Get(ctx)
 	if err != nil {
 		return fmt.Errorf("failed to get channel: %w", err)
 	}
@@ -154,7 +130,7 @@ func (c *Consumer) consumeLoop(ctx context.Context) error {
 	}
 
 	msgs, err := ch.Consume(
-		c.queue,
+		c.config.Queue,
 		"",
 		false,
 		false,
@@ -166,7 +142,7 @@ func (c *Consumer) consumeLoop(ctx context.Context) error {
 		return fmt.Errorf("failed to start consuming: %w", err)
 	}
 
-	c.log.Info().Str("queue", c.queue).Msg("Started consuming messages")
+	c.log.Info().Str("queue", c.config.Queue).Msg("Started consuming messages")
 
 	for {
 		select {
@@ -191,7 +167,7 @@ func (c *Consumer) consumeLoop(ctx context.Context) error {
 
 // declareDLQ declares the Dead Letter Queue (DLQ).
 func (c *Consumer) declareDLQ(ch *amqp.Channel) (string, error) {
-	dlqName := c.queue + "-dlq"
+	dlqName := c.config.Queue + "-dlq"
 	_, err := ch.QueueDeclare(
 		dlqName,
 		true,
@@ -209,13 +185,8 @@ func (c *Consumer) declareDLQ(ch *amqp.Channel) (string, error) {
 }
 
 func (c *Consumer) declareRetryQueue(ch *amqp.Channel, retry int) (string, error) {
-	retryQueueName := newRetryQueueName(c.queue, retry)
-	var ttl time.Duration
-	if retry-1 >= len(c.retryTTLs) {
-		ttl = c.retryTTLs[len(c.retryTTLs)-1]
-	} else {
-		ttl = c.retryTTLs[retry-1]
-	}
+	retryQueueName := newRetryQueueName(c.config.Queue, retry)
+	ttl := c.config.GetRetryTTL(retry)
 
 	_, err := ch.QueueDeclare(
 		retryQueueName,
@@ -225,7 +196,7 @@ func (c *Consumer) declareRetryQueue(ch *amqp.Channel, retry int) (string, error
 		false,
 		amqp.Table{
 			"x-dead-letter-exchange":    "", // default exchange
-			"x-dead-letter-routing-key": c.queue,
+			"x-dead-letter-routing-key": c.config.Queue,
 			"x-message-ttl":             ttl.Milliseconds(),
 		},
 	)
@@ -239,7 +210,7 @@ func (c *Consumer) declareRetryQueue(ch *amqp.Channel, retry int) (string, error
 
 func (c *Consumer) declareMainQueue(ch *amqp.Channel, dlqName string) (string, error) {
 	_, err := ch.QueueDeclare(
-		c.queue,
+		c.config.Queue,
 		true,
 		false,
 		false,
@@ -252,9 +223,9 @@ func (c *Consumer) declareMainQueue(ch *amqp.Channel, dlqName string) (string, e
 	if err != nil {
 		return "", err
 	}
-	c.declaredQueues[c.queue] = true
+	c.declaredQueues[c.config.Queue] = true
 
-	return c.queue, nil
+	return c.config.Queue, nil
 }
 
 func (c *Consumer) processMessage(ctx context.Context, ch *amqp.Channel, msg *amqp.Delivery) error {
@@ -272,11 +243,11 @@ func (c *Consumer) processMessage(ctx context.Context, ch *amqp.Channel, msg *am
 		Str("message_id", msg.MessageId).
 		Msg("Processing message")
 
-	if err := c.handler(ctx, msg.RoutingKey, msg.Body); err != nil {
+	if err := c.config.Handler(ctx, msg.RoutingKey, msg.Body); err != nil {
 		c.log.Error().Err(err).Int("retry_count", retryCount).Msg("Handler failed")
 
 		// Check if we should retry
-		if retryCount < c.maxRetries {
+		if retryCount < c.config.MaxRetries {
 			return c.retryMessage(ctx, ch, msg, retryCount)
 		}
 
@@ -307,7 +278,7 @@ func (c *Consumer) retryMessage(
 	msg *amqp.Delivery,
 	retryCount int,
 ) error {
-	retryQueue := newRetryQueueName(c.queue, retryCount+1)
+	retryQueue := newRetryQueueName(c.config.Queue, retryCount+1)
 
 	// Publish to retry queue
 	if err := ch.Publish(
@@ -342,15 +313,6 @@ func (c *Consumer) retryMessage(
 	return nil
 }
 
-// Message represents a consumed message.
-type Message struct {
-	RoutingKey string
-	Body       []byte
-	Headers    map[string]interface{}
-	Timestamp  time.Time
-}
-
-// Decode unmarshals the message body to the provided target.
-func (m *Message) Decode(target interface{}) error {
-	return json.Unmarshal(m.Body, target)
+func newRetryQueueName(queue string, retry int) string {
+	return fmt.Sprintf("%s-retry-%d", queue, retry)
 }
