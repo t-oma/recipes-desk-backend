@@ -21,39 +21,29 @@ type Event interface {
 
 // Publisher implements ports.EventBusWithConfirm for RabbitMQ.
 type Publisher struct {
-	connManager  *ConnectionManager
-	exchange     string
-	exchangeType string
-	log          *zerolog.Logger
-	pool         *ChannelPool
-	mu           sync.RWMutex
-	closed       bool
+	config PublisherConfig
+	pool   *ChannelPool
+	log    *zerolog.Logger
+	mu     sync.RWMutex
+	closed bool
 }
 
 // NewPublisher creates a new RabbitMQ event publisher.
 func NewPublisher(
 	ctx context.Context,
-	connManager *ConnectionManager,
-	exchange string,
+	config PublisherConfig,
+	pool *ChannelPool,
 	log *zerolog.Logger,
-	poolSize int,
 ) (*Publisher, error) {
-	pool, err := NewChannelPool(ctx, connManager, poolSize, log)
-	if err != nil {
-		return nil, fmt.Errorf("failed to create channel pool: %w", err)
-	}
-
 	publisher := &Publisher{
-		connManager:  connManager,
-		exchange:     exchange,
-		exchangeType: "topic",
-		log:          log,
-		pool:         pool,
-		mu:           sync.RWMutex{},
-		closed:       false,
+		pool:   pool,
+		config: config,
+		log:    log,
+		mu:     sync.RWMutex{},
+		closed: false,
 	}
 
-	if err = publisher.exchangeDeclare(ctx); err != nil {
+	if err := publisher.exchangeDeclare(ctx); err != nil {
 		return nil, fmt.Errorf("failed to declare exchange: %w", err)
 	}
 
@@ -74,7 +64,7 @@ func (p *Publisher) Publish(ctx context.Context, event Event) error {
 	}
 
 	if err = ch.Publish(
-		p.exchange,
+		p.config.Exchange,
 		event.RoutingKey(),
 		false,
 		false,
@@ -119,7 +109,7 @@ func (p *Publisher) PublishWithConfirm(ctx context.Context, event Event) error {
 	}
 
 	if err = ch.Publish(
-		p.exchange,
+		p.config.Exchange,
 		event.RoutingKey(),
 		false,
 		false,
@@ -188,8 +178,8 @@ func (p *Publisher) exchangeDeclare(ctx context.Context) error {
 	defer p.pool.Put(ch)
 
 	if err = ch.ExchangeDeclare(
-		p.exchange,
-		p.exchangeType,
+		p.config.Exchange,
+		p.config.ExchangeType,
 		true,
 		false,
 		false,

@@ -92,3 +92,8 @@ func (c ConsumerConfig) GetRetryTTL(retry int) time.Duration {
 	}
 	return c.RetryTTLs[retry-1]
 }
+
+type PublisherConfig struct {
+	Exchange     string
+	ExchangeType string
+}
