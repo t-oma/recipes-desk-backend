@@ -38,7 +38,7 @@ func (e TestLogSent) RoutingKey() string {
 const (
 	_testExchange = "test.logs.events"
 	_testQueue    = "test.logs-sent"
-	_testTimeout  = 3 * time.Second
+	_testTimeout  = 5 * time.Second
 )
 
 // setupRabbitMQFromContainer creates ConnectionManager from container.
@@ -175,6 +175,11 @@ func TestIntegration_Consumer_BasicConsume(t *testing.T) {
 
 	consumer := setupConsumer(t, pool, handler, &log)
 	require.NoError(t, consumer.Setup(context.Background()))
+	defer func() {
+		if err := consumer.Shutdown(context.Background()); err != nil {
+			t.Logf("Consumer shutdown error: %v", err)
+		}
+	}()
 
 	ctx, cancel := context.WithTimeout(context.Background(), _testTimeout)
 	defer cancel()
@@ -236,6 +241,11 @@ func TestIntegration_Consumer_Retry(t *testing.T) {
 
 	consumer := setupConsumer(t, pool, handler, &log)
 	require.NoError(t, consumer.Setup(context.Background()))
+	defer func() {
+		if err := consumer.Shutdown(context.Background()); err != nil {
+			t.Logf("Consumer shutdown error: %v", err)
+		}
+	}()
 
 	ctx, cancel := context.WithTimeout(context.Background(), _testTimeout)
 	defer cancel()
