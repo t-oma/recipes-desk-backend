@@ -11,6 +11,8 @@ import (
 	amqp "github.com/rabbitmq/amqp091-go"
 )
 
+const ChannelPoolMinSize = 10
+
 // PoolStats represents the statistics of the channel pool.
 type PoolStats struct {
 	Available int
@@ -35,7 +37,7 @@ func NewChannelPool(
 	log *zerolog.Logger,
 ) (*ChannelPool, error) {
 	if size <= 0 {
-		size = 10
+		size = ChannelPoolMinSize
 	}
 
 	cp := &ChannelPool{
@@ -57,7 +59,7 @@ func NewChannelPool(
 // Get retrieves a channel from the pool.
 func (p *ChannelPool) Get(ctx context.Context) (*amqp.Channel, error) {
 	if p.IsClosed() {
-		return nil, errors.New("channel pool is closed")
+		return nil, ErrChannelPoolClosed
 	}
 
 	select {
@@ -97,15 +99,15 @@ func (p *ChannelPool) Put(ch *amqp.Channel) {
 // Close closes the pool and all channels.
 func (p *ChannelPool) Close() error {
 	if p.IsClosed() {
-		return nil
+		return nil // Already closed
 	}
 
 	p.mu.Lock()
 	defer p.mu.Unlock()
 
+	p.closePool()
 	p.closed = true
 	close(p.pool)
-	p.closePool()
 
 	if p.log != nil {
 		p.log.Info().Msg("Channel pool closed")
@@ -138,7 +140,7 @@ func (p *ChannelPool) IsClosed() bool {
 // initialize populates the pool with channels.
 func (p *ChannelPool) initialize() error {
 	if p.IsClosed() {
-		return errors.New("channel pool is closed")
+		return ErrChannelPoolClosed
 	}
 
 	p.mu.Lock()
@@ -191,3 +193,5 @@ func (p *ChannelPool) closePool() {
 		}
 	}
 }
+
+var ErrChannelPoolClosed = errors.New("channel pool is closed")
