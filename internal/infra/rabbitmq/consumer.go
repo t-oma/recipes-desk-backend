@@ -15,10 +15,9 @@ type HandlerFunc func(ctx context.Context, routingKey string, body []byte) error
 
 // Consumer handles consuming events from RabbitMQ with retry and DLQ.
 type Consumer struct {
-	config         ConsumerConfig
-	pool           *ChannelPool
-	log            *zerolog.Logger
-	declaredQueues map[string]bool
+	config ConsumerConfig
+	pool   *ChannelPool
+	log    *zerolog.Logger
 }
 
 // NewConsumer creates a new RabbitMQ consumer.
@@ -31,10 +30,9 @@ func NewConsumer(
 	config = config.WithDefaults()
 
 	consumer := &Consumer{
-		config:         config,
-		pool:           pool,
-		log:            log,
-		declaredQueues: make(map[string]bool),
+		config: config,
+		pool:   pool,
+		log:    log,
 	}
 
 	if err := consumer.exchangeDeclare(ctx); err != nil {
@@ -196,7 +194,6 @@ func (c *Consumer) declareDLQ(ch *amqp.Channel) (string, error) {
 	if err != nil {
 		return "", err
 	}
-	c.declaredQueues[dlqName] = true
 
 	return dlqName, nil
 }
@@ -220,7 +217,6 @@ func (c *Consumer) declareRetryQueue(ch *amqp.Channel, retry int) (string, error
 	if err != nil {
 		return "", err
 	}
-	c.declaredQueues[retryQueueName] = true
 
 	return retryQueueName, nil
 }
@@ -240,7 +236,6 @@ func (c *Consumer) declareMainQueue(ch *amqp.Channel, dlqName string) (string, e
 	if err != nil {
 		return "", err
 	}
-	c.declaredQueues[c.config.Queue] = true
 
 	return c.config.Queue, nil
 }
