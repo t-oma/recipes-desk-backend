@@ -38,7 +38,7 @@ func NewPublisher(
 	log *zerolog.Logger,
 	poolSize int,
 ) (*Publisher, error) {
-	pool, err := NewChannelPool(connManager, poolSize, log)
+	pool, err := NewChannelPool(ctx, connManager, poolSize, log)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create channel pool: %w", err)
 	}

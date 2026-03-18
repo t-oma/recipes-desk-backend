@@ -33,6 +33,7 @@ type ChannelPool struct {
 
 // NewChannelPool creates a new channel pool.
 func NewChannelPool(
+	ctx context.Context,
 	connManager *ConnectionManager,
 	size int,
 	log *zerolog.Logger,
@@ -49,9 +50,6 @@ func NewChannelPool(
 		closed:      false,
 		mu:          sync.RWMutex{},
 	}
-
-	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
-	defer cancel()
 
 	if err := cp.initialize(ctx); err != nil {
 		return nil, fmt.Errorf("initialize channel pool: %w", err)

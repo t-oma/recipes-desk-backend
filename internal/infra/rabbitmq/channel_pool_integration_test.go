@@ -29,7 +29,7 @@ func TestIntegration_ChannelPool_Initialize(t *testing.T) {
 	log := zerolog.New(zerolog.NewConsoleWriter())
 
 	t.Run("initialize with valid size", func(t *testing.T) {
-		pool, err := rabbitmq.NewChannelPool(connManager, 5, &log)
+		pool, err := rabbitmq.NewChannelPool(context.Background(), connManager, 5, &log)
 		require.NoError(t, err)
 		defer pool.Close(context.Background())
 
@@ -40,7 +40,7 @@ func TestIntegration_ChannelPool_Initialize(t *testing.T) {
 	})
 
 	t.Run("initialize with zero size uses default", func(t *testing.T) {
-		pool, err := rabbitmq.NewChannelPool(connManager, 0, &log)
+		pool, err := rabbitmq.NewChannelPool(context.Background(), connManager, 0, &log)
 		require.NoError(t, err)
 		defer pool.Close(context.Background())
 
@@ -58,7 +58,7 @@ func TestIntegration_ChannelPool_GetAndPut(t *testing.T) {
 
 	log := zerolog.New(zerolog.NewConsoleWriter())
 	poolSize := 3
-	pool, err := rabbitmq.NewChannelPool(connManager, poolSize, &log)
+	pool, err := rabbitmq.NewChannelPool(context.Background(), connManager, poolSize, &log)
 	require.NoError(t, err)
 	defer pool.Close(context.Background())
 
@@ -136,7 +136,7 @@ func TestIntegration_ChannelPool_ConcurrentAccess(t *testing.T) {
 	defer connManager.Stop()
 
 	log := zerolog.New(zerolog.NewConsoleWriter())
-	pool, err := rabbitmq.NewChannelPool(connManager, 10, &log)
+	pool, err := rabbitmq.NewChannelPool(context.Background(), connManager, 10, &log)
 	require.NoError(t, err)
 	defer pool.Close(context.Background())
 
@@ -179,7 +179,7 @@ func TestIntegration_ChannelPool_ClosedChannel(t *testing.T) {
 	defer connManager.Stop()
 
 	log := zerolog.New(zerolog.NewConsoleWriter())
-	pool, err := rabbitmq.NewChannelPool(connManager, 3, &log)
+	pool, err := rabbitmq.NewChannelPool(context.Background(), connManager, 3, &log)
 	require.NoError(t, err)
 	defer pool.Close(context.Background())
 
@@ -212,7 +212,7 @@ func TestIntegration_ChannelPool_Close(t *testing.T) {
 	defer connManager.Stop()
 
 	log := zerolog.New(zerolog.NewConsoleWriter())
-	pool, err := rabbitmq.NewChannelPool(connManager, 3, &log)
+	pool, err := rabbitmq.NewChannelPool(context.Background(), connManager, 3, &log)
 	require.NoError(t, err)
 
 	t.Run("close pool", func(t *testing.T) {
@@ -248,7 +248,7 @@ func TestIntegration_ChannelPool_Stats(t *testing.T) {
 	defer cancel()
 
 	log := zerolog.New(zerolog.NewConsoleWriter())
-	pool, err := rabbitmq.NewChannelPool(connManager, 5, &log)
+	pool, err := rabbitmq.NewChannelPool(context.Background(), connManager, 5, &log)
 	require.NoError(t, err)
 	defer pool.Close(ctx)
 
