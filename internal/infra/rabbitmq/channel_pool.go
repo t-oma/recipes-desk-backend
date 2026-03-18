@@ -10,6 +10,8 @@ import (
 	"github.com/rs/zerolog"
 
 	amqp "github.com/rabbitmq/amqp091-go"
+
+	"recipes-desk/pkg/pool"
 )
 
 const ChannelPoolMinSize = 10
@@ -30,6 +32,11 @@ type ChannelPool struct {
 	closed      bool
 	log         *zerolog.Logger
 }
+
+var (
+	_ pool.Pool[*amqp.Channel] = (*ChannelPool)(nil)
+	_ pool.Stats[PoolStats]    = (*ChannelPool)(nil)
+)
 
 // NewChannelPool creates a new channel pool.
 func NewChannelPool(

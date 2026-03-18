@@ -2,12 +2,27 @@ package rabbitmq
 
 import (
 	"context"
+	"errors"
 	"fmt"
+	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/rs/zerolog"
 
 	amqp "github.com/rabbitmq/amqp091-go"
+
+	"recipes-desk/pkg/pool"
+)
+
+// ConsumerState represents the state of the consumer.
+type ConsumerState int
+
+const (
+	StateStopped ConsumerState = iota
+	StateRunning
+	StatePaused
+	StateShuttingDown
 )
 
 // HandlerFunc is the function signature for event handlers.
@@ -16,23 +31,35 @@ type HandlerFunc func(ctx context.Context, routingKey string, body []byte) error
 // Consumer handles consuming events from RabbitMQ with retry and DLQ.
 type Consumer struct {
 	config ConsumerConfig
-	pool   *ChannelPool
+	pool   pool.Pool[*amqp.Channel]
 	log    *zerolog.Logger
+
+	// State management
+	mu         sync.RWMutex
+	inFlight   atomic.Int64 // Atomic counter for in-flight messages
+	state      ConsumerState
+	shutdownCh chan struct{}
+	wg         sync.WaitGroup
 }
 
 // NewConsumer creates a new RabbitMQ consumer.
 func NewConsumer(
 	ctx context.Context,
 	config ConsumerConfig,
-	pool *ChannelPool,
+	pool pool.Pool[*amqp.Channel],
 	log *zerolog.Logger,
 ) (*Consumer, error) {
 	config = config.WithDefaults()
 
 	consumer := &Consumer{
-		config: config,
-		pool:   pool,
-		log:    log,
+		config:     config,
+		pool:       pool,
+		log:        log,
+		mu:         sync.RWMutex{},
+		inFlight:   atomic.Int64{},
+		state:      StateStopped,
+		shutdownCh: make(chan struct{}),
+		wg:         sync.WaitGroup{},
 	}
 
 	if err := consumer.exchangeDeclare(ctx); err != nil {
@@ -48,7 +75,7 @@ func (c *Consumer) Setup(ctx context.Context) error {
 	if err != nil {
 		return fmt.Errorf("failed to get channel: %w", err)
 	}
-	defer ch.Close()
+	defer c.pool.Put(ch)
 
 	dlqName, err := c.declareDLQ(ch)
 	if err != nil {
@@ -90,18 +117,45 @@ func (c *Consumer) Setup(ctx context.Context) error {
 
 // Start begins consuming messages.
 func (c *Consumer) Start(ctx context.Context) error {
+	if c.IsRunning() {
+		return errors.New("consumer already running")
+	}
+	c.mu.Lock()
+	c.state = StateRunning
+	c.mu.Unlock()
+
+	defer func() {
+		c.mu.Lock()
+		c.state = StateStopped
+		c.mu.Unlock()
+	}()
+
 	for {
 		select {
 		case <-ctx.Done():
-			c.log.Info().Msg("Consumer stopped")
+			return nil
+		case <-c.shutdownCh:
 			return nil
 		default:
+		}
+
+		if c.IsPaused() {
+			select {
+			case <-ctx.Done():
+				return nil
+			case <-c.shutdownCh:
+				return nil
+			case <-time.After(100 * time.Millisecond):
+				continue
+			}
 		}
 
 		if err := c.consumeLoop(ctx); err != nil {
 			c.log.Error().Err(err).Msg("Consume loop error, restarting...")
 			select {
 			case <-ctx.Done():
+				return nil
+			case <-c.shutdownCh:
 				return nil
 			case <-time.After(1 * time.Second):
 				continue
@@ -110,12 +164,123 @@ func (c *Consumer) Start(ctx context.Context) error {
 	}
 }
 
+// Shutdown gracefully shuts down the consumer.
+// It stops accepting new messages and waits for in-flight messages to complete.
+func (c *Consumer) Shutdown(ctx context.Context) error {
+	if !c.IsRunning() {
+		return nil // Already stopped
+	}
+
+	c.mu.Lock()
+	close(c.shutdownCh)
+	c.state = StateShuttingDown
+	c.mu.Unlock()
+
+	c.log.Info().
+		Int64("in_flight", c.InFlight()).
+		Msg("Consumer shutdown initiated, waiting for in-flight messages...")
+
+	// Wait for either all messages to complete or context timeout
+	ticker := time.NewTicker(100 * time.Millisecond)
+	defer ticker.Stop()
+
+	for {
+		select {
+		case <-ctx.Done():
+			c.log.Warn().
+				Int64("in_flight_remaining", c.InFlight()).
+				Msg("Consumer shutdown timeout - some messages may be dropped")
+			c.mu.Lock()
+			c.state = StateStopped
+			c.mu.Unlock()
+
+			return fmt.Errorf("shutdown timeout: %w", ctx.Err())
+		case <-ticker.C:
+			if c.InFlight() == 0 {
+				c.mu.Lock()
+				c.state = StateStopped
+				c.mu.Unlock()
+
+				c.log.Info().Msg("Consumer shutdown complete")
+				return nil
+			}
+		}
+	}
+}
+
+// Pause temporarily pauses message consumption.
+func (c *Consumer) Pause() {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	c.state = StatePaused
+	c.log.Info().Msg("Consumer paused")
+}
+
+// Resume resumes message consumption.
+func (c *Consumer) Resume() {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	c.state = StateRunning
+	c.log.Info().Msg("Consumer resumed")
+}
+
+// State returns the current state of the consumer.
+func (c *Consumer) State() ConsumerState {
+	c.mu.RLock()
+	defer c.mu.RUnlock()
+
+	return c.state
+}
+
+// IsRunning returns true if the consumer is running.
+func (c *Consumer) IsRunning() bool {
+	c.mu.RLock()
+	defer c.mu.RUnlock()
+	return c.state == StateRunning
+}
+
+// IsPaused returns true if the consumer is paused.
+func (c *Consumer) IsPaused() bool {
+	c.mu.RLock()
+	defer c.mu.RUnlock()
+	return c.state == StatePaused
+}
+
+// IsStopped returns true if the consumer is stopped.
+func (c *Consumer) IsStopped() bool {
+	c.mu.RLock()
+	defer c.mu.RUnlock()
+	return c.state == StateStopped
+}
+
+// IsShuttingDown returns true if the consumer is shutting down.
+func (c *Consumer) IsShuttingDown() bool {
+	c.mu.RLock()
+	defer c.mu.RUnlock()
+	return c.state == StateShuttingDown
+}
+
+// InFlight returns the number of messages currently being processed.
+func (c *Consumer) InFlight() int64 {
+	return c.inFlight.Load()
+}
+
+// incrementInFlight increments the in-flight counter.
+func (c *Consumer) incrementInFlight() {
+	c.inFlight.Add(1)
+}
+
+// decrementInFlight decrements the in-flight counter.
+func (c *Consumer) decrementInFlight() {
+	c.inFlight.Add(-1)
+}
+
 func (c *Consumer) consumeLoop(ctx context.Context) error {
 	ch, err := c.pool.Get(ctx)
 	if err != nil {
 		return fmt.Errorf("failed to get channel: %w", err)
 	}
-	defer ch.Close()
+	defer c.pool.Put(ch)
 
 	// Set QoS - prefetch 1 message at a time
 	if err = ch.Qos(1, 0, false); err != nil {
@@ -134,13 +299,13 @@ func (c *Consumer) consumeLoop(ctx context.Context) error {
 	if err != nil {
 		return fmt.Errorf("failed to start consuming: %w", err)
 	}
-
 	c.log.Info().Str("queue", c.config.Queue).Msg("Started consuming messages")
 
 	for {
 		select {
 		case <-ctx.Done():
-			c.log.Info().Msg("Consumer stopped")
+			return nil
+		case <-c.shutdownCh:
 			return nil
 		case msg, ok := <-msgs:
 			if !ok {
@@ -148,12 +313,20 @@ func (c *Consumer) consumeLoop(ctx context.Context) error {
 				return nil
 			}
 
-			if err = c.processMessage(ctx, ch, &msg); err != nil {
-				c.log.Error().
-					Err(err).
-					Str("routing_key", msg.RoutingKey).
-					Msg("Failed to process message")
-			}
+			c.incrementInFlight()
+			c.wg.Add(1)
+
+			go func(delivery amqp.Delivery) {
+				defer c.decrementInFlight()
+				defer c.wg.Done()
+
+				if err = c.processMessage(ctx, ch, &delivery); err != nil {
+					c.log.Error().
+						Err(err).
+						Str("routing_key", delivery.RoutingKey).
+						Msg("Failed to process message")
+				}
+			}(msg)
 		}
 	}
 }
@@ -163,7 +336,7 @@ func (c *Consumer) exchangeDeclare(ctx context.Context) error {
 	if err != nil {
 		return fmt.Errorf("failed to get channel: %w", err)
 	}
-	defer ch.Close()
+	defer c.pool.Put(ch)
 
 	if err = ch.ExchangeDeclare(
 		c.config.Exchange, // name

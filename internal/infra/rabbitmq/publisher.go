@@ -11,6 +11,8 @@ import (
 	"github.com/rs/zerolog"
 
 	amqp "github.com/rabbitmq/amqp091-go"
+
+	"recipes-desk/pkg/pool"
 )
 
 // Event is the interface for all domain events.
@@ -22,7 +24,7 @@ type Event interface {
 // Publisher implements ports.EventBusWithConfirm for RabbitMQ.
 type Publisher struct {
 	config PublisherConfig
-	pool   *ChannelPool
+	pool   pool.Pool[*amqp.Channel]
 	log    *zerolog.Logger
 	closed atomic.Bool
 }
@@ -31,7 +33,7 @@ type Publisher struct {
 func NewPublisher(
 	ctx context.Context,
 	config PublisherConfig,
-	pool *ChannelPool,
+	pool pool.Pool[*amqp.Channel],
 	log *zerolog.Logger,
 ) (*Publisher, error) {
 	publisher := &Publisher{
