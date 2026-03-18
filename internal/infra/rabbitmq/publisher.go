@@ -5,7 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/rs/zerolog"
@@ -24,8 +24,7 @@ type Publisher struct {
 	config PublisherConfig
 	pool   *ChannelPool
 	log    *zerolog.Logger
-	mu     sync.RWMutex
-	closed bool
+	closed atomic.Bool
 }
 
 // NewPublisher creates a new RabbitMQ event publisher.
@@ -39,8 +38,7 @@ func NewPublisher(
 		pool:   pool,
 		config: config,
 		log:    log,
-		mu:     sync.RWMutex{},
-		closed: false,
+		closed: atomic.Bool{},
 	}
 
 	if err := publisher.exchangeDeclare(ctx); err != nil {
@@ -154,19 +152,14 @@ func (p *Publisher) Close(ctx context.Context) error {
 		return nil
 	}
 
-	p.mu.Lock()
-	defer p.mu.Unlock()
-
 	p.pool.Close(ctx)
-	p.closed = true
+	p.closed.Store(true)
 
 	return nil
 }
 
 func (p *Publisher) IsClosed() bool {
-	p.mu.RLock()
-	defer p.mu.RUnlock()
-	return p.closed
+	return p.closed.Load()
 }
 
 // exchangeDeclare declares the exchange on RabbitMQ.
