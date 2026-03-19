@@ -17,25 +17,35 @@ import (
 
 // Publisher implements ports.EventBusWithConfirm for RabbitMQ.
 type Publisher struct {
-	config Config
-	pool   pool.Pool[*amqp.Channel]
-	log    *zerolog.Logger
+	pool    pool.Pool[*amqp.Channel]
+	log     *zerolog.Logger
+	options Options
 }
 
 // New creates a new RabbitMQ event publisher.
 func New(
 	ctx context.Context,
-	config Config,
 	pool pool.Pool[*amqp.Channel],
 	log *zerolog.Logger,
+	optionFuncs ...OptionFunc,
 ) (*Publisher, error) {
-	publisher := &Publisher{
-		pool:   pool,
-		config: config,
-		log:    log,
+	options := getDefaultOptions()
+	for _, optionFunc := range optionFuncs {
+		optionFunc(&options)
 	}
 
-	if err := publisher.exchangeDeclare(ctx); err != nil {
+	publisher := &Publisher{
+		pool:    pool,
+		log:     log,
+		options: options,
+	}
+
+	ch, err := pool.Get(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("get channel: %w", err)
+	}
+	defer pool.Put(ch)
+	if err = rabbitmq.DeclareExchange(ch, options.Exchange); err != nil {
 		return nil, fmt.Errorf("declare exchange: %w", err)
 	}
 
@@ -56,7 +66,7 @@ func (p *Publisher) Publish(ctx context.Context, event rabbitmq.Event) error {
 	}
 
 	if err = ch.Publish(
-		p.config.Exchange,
+		p.options.Exchange.Name,
 		event.RoutingKey(),
 		false,
 		false,
@@ -101,7 +111,7 @@ func (p *Publisher) PublishWithConfirm(ctx context.Context, event rabbitmq.Event
 	}
 
 	if err = ch.Publish(
-		p.config.Exchange,
+		p.options.Exchange.Name,
 		event.RoutingKey(),
 		false,
 		false,
@@ -138,27 +148,4 @@ func (p *Publisher) PublishWithConfirm(ctx context.Context, event rabbitmq.Event
 		}
 		return fmt.Errorf("context cancelled while waiting for confirmation: %w", ctx.Err())
 	}
-}
-
-// exchangeDeclare declares the exchange on RabbitMQ.
-func (p *Publisher) exchangeDeclare(ctx context.Context) error {
-	ch, err := p.pool.Get(ctx)
-	if err != nil {
-		return fmt.Errorf("get channel: %w", err)
-	}
-	defer p.pool.Put(ch)
-
-	if err = ch.ExchangeDeclare(
-		p.config.Exchange,
-		p.config.ExchangeType,
-		true,
-		false,
-		false,
-		false,
-		nil,
-	); err != nil {
-		return err
-	}
-
-	return nil
 }

@@ -72,10 +72,13 @@ func setupPublisher(
 	ctx, cancel := context.WithTimeout(context.Background(), _testTimeout)
 	defer cancel()
 
-	publisher, err := publisher.New(ctx, publisher.Config{
-		Exchange:     _testExchange,
-		ExchangeType: "topic",
-	}, pool, log)
+	publisher, err := publisher.New(
+		ctx,
+		pool,
+		log,
+		publisher.WithExchangeDeclare,
+		publisher.WithExchangeName(_testExchange),
+	)
 
 	require.NoError(t, err)
 
