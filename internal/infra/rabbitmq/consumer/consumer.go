@@ -12,14 +12,18 @@ import (
 
 	amqp "github.com/rabbitmq/amqp091-go"
 
+	"recipes-desk/internal/infra/rabbitmq"
 	"recipes-desk/pkg/pool"
 )
 
-// ConsumerState represents the state of the consumer.
-type ConsumerState int
+// HandlerFunc is the function signature for event handlers.
+type HandlerFunc func(ctx context.Context, routingKey string, body []byte) error
+
+// State represents the state of the consumer.
+type State int
 
 const (
-	StateStopped ConsumerState = iota
+	StateStopped State = iota
 	StateRunning
 	StatePaused
 	StateShuttingDown
@@ -27,14 +31,14 @@ const (
 
 // Consumer handles consuming events from RabbitMQ with retry and DLQ.
 type Consumer struct {
-	config Config
-	pool   pool.Pool[*amqp.Channel]
-	log    *zerolog.Logger
+	options Options
+	pool    pool.Pool[*amqp.Channel]
+	log     *zerolog.Logger
 
 	// State management
 	mu         sync.RWMutex
 	inFlight   atomic.Int64 // Atomic counter for in-flight messages
-	state      ConsumerState
+	state      State
 	shutdownCh chan struct{}
 	wg         sync.WaitGroup
 }
@@ -42,14 +46,19 @@ type Consumer struct {
 // New creates a new RabbitMQ consumer.
 func New(
 	ctx context.Context,
-	config Config,
+	queue string,
 	pool pool.Pool[*amqp.Channel],
 	log *zerolog.Logger,
+	optionFuncs ...OptionFunc,
 ) (*Consumer, error) {
-	config = config.WithDefaults()
+	options := getDefaultOptions()
+	for _, optionFunc := range optionFuncs {
+		optionFunc(&options)
+	}
+	ensureOptions(&options, queue)
 
 	consumer := &Consumer{
-		config:     config,
+		options:    options,
 		pool:       pool,
 		log:        log,
 		mu:         sync.RWMutex{},
@@ -59,8 +68,13 @@ func New(
 		wg:         sync.WaitGroup{},
 	}
 
-	if err := consumer.exchangeDeclare(ctx); err != nil {
-		return nil, fmt.Errorf("failed to declare exchange: %w", err)
+	ch, err := pool.Get(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get channel: %w", err)
+	}
+	defer pool.Put(ch)
+	if err = rabbitmq.DeclareExchange(ch, options.Exchange); err != nil {
+		return nil, fmt.Errorf("declare exchange: %w", err)
 	}
 
 	return consumer, nil
@@ -70,43 +84,43 @@ func New(
 func (c *Consumer) Setup(ctx context.Context) error {
 	ch, err := c.pool.Get(ctx)
 	if err != nil {
-		return fmt.Errorf("failed to get channel: %w", err)
+		return fmt.Errorf("get channel: %w", err)
 	}
 	defer c.pool.Put(ch)
 
 	dlqName, err := c.declareDLQ(ch)
 	if err != nil {
-		return fmt.Errorf("failed to declare DLQ: %w", err)
+		return fmt.Errorf("declare DLQ: %w", err)
 	}
 
 	// Declare retry queues with TTL
-	for retry := 1; retry <= c.config.MaxRetries; retry++ {
+	for retry := 1; retry <= c.options.MaxRetries; retry++ {
 		if _, err = c.declareRetryQueue(ch, retry); err != nil {
-			return fmt.Errorf("failed to declare retry queue %d: %w", retry, err)
+			return fmt.Errorf("declare retry queue %d: %w", retry, err)
 		}
 	}
 
 	_, err = c.declareMainQueue(ch, dlqName)
 	if err != nil {
-		return fmt.Errorf("failed to declare main queue: %w", err)
+		return fmt.Errorf("declare main queue: %w", err)
 	}
 
 	// Bind main queue to exchange
 	if err = ch.QueueBind(
-		c.config.Queue,
-		c.config.RoutingKey,
-		c.config.Exchange,
+		c.options.Queue,
+		c.options.RoutingKey,
+		c.options.Exchange.Name,
 		false,
 		nil,
 	); err != nil {
-		return fmt.Errorf("failed to bind queue: %w", err)
+		return fmt.Errorf("bind queue: %w", err)
 	}
 
 	c.log.Info().
-		Str("exchange", c.config.Exchange).
-		Str("queue", c.config.Queue).
-		Str("routing_key", c.config.RoutingKey).
-		Int("max_retries", c.config.MaxRetries).
+		Str("exchange", c.options.Exchange.Name).
+		Str("queue", c.options.Queue).
+		Str("routing_key", c.options.RoutingKey).
+		Int("max_retries", c.options.MaxRetries).
 		Msg("Consumer setup complete")
 
 	return nil
@@ -222,7 +236,7 @@ func (c *Consumer) Resume() {
 }
 
 // State returns the current state of the consumer.
-func (c *Consumer) State() ConsumerState {
+func (c *Consumer) State() State {
 	c.mu.RLock()
 	defer c.mu.RUnlock()
 
@@ -275,17 +289,17 @@ func (c *Consumer) decrementInFlight() {
 func (c *Consumer) consumeLoop(ctx context.Context) error {
 	ch, err := c.pool.Get(ctx)
 	if err != nil {
-		return fmt.Errorf("failed to get channel: %w", err)
+		return fmt.Errorf("get channel: %w", err)
 	}
 	defer c.pool.Put(ch)
 
 	// Set QoS - prefetch 1 message at a time
 	if err = ch.Qos(1, 0, false); err != nil {
-		return fmt.Errorf("failed to set QoS: %w", err)
+		return fmt.Errorf("set QoS: %w", err)
 	}
 
 	msgs, err := ch.Consume(
-		c.config.Queue,
+		c.options.Queue,
 		"",
 		false,
 		false,
@@ -296,7 +310,7 @@ func (c *Consumer) consumeLoop(ctx context.Context) error {
 	if err != nil {
 		return fmt.Errorf("failed to start consuming: %w", err)
 	}
-	c.log.Info().Str("queue", c.config.Queue).Msg("Started consuming messages")
+	c.log.Info().Str("queue", c.options.Queue).Msg("Started consuming messages")
 
 	for {
 		select {
@@ -328,31 +342,9 @@ func (c *Consumer) consumeLoop(ctx context.Context) error {
 	}
 }
 
-func (c *Consumer) exchangeDeclare(ctx context.Context) error {
-	ch, err := c.pool.Get(ctx)
-	if err != nil {
-		return fmt.Errorf("failed to get channel: %w", err)
-	}
-	defer c.pool.Put(ch)
-
-	if err = ch.ExchangeDeclare(
-		c.config.Exchange, // name
-		"topic",           // kind
-		true,              // durable
-		false,             // auto-deleted
-		false,             // internal
-		false,             // noWait
-		nil,
-	); err != nil {
-		return fmt.Errorf("failed to declare exchange: %w", err)
-	}
-
-	return nil
-}
-
 // declareDLQ declares the Dead Letter Queue (DLQ).
 func (c *Consumer) declareDLQ(ch *amqp.Channel) (string, error) {
-	dlqName := c.config.Queue + "-dlq"
+	dlqName := c.options.Queue + "-dlq"
 	_, err := ch.QueueDeclare(
 		dlqName,
 		true,
@@ -369,8 +361,8 @@ func (c *Consumer) declareDLQ(ch *amqp.Channel) (string, error) {
 }
 
 func (c *Consumer) declareRetryQueue(ch *amqp.Channel, retry int) (string, error) {
-	retryQueueName := newRetryQueueName(c.config.Queue, retry)
-	ttl := c.config.GetRetryTTL(retry)
+	retryQueueName := newRetryQueueName(c.options.Queue, retry)
+	ttl := c.options.GetRetryTTL(retry)
 
 	_, err := ch.QueueDeclare(
 		retryQueueName,
@@ -380,7 +372,7 @@ func (c *Consumer) declareRetryQueue(ch *amqp.Channel, retry int) (string, error
 		false,
 		amqp.Table{
 			"x-dead-letter-exchange":    "", // default exchange
-			"x-dead-letter-routing-key": c.config.Queue,
+			"x-dead-letter-routing-key": c.options.Queue,
 			"x-message-ttl":             ttl.Milliseconds(),
 		},
 	)
@@ -393,7 +385,7 @@ func (c *Consumer) declareRetryQueue(ch *amqp.Channel, retry int) (string, error
 
 func (c *Consumer) declareMainQueue(ch *amqp.Channel, dlqName string) (string, error) {
 	_, err := ch.QueueDeclare(
-		c.config.Queue,
+		c.options.Queue,
 		true,
 		false,
 		false,
@@ -407,7 +399,7 @@ func (c *Consumer) declareMainQueue(ch *amqp.Channel, dlqName string) (string, e
 		return "", err
 	}
 
-	return c.config.Queue, nil
+	return c.options.Queue, nil
 }
 
 func (c *Consumer) processMessage(ctx context.Context, ch *amqp.Channel, msg *amqp.Delivery) error {
@@ -425,11 +417,11 @@ func (c *Consumer) processMessage(ctx context.Context, ch *amqp.Channel, msg *am
 		Str("message_id", msg.MessageId).
 		Msg("Processing message")
 
-	if err := c.config.Handler(ctx, msg.RoutingKey, msg.Body); err != nil {
+	if err := c.options.Handler(ctx, msg.RoutingKey, msg.Body); err != nil {
 		c.log.Error().Err(err).Int("retry_count", retryCount).Msg("Handler failed")
 
 		// Check if we should retry
-		if retryCount < c.config.MaxRetries {
+		if retryCount < c.options.MaxRetries {
 			return c.retryMessage(ctx, ch, msg, retryCount)
 		}
 
@@ -460,7 +452,7 @@ func (c *Consumer) retryMessage(
 	msg *amqp.Delivery,
 	retryCount int,
 ) error {
-	retryQueue := newRetryQueueName(c.config.Queue, retryCount+1)
+	retryQueue := newRetryQueueName(c.options.Queue, retryCount+1)
 
 	// Publish to retry queue
 	if err := ch.Publish(
@@ -498,3 +490,5 @@ func (c *Consumer) retryMessage(
 func newRetryQueueName(queue string, retry int) string {
 	return fmt.Sprintf("%s-retry-%d", queue, retry)
 }
+
+var ErrAlreadyRunning = errors.New("consumer already running")

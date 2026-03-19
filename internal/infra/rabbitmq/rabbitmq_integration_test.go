@@ -93,18 +93,34 @@ func setupConsumer(
 ) *consumer.Consumer {
 	t.Helper()
 
-	consumer, err := consumer.New(context.Background(), consumer.Config{
-		Exchange:   _testExchange,
-		Queue:      _testQueue,
-		RoutingKey: "logs.sent",
-		Handler:    handler,
-		MaxRetries: 3,
-		RetryTTLs: []time.Duration{
+	// consumer.Config{
+	// 	Exchange:   _testExchange,
+	// 	Queue:      _testQueue,
+	// 	RoutingKey: "logs.sent",
+	// 	Handler:    handler,
+	// 	MaxRetries: 3,
+	// 	RetryTTLs: []time.Duration{
+	// 		100 * time.Millisecond,
+	// 		200 * time.Millisecond,
+	// 		500 * time.Millisecond,
+	// 	},
+	// }
+
+	consumer, err := consumer.New(context.Background(),
+		_testQueue,
+		pool,
+		log,
+		consumer.WithExchangeName(_testExchange),
+		consumer.WithExchangeKind("topic"),
+		consumer.WithRoutingKey("logs.sent"),
+		consumer.WithHandler(handler),
+		consumer.WithMaxRetries(3),
+		consumer.WithRetryTTLs([]time.Duration{
 			100 * time.Millisecond,
 			200 * time.Millisecond,
 			500 * time.Millisecond,
-		},
-	}, pool, log)
+		}),
+	)
 	require.NoError(t, err)
 
 	return consumer
