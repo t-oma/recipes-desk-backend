@@ -32,9 +32,15 @@ func getDefaultOptions() Options {
 	return Options{
 		Exchange: rabbitmq.ExchangeOptions{
 			Name:    "",
-			Kind:    "topic",
+			Kind:    "direct",
 			Durable: false,
 			Declare: false,
 		},
+	}
+}
+
+func ensureOptions(o *Options) {
+	if o.Exchange.Kind == "" {
+		o.Exchange.Kind = "direct"
 	}
 }

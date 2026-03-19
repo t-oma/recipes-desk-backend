@@ -33,6 +33,7 @@ func New(
 	for _, optionFunc := range optionFuncs {
 		optionFunc(&options)
 	}
+	ensureOptions(&options)
 
 	publisher := &Publisher{
 		pool:    pool,
