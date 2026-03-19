@@ -5,7 +5,6 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"sync/atomic"
 	"time"
 
 	"github.com/rs/zerolog"
@@ -26,7 +25,6 @@ type Publisher struct {
 	config PublisherConfig
 	pool   pool.Pool[*amqp.Channel]
 	log    *zerolog.Logger
-	closed atomic.Bool
 }
 
 // NewPublisher creates a new RabbitMQ event publisher.
@@ -40,11 +38,10 @@ func NewPublisher(
 		pool:   pool,
 		config: config,
 		log:    log,
-		closed: atomic.Bool{},
 	}
 
 	if err := publisher.exchangeDeclare(ctx); err != nil {
-		return nil, fmt.Errorf("failed to declare exchange: %w", err)
+		return nil, fmt.Errorf("declare exchange: %w", err)
 	}
 
 	return publisher, nil
@@ -54,13 +51,13 @@ func NewPublisher(
 func (p *Publisher) Publish(ctx context.Context, event Event) error {
 	ch, err := p.pool.Get(ctx)
 	if err != nil {
-		return fmt.Errorf("failed to get channel: %w", err)
+		return fmt.Errorf("get channel: %w", err)
 	}
 	defer p.pool.Put(ch)
 
 	body, err := json.Marshal(event)
 	if err != nil {
-		return fmt.Errorf("failed to marshal event: %w", err)
+		return fmt.Errorf("marshal event: %w", err)
 	}
 
 	if err = ch.Publish(
@@ -75,7 +72,7 @@ func (p *Publisher) Publish(ctx context.Context, event Event) error {
 			Type:        event.Type(),
 		},
 	); err != nil {
-		return fmt.Errorf("failed to publish event: %w", err)
+		return fmt.Errorf("publish event: %w", err)
 	}
 
 	if p.log != nil {
@@ -92,20 +89,20 @@ func (p *Publisher) Publish(ctx context.Context, event Event) error {
 func (p *Publisher) PublishWithConfirm(ctx context.Context, event Event) error {
 	ch, err := p.pool.Get(ctx)
 	if err != nil {
-		return fmt.Errorf("failed to get channel: %w", err)
+		return fmt.Errorf("get channel: %w", err)
 	}
 	defer p.pool.Put(ch)
 
 	// Enable publisher confirms
 	if err = ch.Confirm(false); err != nil {
-		return fmt.Errorf("failed to enable publisher confirms: %w", err)
+		return fmt.Errorf("enable publisher confirms: %w", err)
 	}
 
 	confirms := ch.NotifyPublish(make(chan amqp.Confirmation, 1))
 
 	body, err := json.Marshal(event)
 	if err != nil {
-		return fmt.Errorf("failed to marshal event: %w", err)
+		return fmt.Errorf("marshal event: %w", err)
 	}
 
 	if err = ch.Publish(
@@ -121,7 +118,7 @@ func (p *Publisher) PublishWithConfirm(ctx context.Context, event Event) error {
 			DeliveryMode: amqp.Persistent,
 		},
 	); err != nil {
-		return fmt.Errorf("failed to publish event: %w", err)
+		return fmt.Errorf("publish event: %w", err)
 	}
 
 	// Wait for confirmation
@@ -148,27 +145,11 @@ func (p *Publisher) PublishWithConfirm(ctx context.Context, event Event) error {
 	}
 }
 
-// Close closes the publisher and releases all resources.
-func (p *Publisher) Close(ctx context.Context) error {
-	if p.IsClosed() {
-		return nil
-	}
-
-	p.pool.Close(ctx)
-	p.closed.Store(true)
-
-	return nil
-}
-
-func (p *Publisher) IsClosed() bool {
-	return p.closed.Load()
-}
-
 // exchangeDeclare declares the exchange on RabbitMQ.
 func (p *Publisher) exchangeDeclare(ctx context.Context) error {
 	ch, err := p.pool.Get(ctx)
 	if err != nil {
-		return fmt.Errorf("failed to get channel: %w", err)
+		return fmt.Errorf("get channel: %w", err)
 	}
 	defer p.pool.Put(ch)
 
@@ -181,7 +162,7 @@ func (p *Publisher) exchangeDeclare(ctx context.Context) error {
 		false,
 		nil,
 	); err != nil {
-		return fmt.Errorf("failed to declare exchange: %w", err)
+		return err
 	}
 
 	return nil
