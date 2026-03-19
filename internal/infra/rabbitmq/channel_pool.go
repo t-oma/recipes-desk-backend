@@ -86,7 +86,7 @@ func (p *ChannelPool) Get(ctx context.Context) (*amqp.Channel, error) {
 
 // Put returns a channel to the pool.
 func (p *ChannelPool) Put(ch *amqp.Channel) {
-	if ch == nil || ch.IsClosed() {
+	if ch == nil {
 		return
 	}
 
