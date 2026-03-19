@@ -2,7 +2,7 @@ package connection
 
 import "time"
 
-type ConnectionManagerConfig struct {
+type ManagerConfig struct {
 	Heartbeat         time.Duration `yaml:"heartbeat"`
 	ConnectionTimeout time.Duration `yaml:"connectionTimeout"`
 	MaxChannels       int           `yaml:"maxChannels"`

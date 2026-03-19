@@ -17,15 +17,15 @@ import (
 
 // Publisher implements ports.EventBusWithConfirm for RabbitMQ.
 type Publisher struct {
-	config PublisherConfig
+	config Config
 	pool   pool.Pool[*amqp.Channel]
 	log    *zerolog.Logger
 }
 
-// NewPublisher creates a new RabbitMQ event publisher.
-func NewPublisher(
+// New creates a new RabbitMQ event publisher.
+func New(
 	ctx context.Context,
-	config PublisherConfig,
+	config Config,
 	pool pool.Pool[*amqp.Channel],
 	log *zerolog.Logger,
 ) (*Publisher, error) {

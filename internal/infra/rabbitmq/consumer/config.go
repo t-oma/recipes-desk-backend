@@ -8,7 +8,7 @@ import (
 // HandlerFunc is the function signature for event handlers.
 type HandlerFunc func(ctx context.Context, routingKey string, body []byte) error
 
-type ConsumerConfig struct {
+type Config struct {
 	Exchange   string
 	Queue      string
 	RoutingKey string
@@ -17,7 +17,7 @@ type ConsumerConfig struct {
 	RetryTTLs  []time.Duration // e.g., 5s, 30s, 2m
 }
 
-func (c ConsumerConfig) WithDefaults() ConsumerConfig {
+func (c Config) WithDefaults() Config {
 	if c.MaxRetries == 0 {
 		c.MaxRetries = 3
 	}
@@ -33,7 +33,7 @@ func (c ConsumerConfig) WithDefaults() ConsumerConfig {
 }
 
 // GetRetryTTL returns the TTL for the given retry attempt.
-func (c ConsumerConfig) GetRetryTTL(retry int) time.Duration {
+func (c Config) GetRetryTTL(retry int) time.Duration {
 	if retry-1 >= len(c.RetryTTLs) {
 		return c.RetryTTLs[len(c.RetryTTLs)-1]
 	}

@@ -27,7 +27,7 @@ type PoolStats struct {
 
 // ChannelPool manages a pool of AMQP channels.
 type ChannelPool struct {
-	connManager *connection.ConnectionManager
+	connManager *connection.Manager
 	pool        chan *amqp.Channel
 	size        int
 	mu          sync.RWMutex
@@ -43,7 +43,7 @@ var (
 // NewChannelPool creates a new channel pool.
 func NewChannelPool(
 	ctx context.Context,
-	connManager *connection.ConnectionManager,
+	connManager *connection.Manager,
 	size int,
 	log *zerolog.Logger,
 ) (*ChannelPool, error) {

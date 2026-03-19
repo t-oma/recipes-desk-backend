@@ -49,14 +49,14 @@ func setupRabbitMQFromContainer(
 	t *testing.T,
 	container *rabbitmqtc.RabbitMQContainer,
 	log *zerolog.Logger,
-) *connection.ConnectionManager {
+) *connection.Manager {
 	t.Helper()
 
 	ctx := context.Background()
 	url, err := container.AmqpURL(ctx)
 	require.NoError(t, err)
 
-	connManager := connection.NewConnectionManager(url, log)
+	connManager := connection.NewManager(url, log)
 	require.NoError(t, connManager.Start(ctx))
 
 	return connManager
@@ -72,7 +72,7 @@ func setupPublisher(
 	ctx, cancel := context.WithTimeout(context.Background(), _testTimeout)
 	defer cancel()
 
-	publisher, err := publisher.NewPublisher(ctx, publisher.PublisherConfig{
+	publisher, err := publisher.New(ctx, publisher.Config{
 		Exchange:     _testExchange,
 		ExchangeType: "topic",
 	}, pool, log)
@@ -90,7 +90,7 @@ func setupConsumer(
 ) *consumer.Consumer {
 	t.Helper()
 
-	consumer, err := consumer.NewConsumer(context.Background(), consumer.ConsumerConfig{
+	consumer, err := consumer.New(context.Background(), consumer.Config{
 		Exchange:   _testExchange,
 		Queue:      _testQueue,
 		RoutingKey: "logs.sent",

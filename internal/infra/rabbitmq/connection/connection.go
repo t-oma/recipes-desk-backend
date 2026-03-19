@@ -13,7 +13,7 @@ import (
 	amqp "github.com/rabbitmq/amqp091-go"
 )
 
-type ConnectionManager struct {
+type Manager struct {
 	url     string
 	conn    *amqp.Connection
 	mu      sync.RWMutex
@@ -22,8 +22,8 @@ type ConnectionManager struct {
 	running atomic.Bool
 }
 
-func NewConnectionManager(url string, log *zerolog.Logger) *ConnectionManager {
-	return &ConnectionManager{
+func NewManager(url string, log *zerolog.Logger) *Manager {
+	return &Manager{
 		url:     url,
 		conn:    nil,
 		mu:      sync.RWMutex{},
@@ -33,7 +33,7 @@ func NewConnectionManager(url string, log *zerolog.Logger) *ConnectionManager {
 	}
 }
 
-func (cm *ConnectionManager) Connection() (*amqp.Connection, error) {
+func (cm *Manager) Connection() (*amqp.Connection, error) {
 	if cm.IsConnected() {
 		return cm.conn, nil
 	}
@@ -41,13 +41,13 @@ func (cm *ConnectionManager) Connection() (*amqp.Connection, error) {
 	return nil, errors.New("connection not available")
 }
 
-func (cm *ConnectionManager) IsConnected() bool {
+func (cm *Manager) IsConnected() bool {
 	cm.mu.RLock()
 	defer cm.mu.RUnlock()
 	return cm.conn != nil && !cm.conn.IsClosed()
 }
 
-func (cm *ConnectionManager) Start(ctx context.Context) error {
+func (cm *Manager) Start(ctx context.Context) error {
 	if err := cm.connect(); err != nil {
 		return err
 	}
@@ -58,7 +58,7 @@ func (cm *ConnectionManager) Start(ctx context.Context) error {
 	return nil
 }
 
-func (cm *ConnectionManager) Stop() error {
+func (cm *Manager) Stop() error {
 	if !cm.running.Load() {
 		return nil
 	}
@@ -71,7 +71,7 @@ func (cm *ConnectionManager) Stop() error {
 	return cm.Close()
 }
 
-func (cm *ConnectionManager) Close() error {
+func (cm *Manager) Close() error {
 	cm.mu.Lock()
 	defer cm.mu.Unlock()
 
@@ -90,7 +90,7 @@ func (cm *ConnectionManager) Close() error {
 	return nil
 }
 
-func (cm *ConnectionManager) connect() error {
+func (cm *Manager) connect() error {
 	if cm.IsConnected() {
 		return nil
 	}
@@ -112,7 +112,7 @@ func (cm *ConnectionManager) connect() error {
 	return nil
 }
 
-func (cm *ConnectionManager) reconnect(ctx context.Context) {
+func (cm *Manager) reconnect(ctx context.Context) {
 	backoff := []time.Duration{
 		1 * time.Second,
 		2 * time.Second,
@@ -167,7 +167,7 @@ func (cm *ConnectionManager) reconnect(ctx context.Context) {
 	}
 }
 
-func (cm *ConnectionManager) monitor(ctx context.Context) {
+func (cm *Manager) monitor(ctx context.Context) {
 	for {
 		if !cm.IsConnected() {
 			cm.reconnect(ctx)

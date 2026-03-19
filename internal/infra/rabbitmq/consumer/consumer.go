@@ -27,7 +27,7 @@ const (
 
 // Consumer handles consuming events from RabbitMQ with retry and DLQ.
 type Consumer struct {
-	config ConsumerConfig
+	config Config
 	pool   pool.Pool[*amqp.Channel]
 	log    *zerolog.Logger
 
@@ -39,10 +39,10 @@ type Consumer struct {
 	wg         sync.WaitGroup
 }
 
-// NewConsumer creates a new RabbitMQ consumer.
-func NewConsumer(
+// New creates a new RabbitMQ consumer.
+func New(
 	ctx context.Context,
-	config ConsumerConfig,
+	config Config,
 	pool pool.Pool[*amqp.Channel],
 	log *zerolog.Logger,
 ) (*Consumer, error) {

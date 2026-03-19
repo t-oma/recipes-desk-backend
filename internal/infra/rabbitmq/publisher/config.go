@@ -1,6 +1,6 @@
 package publisher
 
-type PublisherConfig struct {
+type Config struct {
 	Exchange     string
 	ExchangeType string
 }

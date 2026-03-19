@@ -44,14 +44,14 @@ func setupConnManager(
 	t *testing.T,
 	container *rabbitmqtc.RabbitMQContainer,
 	log *zerolog.Logger,
-) *connection.ConnectionManager {
+) *connection.Manager {
 	t.Helper()
 
 	ctx := context.Background()
 	url, err := container.AmqpURL(ctx)
 	require.NoError(t, err)
 
-	connManager := connection.NewConnectionManager(url, log)
+	connManager := connection.NewManager(url, log)
 	require.NoError(t, connManager.Start(ctx))
 
 	return connManager
@@ -71,13 +71,13 @@ func TestIntegration_Publisher_NewPublisher(t *testing.T) {
 
 	tests := []struct {
 		name    string
-		config  publisher.PublisherConfig
+		config  publisher.Config
 		setup   func(pool.Pool[*amqp.Channel])
 		wantErr error
 	}{
 		{
 			name: "success",
-			config: publisher.PublisherConfig{
+			config: publisher.Config{
 				Exchange:     "test.exchange",
 				ExchangeType: "topic",
 			},
@@ -87,7 +87,7 @@ func TestIntegration_Publisher_NewPublisher(t *testing.T) {
 		},
 		{
 			name: "fails - pool get returns error",
-			config: publisher.PublisherConfig{
+			config: publisher.Config{
 				Exchange:     "test.exchange",
 				ExchangeType: "topic",
 			},
@@ -104,7 +104,7 @@ func TestIntegration_Publisher_NewPublisher(t *testing.T) {
 				tt.setup(chanpool)
 			}
 
-			publisher, err := publisher.NewPublisher(
+			publisher, err := publisher.New(
 				context.Background(),
 				tt.config,
 				chanpool,
@@ -136,13 +136,13 @@ func TestPublisher_Publish(t *testing.T) {
 
 	tests := []struct {
 		name      string
-		config    publisher.PublisherConfig
+		config    publisher.Config
 		setupMock func(*MockEvent)
 		wantErr   bool
 	}{
 		{
 			name: "successfully publishes event",
-			config: publisher.PublisherConfig{
+			config: publisher.Config{
 				Exchange:     "test.exchange",
 				ExchangeType: "topic",
 			},
@@ -154,7 +154,7 @@ func TestPublisher_Publish(t *testing.T) {
 		},
 		{
 			name: "fails when pool get returns error",
-			config: publisher.PublisherConfig{
+			config: publisher.Config{
 				Exchange:     "test.exchange",
 				ExchangeType: "topic",
 			},
@@ -164,7 +164,7 @@ func TestPublisher_Publish(t *testing.T) {
 		},
 		{
 			name: "fails when channel is closed",
-			config: publisher.PublisherConfig{
+			config: publisher.Config{
 				Exchange:     "test.exchange",
 				ExchangeType: "topic",
 			},
@@ -183,7 +183,7 @@ func TestPublisher_Publish(t *testing.T) {
 
 			ctx := context.Background()
 
-			publisher, err := publisher.NewPublisher(ctx, tt.config, pool, &log)
+			publisher, err := publisher.New(ctx, tt.config, pool, &log)
 			require.NoError(t, err)
 
 			err = publisher.Publish(ctx, mockEvent)
@@ -213,14 +213,14 @@ func TestPublisher_PublishWithConfirm(t *testing.T) {
 
 	tests := []struct {
 		name      string
-		config    publisher.PublisherConfig
+		config    publisher.Config
 		setupMock func(*MockEvent)
 		timeout   time.Duration
 		wantErr   bool
 	}{
 		{
 			name: "successfully publishes with confirmation",
-			config: publisher.PublisherConfig{
+			config: publisher.Config{
 				Exchange:     "test.exchange",
 				ExchangeType: "topic",
 			},
@@ -233,7 +233,7 @@ func TestPublisher_PublishWithConfirm(t *testing.T) {
 		},
 		{
 			name: "times out waiting for confirmation",
-			config: publisher.PublisherConfig{
+			config: publisher.Config{
 				Exchange:     "test.exchange",
 				ExchangeType: "topic",
 			},
@@ -246,7 +246,7 @@ func TestPublisher_PublishWithConfirm(t *testing.T) {
 		},
 		{
 			name: "fails when message is nacked",
-			config: publisher.PublisherConfig{
+			config: publisher.Config{
 				Exchange:     "test.exchange",
 				ExchangeType: "topic",
 			},
@@ -267,7 +267,7 @@ func TestPublisher_PublishWithConfirm(t *testing.T) {
 			ctx, cancel := context.WithTimeout(context.Background(), tt.timeout)
 			defer cancel()
 
-			publisher, err := publisher.NewPublisher(ctx, tt.config, pool, &log)
+			publisher, err := publisher.New(ctx, tt.config, pool, &log)
 			require.NoError(t, err)
 
 			err = publisher.PublishWithConfirm(ctx, mockEvent)
