@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/rs/zerolog"
@@ -14,7 +15,7 @@ import (
 	"recipes-desk/pkg/pool"
 )
 
-const ChannelPoolMinSize = 10
+const ChannelPoolDefaultSize = 10
 
 // PoolStats represents the statistics of the channel pool.
 type PoolStats struct {
@@ -29,7 +30,7 @@ type ChannelPool struct {
 	pool        chan *amqp.Channel
 	size        int
 	mu          sync.RWMutex
-	closed      bool
+	closed      atomic.Bool
 	log         *zerolog.Logger
 }
 
@@ -46,7 +47,7 @@ func NewChannelPool(
 	log *zerolog.Logger,
 ) (*ChannelPool, error) {
 	if size <= 0 {
-		size = ChannelPoolMinSize
+		size = ChannelPoolDefaultSize
 	}
 
 	cp := &ChannelPool{
@@ -54,12 +55,12 @@ func NewChannelPool(
 		pool:        make(chan *amqp.Channel, size),
 		size:        size,
 		log:         log,
-		closed:      false,
+		closed:      atomic.Bool{},
 		mu:          sync.RWMutex{},
 	}
 
 	if err := cp.initialize(ctx); err != nil {
-		return nil, fmt.Errorf("initialize channel pool: %w", err)
+		return nil, fmt.Errorf("%w: %w", ErrInitializeChannelPool, err)
 	}
 
 	return cp, nil
@@ -79,7 +80,7 @@ func (p *ChannelPool) Get(ctx context.Context) (*amqp.Channel, error) {
 		return ch, nil
 
 	case <-ctx.Done():
-		return nil, fmt.Errorf("context cancelled while waiting for channel: %w", ctx.Err())
+		return nil, ctx.Err()
 	}
 }
 
@@ -117,11 +118,11 @@ func (p *ChannelPool) Close(ctx context.Context) error {
 	beforeStats := p.Stats()
 	start := time.Now()
 
+	// Mark as closed first to prevent new Get() calls
+	p.closed.Store(true)
+
 	p.mu.Lock()
 	defer p.mu.Unlock()
-
-	// Mark as closed first to prevent new Get() calls
-	p.closed = true
 	// Close all available channels (non-blocking)
 	closedCount := p.closeChannels(ctx)
 	// Close the pool channel
@@ -176,10 +177,7 @@ func (p *ChannelPool) Stats() PoolStats {
 
 // IsClosed returns true if the pool is closed.
 func (p *ChannelPool) IsClosed() bool {
-	p.mu.RLock()
-	defer p.mu.RUnlock()
-
-	return p.closed
+	return p.closed.Load()
 }
 
 // initialize populates the pool with channels.
@@ -251,4 +249,7 @@ func (p *ChannelPool) closeChannels(ctx context.Context) int {
 }
 
 // ErrChannelPoolClosed is returned when the pool is closed.
-var ErrChannelPoolClosed = errors.New("channel pool is closed")
+var (
+	ErrChannelPoolClosed     = errors.New("channel pool is closed")
+	ErrInitializeChannelPool = errors.New("initialize channel pool")
+)

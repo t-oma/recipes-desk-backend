@@ -45,7 +45,7 @@ func TestIntegration_ChannelPool_Initialize(t *testing.T) {
 		defer pool.Close(context.Background())
 
 		stats := pool.Stats()
-		assert.Equal(t, rabbitmq.ChannelPoolMinSize, stats.Available)
+		assert.Equal(t, rabbitmq.ChannelPoolDefaultSize, stats.Available)
 	})
 }
 
