@@ -154,7 +154,7 @@ func TestPublisher_Publish(t *testing.T) {
 				tt.setup(poolchan)
 			}
 
-			err = publisher.Publish(ctx, TestLogSent{
+			err = publisher.PublishAsync(ctx, TestLogSent{
 				Message:     "Test message",
 				ServerBlown: true,
 			})
@@ -201,7 +201,7 @@ func TestPublisher_PublishWithConfirm(t *testing.T) {
 			publisher, err := publisher.New(ctx, poolchan, &log, tt.optionFuncs...)
 			require.NoError(t, err)
 
-			err = publisher.PublishWithConfirm(ctx, TestLogSent{
+			err = publisher.Publish(ctx, TestLogSent{
 				Message:     "Test message",
 				ServerBlown: true,
 			})

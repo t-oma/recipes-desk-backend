@@ -176,7 +176,7 @@ func TestIntegration_Consumer_BasicConsume(t *testing.T) {
 		ServerBlown: true,
 	}
 
-	err = publisher.PublishWithConfirm(ctx, event)
+	err = publisher.Publish(ctx, event)
 	require.NoError(t, err)
 
 	// Wait for message
@@ -242,7 +242,7 @@ func TestIntegration_Consumer_Retry(t *testing.T) {
 		ServerBlown: false,
 	}
 
-	err = publisher.PublishWithConfirm(ctx, event)
+	err = publisher.Publish(ctx, event)
 	require.NoError(t, err)
 
 	// Wait for all retry attempts

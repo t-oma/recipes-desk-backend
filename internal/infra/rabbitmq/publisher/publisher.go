@@ -53,8 +53,8 @@ func New(
 	return publisher, nil
 }
 
-// Publish publishes an event to RabbitMQ without waiting for confirmation.
-func (p *Publisher) Publish(ctx context.Context, event rabbitmq.Event) error {
+// PublishAsync publishes an event to RabbitMQ without waiting for confirmation.
+func (p *Publisher) PublishAsync(ctx context.Context, event rabbitmq.Event) error {
 	ch, err := p.pool.Get(ctx)
 	if err != nil {
 		return fmt.Errorf("get channel: %w", err)
@@ -91,8 +91,8 @@ func (p *Publisher) Publish(ctx context.Context, event rabbitmq.Event) error {
 	return nil
 }
 
-// PublishWithConfirm publishes an event and waits for confirmation from RabbitMQ.
-func (p *Publisher) PublishWithConfirm(ctx context.Context, event rabbitmq.Event) error {
+// Publish publishes an event and waits for confirmation from RabbitMQ.
+func (p *Publisher) Publish(ctx context.Context, event rabbitmq.Event) error {
 	ch, err := p.pool.Get(ctx)
 	if err != nil {
 		return fmt.Errorf("get channel: %w", err)
