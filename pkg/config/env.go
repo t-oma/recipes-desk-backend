@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"io/fs"
 	"os"
+	"strconv"
 	"strings"
 	"unicode/utf8"
 
@@ -148,6 +149,18 @@ func (e *Env) Get(key string) string {
 	return ""
 }
 
+func (e *Env) GetInt(key string) int {
+	value := e.Get(key)
+	if value == "" {
+		return 0
+	}
+	i, err := strconv.Atoi(value)
+	if err != nil {
+		return 0
+	}
+	return i
+}
+
 // GetOrDefault returns the value of an environment variable or a default value if the variable is not set.
 func (e *Env) GetOrDefault(key string, defaultValue string) string {
 	envKey, ok := e.env[key]
@@ -157,6 +170,20 @@ func (e *Env) GetOrDefault(key string, defaultValue string) string {
 		return defaultValue
 	}
 	return envKey.value
+}
+
+func (e *Env) GetOrDefaultInt(key string, defaultValue int) int {
+	envKey, ok := e.env[key]
+	if !ok {
+		return defaultValue
+	} else if !envKey.isSet {
+		return defaultValue
+	}
+	value, err := strconv.Atoi(envKey.value)
+	if err != nil {
+		return defaultValue
+	}
+	return value
 }
 
 // Debug returns a map of environment variables and their masked values.
