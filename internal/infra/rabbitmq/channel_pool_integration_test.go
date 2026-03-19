@@ -23,10 +23,9 @@ func TestIntegration_ChannelPool_Initialize(t *testing.T) {
 	container, cleanup := testutils.SetupRabbitMQContainer(t)
 	defer cleanup()
 
-	connManager := setupRabbitMQFromContainer(t, container)
-	defer connManager.Stop()
-
 	log := zerolog.New(zerolog.NewConsoleWriter())
+	connManager := setupRabbitMQFromContainer(t, container, &log)
+	defer connManager.Stop()
 
 	t.Run("initialize with valid size", func(t *testing.T) {
 		pool, err := rabbitmq.NewChannelPool(context.Background(), connManager, 5, &log)
@@ -53,10 +52,10 @@ func TestIntegration_ChannelPool_GetAndPut(t *testing.T) {
 	container, cleanup := testutils.SetupRabbitMQContainer(t)
 	defer cleanup()
 
-	connManager := setupRabbitMQFromContainer(t, container)
+	log := zerolog.New(zerolog.NewConsoleWriter())
+	connManager := setupRabbitMQFromContainer(t, container, &log)
 	defer connManager.Stop()
 
-	log := zerolog.New(zerolog.NewConsoleWriter())
 	poolSize := 3
 	pool, err := rabbitmq.NewChannelPool(context.Background(), connManager, poolSize, &log)
 	require.NoError(t, err)
@@ -132,10 +131,10 @@ func TestIntegration_ChannelPool_ConcurrentAccess(t *testing.T) {
 	container, cleanup := testutils.SetupRabbitMQContainer(t)
 	defer cleanup()
 
-	connManager := setupRabbitMQFromContainer(t, container)
+	log := zerolog.New(zerolog.NewConsoleWriter())
+	connManager := setupRabbitMQFromContainer(t, container, &log)
 	defer connManager.Stop()
 
-	log := zerolog.New(zerolog.NewConsoleWriter())
 	pool, err := rabbitmq.NewChannelPool(context.Background(), connManager, 10, &log)
 	require.NoError(t, err)
 	defer pool.Close(context.Background())
@@ -175,10 +174,10 @@ func TestIntegration_ChannelPool_ClosedChannel(t *testing.T) {
 	container, cleanup := testutils.SetupRabbitMQContainer(t)
 	defer cleanup()
 
-	connManager := setupRabbitMQFromContainer(t, container)
+	log := zerolog.New(zerolog.NewConsoleWriter())
+	connManager := setupRabbitMQFromContainer(t, container, &log)
 	defer connManager.Stop()
 
-	log := zerolog.New(zerolog.NewConsoleWriter())
 	pool, err := rabbitmq.NewChannelPool(context.Background(), connManager, 3, &log)
 	require.NoError(t, err)
 	defer pool.Close(context.Background())
@@ -208,10 +207,10 @@ func TestIntegration_ChannelPool_Close(t *testing.T) {
 	container, cleanup := testutils.SetupRabbitMQContainer(t)
 	defer cleanup()
 
-	connManager := setupRabbitMQFromContainer(t, container)
+	log := zerolog.New(zerolog.NewConsoleWriter())
+	connManager := setupRabbitMQFromContainer(t, container, &log)
 	defer connManager.Stop()
 
-	log := zerolog.New(zerolog.NewConsoleWriter())
 	pool, err := rabbitmq.NewChannelPool(context.Background(), connManager, 3, &log)
 	require.NoError(t, err)
 
@@ -241,13 +240,13 @@ func TestIntegration_ChannelPool_Stats(t *testing.T) {
 	container, cleanup := testutils.SetupRabbitMQContainer(t)
 	defer cleanup()
 
-	connManager := setupRabbitMQFromContainer(t, container)
+	log := zerolog.New(zerolog.NewConsoleWriter())
+	connManager := setupRabbitMQFromContainer(t, container, &log)
 	defer connManager.Stop()
 
 	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
 	defer cancel()
 
-	log := zerolog.New(zerolog.NewConsoleWriter())
 	pool, err := rabbitmq.NewChannelPool(context.Background(), connManager, 5, &log)
 	require.NoError(t, err)
 	defer pool.Close(ctx)

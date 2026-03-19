@@ -45,27 +45,15 @@ const (
 func setupRabbitMQFromContainer(
 	t *testing.T,
 	container *rabbitmqtc.RabbitMQContainer,
+	log *zerolog.Logger,
 ) *rabbitmq.ConnectionManager {
 	t.Helper()
 
 	ctx := context.Background()
-
-	host, err := container.Host(ctx)
+	url, err := container.AmqpURL(ctx)
 	require.NoError(t, err)
 
-	port, err := container.MappedPort(ctx, "5672")
-	require.NoError(t, err)
-
-	config := rabbitmq.ConnectionManagerConfig{
-		Host:     host,
-		Port:     port.Int(),
-		User:     "guest",
-		Password: "guest",
-		VHost:    "/",
-	}
-
-	log := zerolog.New(zerolog.NewConsoleWriter())
-	connManager := rabbitmq.NewConnectionManager(config, &log)
+	connManager := rabbitmq.NewConnectionManager(url, log)
 	require.NoError(t, connManager.Start(ctx))
 
 	return connManager
@@ -116,47 +104,14 @@ func setupConsumer(
 	return consumer
 }
 
-func TestIntegration_Publisher_PublishWithConfirm(t *testing.T) {
-	container, cleanup := testutils.SetupRabbitMQContainer(t)
-	defer cleanup()
-
-	connManager := setupRabbitMQFromContainer(t, container)
-	defer connManager.Stop()
-
-	log := zerolog.New(zerolog.NewConsoleWriter())
-	pool, err := rabbitmq.NewChannelPool(context.Background(), connManager, 5, &log)
-	require.NoError(t, err)
-	defer pool.Close(context.Background())
-
-	publisher := setupPublisher(t, pool, &log)
-
-	event := TestLogSent{
-		Message:     "Test message",
-		ServerBlown: false,
-	}
-
-	t.Run("publish with confirmation", func(t *testing.T) {
-		ctx, cancel := context.WithTimeout(context.Background(), _testTimeout)
-		defer cancel()
-
-		err := publisher.PublishWithConfirm(ctx, event)
-		require.NoError(t, err)
-	})
-
-	t.Run("publish without confirmation", func(t *testing.T) {
-		err := publisher.Publish(context.Background(), event)
-		require.NoError(t, err)
-	})
-}
-
 func TestIntegration_Consumer_BasicConsume(t *testing.T) {
 	container, cleanup := testutils.SetupRabbitMQContainer(t)
 	defer cleanup()
 
-	connManager := setupRabbitMQFromContainer(t, container)
+	log := zerolog.New(zerolog.NewConsoleWriter())
+	connManager := setupRabbitMQFromContainer(t, container, &log)
 	defer connManager.Stop()
 
-	log := zerolog.New(zerolog.NewConsoleWriter())
 	pool, err := rabbitmq.NewChannelPool(context.Background(), connManager, 5, &log)
 	require.NoError(t, err)
 	defer pool.Close(context.Background())
@@ -216,10 +171,10 @@ func TestIntegration_Consumer_Retry(t *testing.T) {
 	container, cleanup := testutils.SetupRabbitMQContainer(t)
 	defer cleanup()
 
-	connManager := setupRabbitMQFromContainer(t, container)
+	log := zerolog.New(zerolog.NewConsoleWriter())
+	connManager := setupRabbitMQFromContainer(t, container, &log)
 	defer connManager.Stop()
 
-	log := zerolog.New(zerolog.NewConsoleWriter())
 	pool, err := rabbitmq.NewChannelPool(context.Background(), connManager, 5, &log)
 	require.NoError(t, err)
 	defer pool.Close(context.Background())

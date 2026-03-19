@@ -14,7 +14,7 @@ import (
 )
 
 type ConnectionManager struct {
-	config  ConnectionManagerConfig
+	url     string
 	conn    *amqp.Connection
 	mu      sync.RWMutex
 	log     *zerolog.Logger
@@ -22,9 +22,9 @@ type ConnectionManager struct {
 	running atomic.Bool
 }
 
-func NewConnectionManager(config ConnectionManagerConfig, log *zerolog.Logger) *ConnectionManager {
+func NewConnectionManager(url string, log *zerolog.Logger) *ConnectionManager {
 	return &ConnectionManager{
-		config:  config,
+		url:     url,
 		conn:    nil,
 		mu:      sync.RWMutex{},
 		log:     log,
@@ -97,7 +97,7 @@ func (cm *ConnectionManager) connect() error {
 
 	cm.mu.Lock()
 	defer cm.mu.Unlock()
-	conn, err := amqp.Dial(cm.config.URI())
+	conn, err := amqp.Dial(cm.url)
 	if err != nil {
 		return fmt.Errorf("failed to connect to RabbitMQ: %w", err)
 	}
@@ -106,8 +106,6 @@ func (cm *ConnectionManager) connect() error {
 
 	if cm.log != nil {
 		cm.log.Info().
-			Str("host", cm.config.Host).
-			Int("port", cm.config.Port).
 			Msg("Connected to RabbitMQ")
 	}
 
