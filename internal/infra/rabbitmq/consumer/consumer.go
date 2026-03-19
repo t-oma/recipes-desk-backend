@@ -1,4 +1,4 @@
-package rabbitmq
+package consumer
 
 import (
 	"context"
@@ -24,9 +24,6 @@ const (
 	StatePaused
 	StateShuttingDown
 )
-
-// HandlerFunc is the function signature for event handlers.
-type HandlerFunc func(ctx context.Context, routingKey string, body []byte) error
 
 // Consumer handles consuming events from RabbitMQ with retry and DLQ.
 type Consumer struct {

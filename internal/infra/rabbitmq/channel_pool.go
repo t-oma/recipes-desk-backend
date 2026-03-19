@@ -12,6 +12,7 @@ import (
 
 	amqp "github.com/rabbitmq/amqp091-go"
 
+	"recipes-desk/internal/infra/rabbitmq/connection"
 	"recipes-desk/pkg/pool"
 )
 
@@ -26,7 +27,7 @@ type PoolStats struct {
 
 // ChannelPool manages a pool of AMQP channels.
 type ChannelPool struct {
-	connManager *ConnectionManager
+	connManager *connection.ConnectionManager
 	pool        chan *amqp.Channel
 	size        int
 	mu          sync.RWMutex
@@ -42,7 +43,7 @@ var (
 // NewChannelPool creates a new channel pool.
 func NewChannelPool(
 	ctx context.Context,
-	connManager *ConnectionManager,
+	connManager *connection.ConnectionManager,
 	size int,
 	log *zerolog.Logger,
 ) (*ChannelPool, error) {

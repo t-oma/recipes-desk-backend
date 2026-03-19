@@ -1,4 +1,4 @@
-package rabbitmq
+package publisher
 
 import (
 	"context"
@@ -11,14 +11,9 @@ import (
 
 	amqp "github.com/rabbitmq/amqp091-go"
 
+	"recipes-desk/internal/infra/rabbitmq"
 	"recipes-desk/pkg/pool"
 )
-
-// Event is the interface for all domain events.
-type Event interface {
-	Type() string
-	RoutingKey() string
-}
 
 // Publisher implements ports.EventBusWithConfirm for RabbitMQ.
 type Publisher struct {
@@ -48,7 +43,7 @@ func NewPublisher(
 }
 
 // Publish publishes an event to RabbitMQ without waiting for confirmation.
-func (p *Publisher) Publish(ctx context.Context, event Event) error {
+func (p *Publisher) Publish(ctx context.Context, event rabbitmq.Event) error {
 	ch, err := p.pool.Get(ctx)
 	if err != nil {
 		return fmt.Errorf("get channel: %w", err)
@@ -86,7 +81,7 @@ func (p *Publisher) Publish(ctx context.Context, event Event) error {
 }
 
 // PublishWithConfirm publishes an event and waits for confirmation from RabbitMQ.
-func (p *Publisher) PublishWithConfirm(ctx context.Context, event Event) error {
+func (p *Publisher) PublishWithConfirm(ctx context.Context, event rabbitmq.Event) error {
 	ch, err := p.pool.Get(ctx)
 	if err != nil {
 		return fmt.Errorf("get channel: %w", err)

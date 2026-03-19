@@ -17,6 +17,9 @@ import (
 	rabbitmqtc "github.com/testcontainers/testcontainers-go/modules/rabbitmq"
 
 	"recipes-desk/internal/infra/rabbitmq"
+	"recipes-desk/internal/infra/rabbitmq/connection"
+	"recipes-desk/internal/infra/rabbitmq/consumer"
+	"recipes-desk/internal/infra/rabbitmq/publisher"
 	"recipes-desk/pkg/testutils"
 )
 
@@ -46,14 +49,14 @@ func setupRabbitMQFromContainer(
 	t *testing.T,
 	container *rabbitmqtc.RabbitMQContainer,
 	log *zerolog.Logger,
-) *rabbitmq.ConnectionManager {
+) *connection.ConnectionManager {
 	t.Helper()
 
 	ctx := context.Background()
 	url, err := container.AmqpURL(ctx)
 	require.NoError(t, err)
 
-	connManager := rabbitmq.NewConnectionManager(url, log)
+	connManager := connection.NewConnectionManager(url, log)
 	require.NoError(t, connManager.Start(ctx))
 
 	return connManager
@@ -63,13 +66,13 @@ func setupPublisher(
 	t *testing.T,
 	pool *rabbitmq.ChannelPool,
 	log *zerolog.Logger,
-) *rabbitmq.Publisher {
+) *publisher.Publisher {
 	t.Helper()
 
 	ctx, cancel := context.WithTimeout(context.Background(), _testTimeout)
 	defer cancel()
 
-	publisher, err := rabbitmq.NewPublisher(ctx, rabbitmq.PublisherConfig{
+	publisher, err := publisher.NewPublisher(ctx, publisher.PublisherConfig{
 		Exchange:     _testExchange,
 		ExchangeType: "topic",
 	}, pool, log)
@@ -82,12 +85,12 @@ func setupPublisher(
 func setupConsumer(
 	t *testing.T,
 	pool *rabbitmq.ChannelPool,
-	handler rabbitmq.HandlerFunc,
+	handler consumer.HandlerFunc,
 	log *zerolog.Logger,
-) *rabbitmq.Consumer {
+) *consumer.Consumer {
 	t.Helper()
 
-	consumer, err := rabbitmq.NewConsumer(context.Background(), rabbitmq.ConsumerConfig{
+	consumer, err := consumer.NewConsumer(context.Background(), consumer.ConsumerConfig{
 		Exchange:   _testExchange,
 		Queue:      _testQueue,
 		RoutingKey: "logs.sent",
