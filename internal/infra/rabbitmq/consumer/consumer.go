@@ -26,7 +26,6 @@ const (
 	StateStopped State = iota
 	StateRunning
 	StatePaused
-	StateShuttingDown
 )
 
 // Consumer handles consuming events from RabbitMQ with retry and DLQ.
@@ -184,7 +183,6 @@ func (c *Consumer) Shutdown(ctx context.Context) error {
 
 	c.mu.Lock()
 	close(c.shutdownCh)
-	c.state = StateShuttingDown
 	c.mu.Unlock()
 
 	c.log.Info().
@@ -262,13 +260,6 @@ func (c *Consumer) IsStopped() bool {
 	c.mu.RLock()
 	defer c.mu.RUnlock()
 	return c.state == StateStopped
-}
-
-// IsShuttingDown returns true if the consumer is shutting down.
-func (c *Consumer) IsShuttingDown() bool {
-	c.mu.RLock()
-	defer c.mu.RUnlock()
-	return c.state == StateShuttingDown
 }
 
 // InFlight returns the number of messages currently being processed.
