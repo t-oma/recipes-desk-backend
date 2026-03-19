@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/rs/zerolog"
@@ -13,22 +14,22 @@ import (
 )
 
 type ConnectionManager struct {
-	config    ConnectionManagerConfig
-	conn      *amqp.Connection
-	mu        sync.RWMutex
-	log       *zerolog.Logger
-	done      chan struct{}
-	isRunning bool
+	config  ConnectionManagerConfig
+	conn    *amqp.Connection
+	mu      sync.RWMutex
+	log     *zerolog.Logger
+	done    chan struct{}
+	running atomic.Bool
 }
 
 func NewConnectionManager(config ConnectionManagerConfig, log *zerolog.Logger) *ConnectionManager {
 	return &ConnectionManager{
-		config:    config,
-		conn:      nil,
-		mu:        sync.RWMutex{},
-		log:       log,
-		done:      make(chan struct{}),
-		isRunning: false,
+		config:  config,
+		conn:    nil,
+		mu:      sync.RWMutex{},
+		log:     log,
+		done:    make(chan struct{}),
+		running: atomic.Bool{},
 	}
 }
 
@@ -51,21 +52,19 @@ func (cm *ConnectionManager) Start(ctx context.Context) error {
 		return err
 	}
 
-	cm.mu.Lock()
-	cm.isRunning = true
-	cm.mu.Unlock()
+	cm.running.Store(true)
 
 	go cm.monitor(ctx)
 	return nil
 }
 
 func (cm *ConnectionManager) Stop() error {
-	cm.mu.Lock()
-	if !cm.isRunning {
-		cm.mu.Unlock()
+	if !cm.running.Load() {
 		return nil
 	}
-	cm.isRunning = false
+	cm.running.Store(false)
+
+	cm.mu.Lock()
 	close(cm.done)
 	cm.mu.Unlock()
 
@@ -134,11 +133,10 @@ func (cm *ConnectionManager) reconnect(ctx context.Context) {
 		default:
 		}
 
-		cm.mu.Lock()
 		if cm.IsConnected() {
-			cm.mu.Unlock()
 			return
 		}
+		cm.mu.Lock()
 		cm.conn = nil
 		cm.mu.Unlock()
 
