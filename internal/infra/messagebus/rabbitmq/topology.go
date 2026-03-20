@@ -4,12 +4,28 @@ package rabbitmq
 import (
 	"fmt"
 
+	"github.com/rs/zerolog"
+
 	amqp "github.com/rabbitmq/amqp091-go"
 )
 
+// Topology handles RabbitMQ topology operations.
+type Topology struct {
+	conn *Connection
+	log  *zerolog.Logger
+}
+
+// NewTopology creates a new topology manager.
+func NewTopology(conn *Connection, log *zerolog.Logger) *Topology {
+	return &Topology{
+		conn: conn,
+		log:  log,
+	}
+}
+
 // DeclareExchange declares an exchange with the given configuration.
-func (c *Connection) DeclareExchange(cfg ExchangeConfig) error {
-	ch, err := c.Channel()
+func (t *Topology) DeclareExchange(cfg ExchangeConfig) error {
+	ch, err := t.conn.Channel()
 	if err != nil {
 		return err
 	}
@@ -27,12 +43,18 @@ func (c *Connection) DeclareExchange(cfg ExchangeConfig) error {
 		return fmt.Errorf("%w %s: %w", ErrDeclareExchange, cfg.Name, err)
 	}
 
+	t.log.Debug().
+		Str("exchange", cfg.Name).
+		Str("type", string(cfg.Type)).
+		Bool("durable", cfg.Durable).
+		Msg("Exchange declared")
+
 	return nil
 }
 
 // DeclareQueue declares a queue with the given configuration.
-func (c *Connection) DeclareQueue(cfg QueueConfig) (amqp.Queue, error) {
-	ch, err := c.Channel()
+func (t *Topology) DeclareQueue(cfg QueueConfig) (amqp.Queue, error) {
+	ch, err := t.conn.Channel()
 	if err != nil {
 		return amqp.Queue{}, err
 	}
@@ -50,12 +72,18 @@ func (c *Connection) DeclareQueue(cfg QueueConfig) (amqp.Queue, error) {
 		return amqp.Queue{}, fmt.Errorf("%w %s: %w", ErrDeclareQueue, cfg.Name, err)
 	}
 
+	t.log.Debug().
+		Str("queue", cfg.Name).
+		Str("type", string(cfg.Type)).
+		Bool("durable", cfg.Durable).
+		Msg("Queue declared")
+
 	return q, nil
 }
 
 // BindQueue binds a queue to an exchange.
-func (c *Connection) BindQueue(cfg BindingConfig) error {
-	ch, err := c.Channel()
+func (t *Topology) BindQueue(cfg BindingConfig) error {
+	ch, err := t.conn.Channel()
 	if err != nil {
 		return err
 	}
@@ -77,27 +105,64 @@ func (c *Connection) BindQueue(cfg BindingConfig) error {
 		)
 	}
 
+	t.log.Debug().
+		Str("queue", cfg.QueueName).
+		Str("exchange", cfg.ExchangeName).
+		Str("routing_key", cfg.RoutingKey).
+		Msg("Queue bound to exchange")
+
+	return nil
+}
+
+// SetupTopology declares exchange, queue and binds them together.
+func (t *Topology) SetupTopology(
+	exchange ExchangeConfig,
+	queue QueueConfig,
+	binding BindingConfig,
+) error {
+	if err := t.DeclareExchange(exchange); err != nil {
+		return fmt.Errorf("failed to setup topology: %w", err)
+	}
+
+	if _, err := t.DeclareQueue(queue); err != nil {
+		return fmt.Errorf("failed to setup topology: %w", err)
+	}
+
+	if err := t.BindQueue(binding); err != nil {
+		return fmt.Errorf("failed to setup topology: %w", err)
+	}
+
+	t.log.Info().
+		Str("exchange", exchange.Name).
+		Str("queue", queue.Name).
+		Str("routing_key", binding.RoutingKey).
+		Msg("Topology setup complete")
+
 	return nil
 }
 
 // DeleteExchange deletes an exchange.
-func (c *Connection) DeleteExchange(name string, ifUnused bool) error {
-	ch, err := c.Channel()
+func (t *Topology) DeleteExchange(name string, ifUnused bool) error {
+	ch, err := t.conn.Channel()
 	if err != nil {
 		return err
 	}
 	defer ch.Close()
 
 	if err = ch.ExchangeDelete(name, ifUnused, false); err != nil {
-		return fmt.Errorf("%w %s: %w", ErrDeclareExchange, name, err)
+		return fmt.Errorf("%w %s: %w", ErrDeleteExchange, name, err)
 	}
+
+	t.log.Debug().
+		Str("exchange", name).
+		Msg("Exchange deleted")
 
 	return nil
 }
 
 // DeleteQueue deletes a queue.
-func (c *Connection) DeleteQueue(name string, ifUnused, ifEmpty bool) error {
-	ch, err := c.Channel()
+func (t *Topology) DeleteQueue(name string, ifUnused, ifEmpty bool) error {
+	ch, err := t.conn.Channel()
 	if err != nil {
 		return err
 	}
@@ -107,12 +172,16 @@ func (c *Connection) DeleteQueue(name string, ifUnused, ifEmpty bool) error {
 		return fmt.Errorf("%w %s: %w", ErrDeleteQueue, name, err)
 	}
 
+	t.log.Debug().
+		Str("queue", name).
+		Msg("Queue deleted")
+
 	return nil
 }
 
 // PurgeQueue removes all messages from a queue.
-func (c *Connection) PurgeQueue(name string) (int, error) {
-	ch, err := c.Channel()
+func (t *Topology) PurgeQueue(name string) (int, error) {
+	ch, err := t.conn.Channel()
 	if err != nil {
 		return 0, err
 	}
@@ -122,6 +191,11 @@ func (c *Connection) PurgeQueue(name string) (int, error) {
 	if err != nil {
 		return 0, fmt.Errorf("%w %s: %w", ErrPurgeQueue, name, err)
 	}
+
+	t.log.Debug().
+		Str("queue", name).
+		Int("count", count).
+		Msg("Queue purged")
 
 	return count, nil
 }
