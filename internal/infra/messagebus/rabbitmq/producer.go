@@ -84,19 +84,13 @@ func (p *Producer) Publish(ctx context.Context, exchange, routingKey string,
 	ch := p.channel
 	p.mu.RUnlock()
 
-	// Marshal payload
-	payload, err := json.Marshal(msg.Payload)
-	if err != nil {
-		return fmt.Errorf("failed to marshal message payload: %w", err)
-	}
-
 	// Marshal full message
 	body, err := json.Marshal(messagebus.Message{
 		ID:        msg.ID,
 		Type:      msg.Type,
 		Timestamp: msg.Timestamp,
 		Source:    msg.Source,
-		Payload:   payload,
+		Payload:   msg.Payload,
 		Headers:   msg.Headers,
 	})
 	if err != nil {
