@@ -114,7 +114,7 @@ func (c *Connection) DeleteQueue(name string, ifUnused, ifEmpty bool) error {
 func (c *Connection) PurgeQueue(name string) (int, error) {
 	ch, err := c.Channel()
 	if err != nil {
-		return 0, fmt.Errorf("%w: %w", ErrCreateChannel, err)
+		return 0, err
 	}
 	defer ch.Close()
 
