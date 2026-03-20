@@ -154,37 +154,6 @@ func (p *Producer) Publish(ctx context.Context, exchange, routingKey string,
 	return nil
 }
 
-// DeclareExchange declares an exchange with the given configuration.
-func (p *Producer) DeclareExchange(cfg ExchangeConfig) error {
-	p.mu.RLock()
-	if p.isClosed {
-		p.mu.RUnlock()
-		return ErrChannelClosed
-	}
-	ch := p.channel
-	p.mu.RUnlock()
-
-	if err := ch.ExchangeDeclare(
-		cfg.Name,
-		string(cfg.Type),
-		cfg.Durable,
-		cfg.AutoDelete,
-		cfg.Internal,
-		cfg.NoWait,
-		cfg.Args,
-	); err != nil {
-		return fmt.Errorf("failed to declare exchange %s: %w", cfg.Name, err)
-	}
-
-	p.log.Debug().
-		Str("exchange", cfg.Name).
-		Str("type", string(cfg.Type)).
-		Bool("durable", cfg.Durable).
-		Msg("Exchange declared")
-
-	return nil
-}
-
 // Close closes the producer and its channel.
 func (p *Producer) Close() error {
 	p.mu.Lock()

@@ -93,67 +93,6 @@ func (c *Consumer) Consume(ctx context.Context, queue string, handler messagebus
 	return nil
 }
 
-// DeclareQueue declares a queue with the given configuration.
-func (c *Consumer) DeclareQueue(cfg QueueConfig) error {
-	c.mu.RLock()
-	if c.isClosed {
-		c.mu.RUnlock()
-		return ErrChannelClosed
-	}
-	ch := c.channel
-	c.mu.RUnlock()
-
-	_, err := ch.QueueDeclare(
-		cfg.Name,
-		cfg.Durable,
-		cfg.AutoDelete,
-		cfg.Exclusive,
-		cfg.NoWait,
-		cfg.Args,
-	)
-	if err != nil {
-		return fmt.Errorf("failed to declare queue %s: %w", cfg.Name, err)
-	}
-
-	c.log.Debug().
-		Str("queue", cfg.Name).
-		Str("type", string(cfg.Type)).
-		Bool("durable", cfg.Durable).
-		Msg("Queue declared")
-
-	return nil
-}
-
-// BindQueue binds a queue to an exchange.
-func (c *Consumer) BindQueue(cfg BindingConfig) error {
-	c.mu.RLock()
-	if c.isClosed {
-		c.mu.RUnlock()
-		return ErrChannelClosed
-	}
-	ch := c.channel
-	c.mu.RUnlock()
-
-	if err := ch.QueueBind(
-		cfg.QueueName,
-		cfg.RoutingKey,
-		cfg.ExchangeName,
-		cfg.NoWait,
-		cfg.Args,
-	); err != nil {
-		return fmt.Errorf("failed to bind queue %s to exchange %s: %w",
-			cfg.QueueName, cfg.ExchangeName, err)
-	}
-
-	c.log.Debug().
-		Str("queue", cfg.QueueName).
-		Str("exchange", cfg.ExchangeName).
-		Str("routing_key", cfg.RoutingKey).
-		Msg("Queue bound")
-
-	return nil
-}
-
 // Close closes the consumer and its channel.
 func (c *Consumer) Close() error {
 	c.mu.Lock()
