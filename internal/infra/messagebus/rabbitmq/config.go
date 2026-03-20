@@ -1,0 +1,188 @@
+// Package rabbitmq provides RabbitMQ implementation of the message bus.
+package rabbitmq
+
+import (
+	"fmt"
+	"time"
+)
+
+// ExchangeType represents the type of RabbitMQ exchange.
+type ExchangeType string
+
+const (
+	// ExchangeTypeDirect routes messages based on exact routing key match.
+	ExchangeTypeDirect ExchangeType = "direct"
+	// ExchangeTypeFanout broadcasts messages to all bound queues.
+	ExchangeTypeFanout ExchangeType = "fanout"
+	// ExchangeTypeTopic routes messages based on pattern matching.
+	ExchangeTypeTopic ExchangeType = "topic"
+	// ExchangeTypeHeaders routes messages based on header attributes.
+	ExchangeTypeHeaders ExchangeType = "headers"
+)
+
+// QueueType represents the type of RabbitMQ queue.
+type QueueType string
+
+const (
+	// QueueTypeClassic is the standard queue type.
+	QueueTypeClassic QueueType = "classic"
+	// QueueTypeQuorum is a replicated queue type for high availability.
+	QueueTypeQuorum QueueType = "quorum"
+)
+
+// Config holds RabbitMQ connection configuration.
+type Config struct {
+	Host              string
+	Port              int
+	User              string
+	Password          string
+	VHost             string
+	TLS               TLSConfig
+	Reconnect         ReconnectConfig
+	ChannelMax        uint16        // Maximum number of channels per connection
+	Heartbeat         time.Duration // Heartbeat interval
+	ConnectionTimeout time.Duration
+}
+
+// TLSConfig holds TLS configuration for RabbitMQ connection.
+type TLSConfig struct {
+	Enabled    bool
+	CertFile   string
+	KeyFile    string
+	CAFile     string
+	SkipVerify bool // Only for development
+}
+
+// ReconnectConfig holds reconnection configuration.
+type ReconnectConfig struct {
+	Enabled     bool
+	MaxAttempts int
+	InitialWait time.Duration
+	MaxWait     time.Duration
+	Multiplier  float64
+}
+
+// ExchangeConfig holds exchange declaration configuration.
+type ExchangeConfig struct {
+	Name       string
+	Type       ExchangeType
+	Durable    bool
+	AutoDelete bool
+	Internal   bool
+	NoWait     bool
+	Args       map[string]interface{}
+}
+
+// QueueConfig holds queue declaration configuration.
+type QueueConfig struct {
+	Name       string
+	Type       QueueType
+	Durable    bool
+	AutoDelete bool
+	Exclusive  bool
+	NoWait     bool
+	Args       map[string]interface{}
+}
+
+// BindingConfig holds queue binding configuration.
+type BindingConfig struct {
+	QueueName    string
+	ExchangeName string
+	RoutingKey   string
+	NoWait       bool
+	Args         map[string]interface{}
+}
+
+// DefaultConfig returns a default configuration.
+func DefaultConfig() Config {
+	//nolint:exhaustruct // intentionally using default values for optional fields
+	return Config{
+		Host:              "localhost",
+		Port:              5672,
+		VHost:             "/",
+		ChannelMax:        2048,
+		Heartbeat:         10 * time.Second,
+		ConnectionTimeout: 30 * time.Second,
+		//nolint:exhaustruct // TLS disabled by default
+		TLS: TLSConfig{
+			Enabled:    false,
+			SkipVerify: false,
+		},
+		Reconnect: ReconnectConfig{
+			Enabled:     true,
+			MaxAttempts: 10,
+			InitialWait: 1 * time.Second,
+			MaxWait:     30 * time.Second,
+			Multiplier:  2,
+		},
+	}
+}
+
+// NewExchangeConfig creates a new exchange configuration with sensible defaults.
+func NewExchangeConfig(name string, exchangeType ExchangeType) ExchangeConfig {
+	return ExchangeConfig{
+		Name:       name,
+		Type:       exchangeType,
+		Durable:    true,
+		AutoDelete: false,
+		Internal:   false,
+		NoWait:     false,
+		Args:       make(map[string]interface{}),
+	}
+}
+
+// NewQueueConfig creates a new queue configuration with sensible defaults.
+func NewQueueConfig(name string, queueType QueueType) QueueConfig {
+	return QueueConfig{
+		Name:       name,
+		Type:       queueType,
+		Durable:    true,
+		AutoDelete: false,
+		Exclusive:  false,
+		NoWait:     false,
+		Args: map[string]interface{}{
+			"x-queue-type": queueType,
+		},
+	}
+}
+
+// WithDeadLetterExchange adds dead letter exchange configuration to queue args.
+func (qc QueueConfig) WithDeadLetterExchange(exchangeName string) QueueConfig {
+	qc.Args["x-dead-letter-exchange"] = exchangeName
+	return qc
+}
+
+// WithDeliveryLimit sets the maximum delivery attempts for quorum queues.
+func (qc QueueConfig) WithDeliveryLimit(limit int) QueueConfig {
+	qc.Args["x-delivery-limit"] = limit
+	return qc
+}
+
+// WithTTL sets the time-to-live for messages in the queue.
+func (qc QueueConfig) WithTTL(ttl time.Duration) QueueConfig {
+	qc.Args["x-message-ttl"] = int(ttl.Milliseconds())
+	return qc
+}
+
+// WithMaxPriority sets the maximum priority for the queue.
+func (qc QueueConfig) WithMaxPriority(priority int) QueueConfig {
+	qc.Args["x-max-priority"] = priority
+	return qc
+}
+
+// buildURI constructs the AMQP connection URI.
+func (c Config) buildURI() string {
+	scheme := "amqp"
+	if c.TLS.Enabled {
+		scheme = "amqps"
+	}
+
+	return fmt.Sprintf("%s://%s:%s@%s:%d%s",
+		scheme,
+		c.User,
+		c.Password,
+		c.Host,
+		c.Port,
+		c.VHost,
+	)
+}
