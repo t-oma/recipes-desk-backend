@@ -1,27 +1,45 @@
 // Package rabbitmq provides RabbitMQ implementation of the message bus.
 package rabbitmq
 
-import "errors"
+import (
+	"errors"
+)
 
+// Connection errors.
 var (
 	// ErrConnectionClosed is returned when the connection is closed.
 	ErrConnectionClosed = errors.New("connection closed")
-
-	// ErrChannelClosed is returned when the channel is closed.
-	ErrChannelClosed = errors.New("channel closed")
-
-	// ErrPublishTimeout is returned when publishing times out.
-	ErrPublishTimeout = errors.New("publish timeout")
-
-	// ErrNackReceived is returned when the broker negatively acknowledges a message.
-	ErrNackReceived = errors.New("nack received from broker")
-
 	// ErrNotConnected is returned when there is no active connection.
 	ErrNotConnected = errors.New("not connected to RabbitMQ")
+)
 
-	// ErrInvalidExchange is returned when exchange configuration is invalid.
-	ErrInvalidExchange = errors.New("invalid exchange configuration")
+// Channel errors.
+var (
+	// ErrChannelClosed is returned when the channel is closed.
+	ErrChannelClosed = errors.New("channel closed")
+	// ErrCreateChannel is returned when the channel cannot be created.
+	ErrCreateChannel = errors.New("create channel")
+)
 
-	// ErrInvalidQueue is returned when queue configuration is invalid.
-	ErrInvalidQueue = errors.New("invalid queue configuration")
+var (
+	// ErrPublishTimeout is returned when publishing times out.
+	ErrPublishTimeout = errors.New("publish timeout")
+	// ErrNackReceived is returned when the broker negatively acknowledges a message.
+	ErrNackReceived = errors.New("nack received from broker")
+)
+
+// Topology errors.
+var (
+	// ErrDeclareExchange is returned when an exchange cannot be declared.
+	ErrDeclareExchange = errors.New("declare exchange")
+	// ErrDeleteExchange is returned when an exchange cannot be deleted.
+	ErrDeleteExchange = errors.New("delete exchange")
+	// ErrDeclareQueue is returned when a queue cannot be declared.
+	ErrDeclareQueue = errors.New("declare queue")
+	// ErrDeleteQueue is returned when a queue cannot be deleted.
+	ErrDeleteQueue = errors.New("delete queue")
+	// ErrPurgeQueue is returned when a queue cannot be purged.
+	ErrPurgeQueue = errors.New("purge queue")
+	// ErrBindQueue is returned when a queue cannot be bound to an exchange.
+	ErrBindQueue = errors.New("bind queue")
 )

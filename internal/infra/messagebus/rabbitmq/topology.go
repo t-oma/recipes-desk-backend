@@ -8,10 +8,10 @@ import (
 )
 
 // DeclareExchange declares an exchange with the given configuration.
-func DeclareExchange(conn *Connection, cfg ExchangeConfig) error {
-	ch, err := conn.Channel()
+func (c *Connection) DeclareExchange(cfg ExchangeConfig) error {
+	ch, err := c.Channel()
 	if err != nil {
-		return fmt.Errorf("create channel: %w", err)
+		return err
 	}
 	defer ch.Close()
 
@@ -24,17 +24,17 @@ func DeclareExchange(conn *Connection, cfg ExchangeConfig) error {
 		cfg.NoWait,
 		cfg.Args,
 	); err != nil {
-		return fmt.Errorf("declare exchange %s: %w", cfg.Name, err)
+		return fmt.Errorf("%w %s: %w", ErrDeclareExchange, cfg.Name, err)
 	}
 
 	return nil
 }
 
 // DeclareQueue declares a queue with the given configuration.
-func DeclareQueue(conn *Connection, cfg QueueConfig) (amqp.Queue, error) {
-	ch, err := conn.Channel()
+func (c *Connection) DeclareQueue(cfg QueueConfig) (amqp.Queue, error) {
+	ch, err := c.Channel()
 	if err != nil {
-		return amqp.Queue{}, fmt.Errorf("create channel: %w", err)
+		return amqp.Queue{}, err
 	}
 	defer ch.Close()
 
@@ -47,17 +47,17 @@ func DeclareQueue(conn *Connection, cfg QueueConfig) (amqp.Queue, error) {
 		cfg.Args,
 	)
 	if err != nil {
-		return amqp.Queue{}, fmt.Errorf("declare queue %s: %w", cfg.Name, err)
+		return amqp.Queue{}, fmt.Errorf("%w %s: %w", ErrDeclareQueue, cfg.Name, err)
 	}
 
 	return q, nil
 }
 
 // BindQueue binds a queue to an exchange.
-func BindQueue(conn *Connection, cfg BindingConfig) error {
-	ch, err := conn.Channel()
+func (c *Connection) BindQueue(cfg BindingConfig) error {
+	ch, err := c.Channel()
 	if err != nil {
-		return fmt.Errorf("create channel: %w", err)
+		return err
 	}
 	defer ch.Close()
 
@@ -68,54 +68,59 @@ func BindQueue(conn *Connection, cfg BindingConfig) error {
 		cfg.NoWait,
 		cfg.Args,
 	); err != nil {
-		return fmt.Errorf("bind queue %s to exchange %s: %w",
-			cfg.QueueName, cfg.ExchangeName, err)
+		return fmt.Errorf(
+			"%w %s to exchange %s: %w",
+			ErrBindQueue,
+			cfg.QueueName,
+			cfg.ExchangeName,
+			err,
+		)
 	}
 
 	return nil
 }
 
 // DeleteExchange deletes an exchange.
-func DeleteExchange(conn *Connection, name string, ifUnused bool) error {
-	ch, err := conn.Channel()
+func (c *Connection) DeleteExchange(name string, ifUnused bool) error {
+	ch, err := c.Channel()
 	if err != nil {
-		return fmt.Errorf("create channel: %w", err)
+		return err
 	}
 	defer ch.Close()
 
 	if err = ch.ExchangeDelete(name, ifUnused, false); err != nil {
-		return fmt.Errorf("delete exchange %s: %w", name, err)
+		return fmt.Errorf("%w %s: %w", ErrDeclareExchange, name, err)
 	}
 
 	return nil
 }
 
 // DeleteQueue deletes a queue.
-func DeleteQueue(conn *Connection, name string, ifUnused, ifEmpty bool) error {
-	ch, err := conn.Channel()
+func (c *Connection) DeleteQueue(name string, ifUnused, ifEmpty bool) error {
+	ch, err := c.Channel()
 	if err != nil {
-		return fmt.Errorf("create channel: %w", err)
+		return err
 	}
 	defer ch.Close()
 
 	if _, err = ch.QueueDelete(name, ifUnused, ifEmpty, false); err != nil {
-		return fmt.Errorf("delete queue %s: %w", name, err)
+		return fmt.Errorf("%w %s: %w", ErrDeleteQueue, name, err)
 	}
 
 	return nil
 }
 
 // PurgeQueue removes all messages from a queue.
-func PurgeQueue(conn *Connection, name string) (int, error) {
-	ch, err := conn.Channel()
+func (c *Connection) PurgeQueue(name string) (int, error) {
+	ch, err := c.Channel()
 	if err != nil {
-		return 0, fmt.Errorf("create channel: %w", err)
+		return 0, fmt.Errorf("%w: %w", ErrCreateChannel, err)
 	}
 	defer ch.Close()
 
 	count, err := ch.QueuePurge(name, false)
 	if err != nil {
-		return 0, fmt.Errorf("purge queue %s: %w", name, err)
+		return 0, fmt.Errorf("%w %s: %w", ErrPurgeQueue, name, err)
 	}
 
 	return count, nil
