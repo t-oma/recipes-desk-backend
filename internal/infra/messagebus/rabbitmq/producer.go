@@ -5,6 +5,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"sync/atomic"
 	"time"
 
 	"github.com/rs/zerolog"
@@ -19,6 +20,7 @@ type Producer struct {
 	conn           *Connection
 	log            *zerolog.Logger
 	isConfirmMode  bool
+	isClosed       atomic.Bool
 	confirmTimeout time.Duration
 }
 
@@ -32,12 +34,24 @@ func NewProducer(
 		conn:           conn,
 		log:            log,
 		isConfirmMode:  isConfirmMode,
+		isClosed:       atomic.Bool{},
 		confirmTimeout: 10 * time.Second,
 	}, nil
 }
 
 func (p *Producer) SetConfirmTimeout(timeout time.Duration) {
 	p.confirmTimeout = timeout
+}
+
+func (p *Producer) Close() error {
+	if p.isClosed.Load() {
+		return nil
+	}
+
+	p.isClosed.Store(true)
+	p.log.Info().Msg("Producer closed")
+
+	return nil
 }
 
 // Publish sends a message to the specified exchange with the given routing key.
