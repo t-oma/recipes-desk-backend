@@ -4,8 +4,10 @@ package rabbitmq
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
-	"sync"
+	"sync/atomic"
+	"time"
 
 	"github.com/rs/zerolog"
 
@@ -16,59 +18,109 @@ import (
 
 // Consumer handles message consumption from RabbitMQ.
 type Consumer struct {
-	conn       *Connection
-	channel    *amqp.Channel
-	mu         sync.RWMutex
-	log        *zerolog.Logger
-	isClosed   bool
-	prefetch   int
-	autoAck    bool
-	handlers   map[string]messagebus.Handler
-	handlersMu sync.RWMutex
+	conn     *Connection
+	log      *zerolog.Logger
+	isClosed atomic.Bool
+	prefetch int
 }
 
 // NewConsumer creates a new message consumer.
 func NewConsumer(conn *Connection, log *zerolog.Logger, prefetch int) (*Consumer, error) {
-	ch, err := conn.Channel()
-	if err != nil {
-		return nil, fmt.Errorf("failed to create channel: %w", err)
+	//nolint:exhaustruct // mu initialized automatically
+	return &Consumer{
+		conn:     conn,
+		log:      log,
+		prefetch: prefetch,
+	}, nil
+}
+
+// IsClosed returns true if the consumer is closed.
+func (c *Consumer) IsClosed() bool {
+	return c.isClosed.Load()
+}
+
+// Close closes the consumer.
+func (c *Consumer) Close() error {
+	if c.isClosed.Load() {
+		return nil
 	}
 
-	// Set prefetch
-	if prefetch > 0 {
-		if err = ch.Qos(prefetch, 0, false); err != nil {
-			ch.Close()
-			return nil, fmt.Errorf("failed to set prefetch: %w", err)
+	c.isClosed.Store(true)
+	c.log.Info().Msg("Consumer closed")
+
+	return nil
+}
+
+// Consume starts consuming messages from the specified queue with auto-recovery.
+func (c *Consumer) Consume(ctx context.Context, queue string, handler messagebus.Handler) error {
+	backoff := 1 * time.Second
+	maxBackoff := 30 * time.Second
+
+	for {
+		select {
+		case <-ctx.Done():
+			c.log.Info().Str("queue", queue).Msg("Consumer stopped")
+			return ctx.Err()
+		default:
+		}
+
+		if c.isClosed.Load() {
+			c.log.Info().Str("queue", queue).Msg("Consumer closed")
+			return nil
+		}
+
+		// Try to consume
+		err := c.doConsume(ctx, queue, handler)
+		if err != nil {
+			c.log.Error().
+				Err(err).
+				Str("queue", queue).
+				Msg("Consume failed, will retry")
+		}
+
+		// Wait before retry
+		select {
+		case <-ctx.Done():
+			c.log.Info().Str("queue", queue).Msg("Consumer stopped during backoff")
+		case <-time.After(backoff):
+			backoff = time.Duration(float64(backoff) * 1.5)
+			if backoff > maxBackoff {
+				backoff = maxBackoff
+			}
+		}
+	}
+}
+
+// doConsume creates channel, sets QoS, and starts consuming.
+func (c *Consumer) doConsume(ctx context.Context, queue string, handler messagebus.Handler) error {
+	// Create new channel
+	ch, err := c.conn.Channel()
+	if err != nil {
+		return fmt.Errorf("failed to create channel: %w", err)
+	}
+	defer ch.Close()
+
+	// Set QoS
+	if c.prefetch > 0 {
+		if qosErr := ch.Qos(c.prefetch, 0, false); qosErr != nil {
+			return fmt.Errorf("failed to set prefetch: %w", qosErr)
 		}
 	}
 
-	//nolint:exhaustruct // intentionally leaving optional fields empty
-	c := &Consumer{
-		conn:     conn,
-		channel:  ch,
-		log:      log,
-		prefetch: prefetch,
-		autoAck:  false, // Manual ACK for reliability
-		handlers: make(map[string]messagebus.Handler),
+	// Declare queue if not exists
+	_, err = ch.QueueDeclare(
+		queue, // name
+		true,  // durable
+		false, // auto-delete
+		false, // exclusive
+		false, // no-wait
+		nil,   // args
+	)
+	if err != nil {
+		return fmt.Errorf("failed to declare queue: %w", err)
 	}
 
-	return c, nil
-}
-
-// Consume starts consuming messages from the specified queue.
-func (c *Consumer) Consume(ctx context.Context, queue string, handler messagebus.Handler) error {
-	c.mu.RLock()
-	if c.isClosed {
-		c.mu.RUnlock()
-		return ErrChannelClosed
-	}
-	ch := c.channel
-	c.mu.RUnlock()
-
-	c.handlersMu.Lock()
-	c.handlers[queue] = handler
-	c.handlersMu.Unlock()
-
+	// Start consuming
 	msgs, err := ch.ConsumeWithContext(
 		ctx,
 		queue,
@@ -88,56 +140,17 @@ func (c *Consumer) Consume(ctx context.Context, queue string, handler messagebus
 		Int("prefetch", c.prefetch).
 		Msg("Started consuming messages")
 
-	go c.processMessages(ctx, msgs, handler)
-
-	return nil
-}
-
-// Close closes the consumer and its channel.
-func (c *Consumer) Close() error {
-	c.mu.Lock()
-	defer c.mu.Unlock()
-
-	if c.isClosed {
-		return nil
-	}
-
-	if c.channel != nil {
-		if err := c.channel.Close(); err != nil {
-			return fmt.Errorf("failed to close channel: %w", err)
-		}
-	}
-
-	c.isClosed = true
-	c.log.Info().Msg("Consumer closed")
-
-	return nil
-}
-
-// IsClosed returns true if the consumer is closed.
-func (c *Consumer) IsClosed() bool {
-	c.mu.RLock()
-	defer c.mu.RUnlock()
-	return c.isClosed
-}
-
-// processMessages processes incoming messages.
-func (c *Consumer) processMessages(
-	ctx context.Context,
-	msgs <-chan amqp.Delivery,
-	handler messagebus.Handler,
-) {
+	// Process messages
 	for {
 		select {
 		case <-ctx.Done():
-			c.log.Info().Msg("Consumer stopped due to context cancellation")
-			return
+			c.log.Info().Str("queue", queue).Msg("Context cancelled, stopping consumer")
+			return nil
 		case msg, ok := <-msgs:
 			if !ok {
-				c.log.Info().Msg("Message channel closed")
-				return
+				c.log.Info().Str("queue", queue).Msg("Message channel closed, will reconnect")
+				return errors.New("message channel closed")
 			}
-
 			c.handleMessage(ctx, msg, handler)
 		}
 	}
@@ -146,17 +159,17 @@ func (c *Consumer) processMessages(
 // handleMessage processes a single message.
 func (c *Consumer) handleMessage(
 	ctx context.Context,
-	msg amqp.Delivery,
+	delivery amqp.Delivery,
 	handler messagebus.Handler,
 ) {
 	var message messagebus.Message
-	if err := json.Unmarshal(msg.Body, &message); err != nil {
+	if err := json.Unmarshal(delivery.Body, &message); err != nil {
 		c.log.Error().
 			Err(err).
-			Str("message_id", msg.MessageId).
+			Str("message_id", delivery.MessageId).
 			Msg("Failed to unmarshal message")
 		// NACK without requeue - send to DLQ
-		if err = msg.Nack(false, false); err != nil {
+		if err = delivery.Nack(false, false); err != nil {
 			c.log.Error().Err(err).Msg("Failed to nack message")
 		}
 		return
@@ -165,7 +178,7 @@ func (c *Consumer) handleMessage(
 	c.log.Debug().
 		Str("message_id", message.ID).
 		Str("message_type", message.Type).
-		Str("routing_key", msg.RoutingKey).
+		Str("routing_key", delivery.RoutingKey).
 		Msg("Received message")
 
 	if err := handler(ctx, message); err != nil {
@@ -175,14 +188,14 @@ func (c *Consumer) handleMessage(
 			Str("message_type", message.Type).
 			Msg("Handler failed")
 		// NACK with requeue for retry
-		if err = msg.Nack(false, true); err != nil {
+		if err = delivery.Nack(false, true); err != nil {
 			c.log.Error().Err(err).Msg("Failed to nack message")
 		}
 		return
 	}
 
 	// ACK on success
-	if err := msg.Ack(false); err != nil {
+	if err := delivery.Ack(false); err != nil {
 		c.log.Error().
 			Err(err).
 			Str("message_id", message.ID).
