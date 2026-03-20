@@ -5,7 +5,6 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"sync"
 	"time"
 
 	"github.com/rs/zerolog"
@@ -17,72 +16,46 @@ import (
 
 // Producer handles message publishing to RabbitMQ.
 type Producer struct {
-	conn          *Connection
-	channel       *amqp.Channel
-	confirms      chan amqp.Confirmation
-	mu            sync.RWMutex
-	log           *zerolog.Logger
-	isClosed      bool
-	isConfirmMode bool
+	conn           *Connection
+	log            *zerolog.Logger
+	isConfirmMode  bool
+	confirmTimeout time.Duration
 }
 
 // NewProducer creates a new message producer.
-func NewProducer(conn *Connection, log *zerolog.Logger) (*Producer, error) {
-	ch, err := conn.Channel()
-	if err != nil {
-		return nil, fmt.Errorf("failed to create channel: %w", err)
-	}
-
-	//nolint:exhaustruct // intentionally leaving optional fields empty
-	p := &Producer{
-		conn:          conn,
-		channel:       ch,
-		log:           log,
-		confirms:      make(chan amqp.Confirmation, 1),
-		isConfirmMode: false,
-		isClosed:      false,
-	}
-
-	return p, nil
+func NewProducer(
+	conn *Connection,
+	log *zerolog.Logger,
+	isConfirmMode bool,
+) (*Producer, error) {
+	return &Producer{
+		conn:           conn,
+		log:            log,
+		isConfirmMode:  isConfirmMode,
+		confirmTimeout: 10 * time.Second,
+	}, nil
 }
 
-// NewProducerWithConfirms creates a new producer with publisher confirms enabled.
-func NewProducerWithConfirms(conn *Connection, log *zerolog.Logger) (*Producer, error) {
-	ch, err := conn.Channel()
-	if err != nil {
-		return nil, fmt.Errorf("failed to create channel: %w", err)
-	}
-
-	// Enable publisher confirms
-	if err = ch.Confirm(false); err != nil {
-		ch.Close()
-		return nil, fmt.Errorf("failed to enable publisher confirms: %w", err)
-	}
-
-	//nolint:exhaustruct // intentionally leaving optional fields empty
-	p := &Producer{
-		conn:          conn,
-		channel:       ch,
-		log:           log,
-		isConfirmMode: true,
-		confirms:      ch.NotifyPublish(make(chan amqp.Confirmation, 1)),
-		isClosed:      false,
-	}
-
-	return p, nil
+func (p *Producer) SetConfirmTimeout(timeout time.Duration) {
+	p.confirmTimeout = timeout
 }
 
 // Publish sends a message to the specified exchange with the given routing key.
 func (p *Producer) Publish(ctx context.Context, exchange, routingKey string,
 	msg messagebus.Message,
 ) error {
-	p.mu.RLock()
-	if p.isClosed {
-		p.mu.RUnlock()
-		return ErrChannelClosed
+	// Create new channel for each publish (auto-recovery on reconnect)
+	ch, err := p.conn.Channel()
+	if err != nil {
+		return fmt.Errorf("failed to create channel: %w", err)
 	}
-	ch := p.channel
-	p.mu.RUnlock()
+	defer ch.Close()
+
+	if p.isConfirmMode {
+		if err = ch.Confirm(false); err != nil {
+			return fmt.Errorf("failed to enable publisher confirms: %w", err)
+		}
+	}
 
 	// Marshal full message
 	body, err := json.Marshal(messagebus.Message{
@@ -133,14 +106,15 @@ func (p *Producer) Publish(ctx context.Context, exchange, routingKey string,
 
 	// Wait for confirmation if in confirm mode
 	if p.isConfirmMode {
+		confirms := ch.NotifyPublish(make(chan amqp.Confirmation, 1))
 		select {
-		case confirm := <-p.confirms:
+		case confirm := <-confirms:
 			if !confirm.Ack {
 				return ErrNackReceived
 			}
 		case <-ctx.Done():
 			return fmt.Errorf("%w: %w", ErrPublishTimeout, ctx.Err())
-		case <-time.After(20 * time.Second):
+		case <-time.After(p.confirmTimeout):
 			return ErrPublishTimeout
 		}
 	}
@@ -152,32 +126,4 @@ func (p *Producer) Publish(ctx context.Context, exchange, routingKey string,
 		Msg("Message published successfully")
 
 	return nil
-}
-
-// Close closes the producer and its channel.
-func (p *Producer) Close() error {
-	p.mu.Lock()
-	defer p.mu.Unlock()
-
-	if p.isClosed {
-		return nil
-	}
-
-	if p.channel != nil {
-		if err := p.channel.Close(); err != nil {
-			return fmt.Errorf("failed to close channel: %w", err)
-		}
-	}
-
-	p.isClosed = true
-	p.log.Info().Msg("Producer closed")
-
-	return nil
-}
-
-// IsClosed returns true if the producer is closed.
-func (p *Producer) IsClosed() bool {
-	p.mu.RLock()
-	defer p.mu.RUnlock()
-	return p.isClosed
 }
