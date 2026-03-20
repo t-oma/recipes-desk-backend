@@ -36,7 +36,7 @@ func NewConnection(cfg Config, log *zerolog.Logger) (*Connection, error) {
 	}
 
 	if err := c.connect(); err != nil {
-		return nil, fmt.Errorf("connect to RabbitMQ: %w", err)
+		return nil, fmt.Errorf("%w: %w", ErrConnect, err)
 	}
 
 	return c, nil
@@ -58,7 +58,7 @@ func (c *Connection) Channel() (*amqp.Channel, error) {
 
 	ch, err := c.conn.Channel()
 	if err != nil {
-		return nil, fmt.Errorf("create channel: %w", err)
+		return nil, fmt.Errorf("%w: %w", ErrCreateChannel, err)
 	}
 
 	return ch, nil
@@ -75,7 +75,7 @@ func (c *Connection) Close() error {
 
 	if c.conn != nil {
 		if err := c.conn.Close(); err != nil {
-			return fmt.Errorf("close connection: %w", err)
+			return fmt.Errorf("%w: %w", ErrCloseConnection, err)
 		}
 		c.conn = nil
 		c.isConnected.Store(false)
@@ -93,13 +93,13 @@ func (c *Connection) Ping(_ context.Context) error {
 	c.mu.RUnlock()
 
 	if conn == nil || conn.IsClosed() {
-		return ErrConnectionClosed
+		return fmt.Errorf("%w: %w", ErrPing, ErrConnectionClosed)
 	}
 
 	// Try to create a temporary channel to verify connection
 	ch, err := conn.Channel()
 	if err != nil {
-		return fmt.Errorf("create channel for ping: %w", err)
+		return fmt.Errorf("%w: %w", ErrPing, err)
 	}
 	defer ch.Close()
 
@@ -135,7 +135,7 @@ func (c *Connection) connect() error {
 
 	conn, err := amqp.DialConfig(uri, cfg)
 	if err != nil {
-		return fmt.Errorf("dial RabbitMQ: %w", err)
+		return fmt.Errorf("%w: %w", ErrDial, err)
 	}
 
 	c.conn = conn

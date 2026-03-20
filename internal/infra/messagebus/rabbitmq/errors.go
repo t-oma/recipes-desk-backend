@@ -11,6 +11,14 @@ var (
 	ErrConnectionClosed = errors.New("connection closed")
 	// ErrNotConnected is returned when there is no active connection.
 	ErrNotConnected = errors.New("not connected to RabbitMQ")
+	// ErrDial is returned when the connection cannot be established.
+	ErrDial = errors.New("dial RabbitMQ")
+	// ErrPing is returned when the connection cannot be pinged.
+	ErrPing = errors.New("ping RabbitMQ")
+	// ErrCloseConnection is returned when the connection cannot be closed.
+	ErrCloseConnection = errors.New("close RabbitMQ connection")
+	// ErrConnect is returned when the connection cannot be established.
+	ErrConnect = errors.New("connect to RabbitMQ")
 )
 
 // Channel errors.
