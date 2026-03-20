@@ -162,6 +162,18 @@ func (c *Consumer) handleMessage(
 	delivery amqp.Delivery,
 	handler messagebus.Handler,
 ) {
+	defer func() {
+		if r := recover(); r != nil {
+			c.log.Error().
+				Any("panic", r).
+				Str("message_id", delivery.MessageId).
+				Msg("Panic in message handler")
+			if err := delivery.Nack(false, false); err != nil {
+				c.log.Error().Err(err).Msg("Failed to nack message")
+			}
+		}
+	}()
+
 	var message messagebus.Message
 	if err := json.Unmarshal(delivery.Body, &message); err != nil {
 		c.log.Error().
