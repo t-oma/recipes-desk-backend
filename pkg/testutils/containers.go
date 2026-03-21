@@ -4,12 +4,15 @@ import (
 	"context"
 	"testing"
 
+	"github.com/rs/zerolog"
 	"github.com/stretchr/testify/require"
 	"github.com/testcontainers/testcontainers-go"
 	"github.com/testcontainers/testcontainers-go/modules/mongodb"
 	"github.com/testcontainers/testcontainers-go/wait"
 	"go.mongodb.org/mongo-driver/mongo"
 	"go.mongodb.org/mongo-driver/mongo/options"
+
+	rabbitmqtc "github.com/testcontainers/testcontainers-go/modules/rabbitmq"
 )
 
 func SetupMongoContainer(t *testing.T, dbName string) (*mongo.Database, func()) {
@@ -47,4 +50,61 @@ func SetupMongoContainer(t *testing.T, dbName string) (*mongo.Database, func()) 
 	}
 
 	return db, cleanup
+}
+
+// RabbitMQTestContainer holds the RabbitMQ container and connection info.
+type RabbitMQTestContainer struct {
+	Container *rabbitmqtc.RabbitMQContainer
+	Host      string
+	Port      int
+}
+
+// SetupRabbitMQContainer starts a RabbitMQ container for testing.
+func SetupRabbitMQContainer(t *testing.T) (*RabbitMQTestContainer, func()) {
+	t.Helper()
+
+	ctx := context.Background()
+
+	// Start RabbitMQ container with management UI
+	rmqContainer, err := rabbitmqtc.Run(
+		ctx,
+		"rabbitmq:4.2-alpine",
+		rabbitmqtc.WithAdminUsername("guest"),
+		rabbitmqtc.WithAdminPassword("guest"),
+		testcontainers.WithWaitStrategy(
+			wait.ForListeningPort("5672/tcp"),
+		),
+	)
+	require.NoError(t, err)
+
+	// Get connection info
+	host, err := rmqContainer.Host(ctx)
+	require.NoError(t, err)
+
+	port, err := rmqContainer.MappedPort(ctx, "5672")
+	require.NoError(t, err)
+
+	cleanup := func() {
+		if err = rmqContainer.Terminate(ctx); err != nil {
+			t.Logf("Failed to terminate RabbitMQ container: %v", err)
+		}
+	}
+
+	return &RabbitMQTestContainer{
+		Container: rmqContainer,
+		Host:      host,
+		Port:      port.Int(),
+	}, cleanup
+}
+
+// NewTestLogger creates a logger for tests.
+func NewTestLogger(t *testing.T, log ...uint8) *zerolog.Logger {
+	t.Helper()
+	var logger zerolog.Logger
+	if len(log) > 0 && log[0] == 0 {
+		logger = zerolog.New(zerolog.NewConsoleWriter())
+	} else {
+		logger = zerolog.Nop()
+	}
+	return &logger
 }
