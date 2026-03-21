@@ -66,25 +66,9 @@ func (p *Producer) Publish(ctx context.Context, exchange, routingKey string,
 		}
 	}
 
-	body, err := json.Marshal(msg)
+	publishing, err := buildPublishing(msg)
 	if err != nil {
-		return fmt.Errorf("failed to marshal message: %w", err)
-	}
-
-	headers := amqp.Table{}
-	for k, v := range msg.Headers {
-		headers[k] = v
-	}
-
-	//nolint:exhaustruct // intentionally leaving optional fields empty
-	publishing := amqp.Publishing{
-		ContentType:  "application/json",
-		MessageId:    msg.ID,
-		Timestamp:    msg.Timestamp,
-		Type:         msg.Type,
-		Body:         body,
-		Headers:      headers,
-		DeliveryMode: amqp.Persistent,
+		return fmt.Errorf("failed to build publishing: %w", err)
 	}
 
 	p.log.Debug().
@@ -181,6 +165,29 @@ func (p *Producer) Publish(ctx context.Context, exchange, routingKey string,
 		Msg("Message published successfully")
 
 	return nil
+}
+
+func buildPublishing(msg messagebus.Message) (amqp.Publishing, error) {
+	body, err := json.Marshal(msg)
+	if err != nil {
+		return amqp.Publishing{}, fmt.Errorf("failed to marshal message: %w", err)
+	}
+
+	headers := amqp.Table{}
+	for k, v := range msg.Headers {
+		headers[k] = v
+	}
+
+	//nolint:exhaustruct // intentionally leaving optional fields empty
+	return amqp.Publishing{
+		ContentType:  "application/json",
+		MessageId:    msg.ID,
+		Timestamp:    msg.Timestamp,
+		Type:         msg.Type,
+		Body:         body,
+		Headers:      headers,
+		DeliveryMode: amqp.Persistent,
+	}, nil
 }
 
 func ensureMessage(msg *messagebus.Message) error {
