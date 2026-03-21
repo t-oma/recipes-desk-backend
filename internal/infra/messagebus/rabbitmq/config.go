@@ -193,6 +193,26 @@ func (qc QueueConfig) WithMaxPriority(priority int) QueueConfig {
 	return qc
 }
 
+// ProducerConfig holds producer configuration.
+type ProducerConfig struct {
+	// ConfirmMode enables publisher confirms for reliable publishing.
+	ConfirmMode bool
+	// Mandatory flag - if true and no queue is bound to the routing key,
+	// the message is returned to the publisher instead of being silently dropped.
+	Mandatory bool
+	// ConfirmTimeout is the timeout to wait for publisher confirmation.
+	ConfirmTimeout time.Duration
+}
+
+// DefaultProducerConfig returns a default producer configuration.
+func DefaultProducerConfig() ProducerConfig {
+	return ProducerConfig{
+		ConfirmMode:    true,
+		Mandatory:      true,
+		ConfirmTimeout: 5 * time.Second,
+	}
+}
+
 // buildURI constructs the AMQP connection URI.
 func (c ConnectionConfig) buildURI() string {
 	scheme := "amqp"
