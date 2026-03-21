@@ -9,6 +9,11 @@ import (
 	amqp "github.com/rabbitmq/amqp091-go"
 )
 
+const (
+	dlxSuffix = ".dlx"
+	dlqSuffix = ".dlq"
+)
+
 // Topology handles RabbitMQ topology operations.
 type Topology struct {
 	conn *Connection
@@ -137,6 +142,63 @@ func (t *Topology) SetupTopology(
 		Str("queue", queue.Name).
 		Str("routing_key", binding.RoutingKey).
 		Msg("Topology setup complete")
+
+	return nil
+}
+
+// SetupDLQ creates DLQ infrastructure for a queue.
+// Naming: {queue_name}.dlx for exchange, {queue_name}.dlq for queue.
+// DLQ is always classic queue type with fanout exchange.
+// Returns queue config with x-dead-letter-exchange configured.
+func (t *Topology) SetupDLQ(queueCfg QueueConfig) (QueueConfig, error) {
+	dlxName := queueCfg.Name + dlxSuffix
+	dlqName := queueCfg.Name + dlqSuffix
+
+	dlxCfg := NewExchangeConfig(dlxName, ExchangeTypeFanout)
+	if err := t.DeclareExchange(dlxCfg); err != nil {
+		return QueueConfig{}, fmt.Errorf("failed to setup DLQ: %w", err)
+	}
+
+	dlqCfg := NewQueueConfig(dlqName, QueueTypeClassic)
+	if _, err := t.DeclareQueue(dlqCfg); err != nil {
+		return QueueConfig{}, fmt.Errorf("failed to setup DLQ: %w", err)
+	}
+
+	bindingCfg := NewBindingConfig(dlqName, dlxName, "")
+	if err := t.BindQueue(bindingCfg); err != nil {
+		return QueueConfig{}, fmt.Errorf("failed to setup DLQ: %w", err)
+	}
+
+	t.log.Info().
+		Str("dlx", dlxName).
+		Str("dlq", dlqName).
+		Str("main_queue", queueCfg.Name).
+		Msg("DLQ setup complete")
+
+	return queueCfg.WithDeadLetterExchange(dlxName), nil
+}
+
+// SetupTopologyWithDLQ declares exchange, queue with DLQ, and binds them together.
+// This is a convenience method that combines SetupDLQ and SetupTopology.
+func (t *Topology) SetupTopologyWithDLQ(
+	exchange ExchangeConfig,
+	queue QueueConfig,
+	binding BindingConfig,
+) error {
+	queueWithDLQ, err := t.SetupDLQ(queue)
+	if err != nil {
+		return fmt.Errorf("failed to setup topology with DLQ: %w", err)
+	}
+
+	if err = t.SetupTopology(exchange, queueWithDLQ, binding); err != nil {
+		return fmt.Errorf("failed to setup topology with DLQ: %w", err)
+	}
+
+	t.log.Info().
+		Str("exchange", exchange.Name).
+		Str("queue", queue.Name).
+		Str("routing_key", binding.RoutingKey).
+		Msg("Topology with DLQ setup complete")
 
 	return nil
 }
