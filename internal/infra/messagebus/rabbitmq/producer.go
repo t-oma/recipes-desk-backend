@@ -97,6 +97,11 @@ func (p *Producer) Publish(ctx context.Context, exchange, routingKey string,
 	if p.config.ConfirmMode {
 		confirms := ch.NotifyPublish(make(chan amqp.Confirmation, 1))
 
+		var returns chan amqp.Return
+		if p.config.Mandatory {
+			returns = ch.NotifyReturn(make(chan amqp.Return, 1))
+		}
+
 		if err = ch.Publish(
 			exchange,
 			routingKey,
@@ -107,25 +112,65 @@ func (p *Producer) Publish(ctx context.Context, exchange, routingKey string,
 			return fmt.Errorf("failed to publish message: %w", err)
 		}
 
-		select {
-		case confirm := <-confirms:
-			if !confirm.Ack {
-				return ErrNackReceived
+		if p.config.Mandatory {
+			select {
+			case ret := <-returns:
+				return fmt.Errorf("%w: exchange=%s, routing_key=%s, reply_code=%d, reply_text=%s",
+					ErrMandatoryFailed, ret.Exchange, ret.RoutingKey, ret.ReplyCode, ret.ReplyText)
+			case confirm := <-confirms:
+				if !confirm.Ack {
+					return ErrNackReceived
+				}
+			case <-ctx.Done():
+				return fmt.Errorf("%w: %w", ErrPublishTimeout, ctx.Err())
+			case <-time.After(p.config.ConfirmTimeout):
+				return ErrPublishTimeout
 			}
-		case <-ctx.Done():
-			return fmt.Errorf("%w: %w", ErrPublishTimeout, ctx.Err())
-		case <-time.After(p.config.ConfirmTimeout):
-			return ErrPublishTimeout
+		} else {
+			select {
+			case confirm := <-confirms:
+				if !confirm.Ack {
+					return ErrNackReceived
+				}
+			case <-ctx.Done():
+				return fmt.Errorf("%w: %w", ErrPublishTimeout, ctx.Err())
+			case <-time.After(p.config.ConfirmTimeout):
+				return ErrPublishTimeout
+			}
 		}
 	} else {
-		if err = ch.Publish(
-			exchange,
-			routingKey,
-			p.config.Mandatory,
-			false,
-			publishing,
-		); err != nil {
-			return fmt.Errorf("failed to publish message: %w", err)
+		if p.config.Mandatory {
+			returns := ch.NotifyReturn(make(chan amqp.Return, 1))
+
+			if err = ch.Publish(
+				exchange,
+				routingKey,
+				true,
+				false,
+				publishing,
+			); err != nil {
+				return fmt.Errorf("failed to publish message: %w", err)
+			}
+
+			select {
+			case ret := <-returns:
+				return fmt.Errorf("%w: exchange=%s, routing_key=%s, reply_code=%d, reply_text=%s",
+					ErrMandatoryFailed, ret.Exchange, ret.RoutingKey, ret.ReplyCode, ret.ReplyText)
+			case <-ctx.Done():
+				return ctx.Err()
+			case <-time.After(p.config.ConfirmTimeout):
+				return ErrPublishTimeout
+			}
+		} else {
+			if err = ch.Publish(
+				exchange,
+				routingKey,
+				false,
+				false,
+				publishing,
+			); err != nil {
+				return fmt.Errorf("failed to publish message: %w", err)
+			}
 		}
 	}
 

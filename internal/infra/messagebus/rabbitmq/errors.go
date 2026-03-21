@@ -38,4 +38,6 @@ var (
 	ErrPublishTimeout = errors.New("publish timeout")
 	// ErrNackReceived is returned when the broker negatively acknowledges a message.
 	ErrNackReceived = errors.New("nack received from broker")
+	// ErrMandatoryFailed is returned when a mandatory message cannot be routed.
+	ErrMandatoryFailed = errors.New("mandatory message returned (no route)")
 )
