@@ -39,6 +39,8 @@ func NewConnection(cfg Config, log *zerolog.Logger) (*Connection, error) {
 		return nil, fmt.Errorf("%w: %w", ErrConnection, err)
 	}
 
+	go c.handleReconnect()
+
 	return c, nil
 }
 
@@ -147,9 +149,6 @@ func (c *Connection) connect() error {
 		Str("vhost", c.config.VHost).
 		Msg("Connected to RabbitMQ")
 
-	// Start connection monitoring
-	go c.handleReconnect()
-
 	return nil
 }
 
@@ -175,11 +174,13 @@ func (c *Connection) buildTLSConfig() (*tls.Config, error) {
 func (c *Connection) handleReconnect() {
 	for {
 		c.mu.RLock()
-		if c.conn == nil {
+		conn := c.conn
+		if conn == nil {
 			c.mu.RUnlock()
 			return
 		}
-		notifyClose := c.conn.NotifyClose(make(chan *amqp.Error, 1))
+		notifyClose := conn.NotifyClose(make(chan *amqp.Error, 1))
+		notifyBlocked := conn.NotifyBlocked(make(chan amqp.Blocking, 1))
 		c.mu.RUnlock()
 
 		select {
@@ -198,6 +199,14 @@ func (c *Connection) handleReconnect() {
 				c.attemptReconnect()
 			}
 			return
+		case blocked := <-notifyBlocked:
+			if blocked.Active {
+				c.log.Warn().
+					Str("reason", blocked.Reason).
+					Msg("RabbitMQ connection blocked by server")
+			} else {
+				c.log.Info().Msg("RabbitMQ connection unblocked")
+			}
 		}
 	}
 }
