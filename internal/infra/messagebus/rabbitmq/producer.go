@@ -71,6 +71,8 @@ func (p *Producer) Publish(ctx context.Context, exchange, routingKey string,
 		return fmt.Errorf("failed to build publishing: %w", err)
 	}
 
+	confirms, returns := p.registerNotifyChannels(ch)
+
 	p.log.Debug().
 		Str("exchange", exchange).
 		Str("routing_key", routingKey).
@@ -78,84 +80,12 @@ func (p *Producer) Publish(ctx context.Context, exchange, routingKey string,
 		Str("message_type", msg.Type).
 		Msg("Publishing message")
 
-	if p.config.ConfirmMode {
-		confirms := ch.NotifyPublish(make(chan amqp.Confirmation, 1))
+	if err = ch.Publish(exchange, routingKey, p.config.Mandatory, false, publishing); err != nil {
+		return fmt.Errorf("failed to publish message: %w", err)
+	}
 
-		var returns chan amqp.Return
-		if p.config.Mandatory {
-			returns = ch.NotifyReturn(make(chan amqp.Return, 1))
-		}
-
-		if err = ch.Publish(
-			exchange,
-			routingKey,
-			p.config.Mandatory,
-			false,
-			publishing,
-		); err != nil {
-			return fmt.Errorf("failed to publish message: %w", err)
-		}
-
-		if p.config.Mandatory {
-			select {
-			case ret := <-returns:
-				return fmt.Errorf("%w: exchange=%s, routing_key=%s, reply_code=%d, reply_text=%s",
-					ErrMandatoryFailed, ret.Exchange, ret.RoutingKey, ret.ReplyCode, ret.ReplyText)
-			case confirm := <-confirms:
-				if !confirm.Ack {
-					return ErrNackReceived
-				}
-			case <-ctx.Done():
-				return fmt.Errorf("%w: %w", ErrPublishTimeout, ctx.Err())
-			case <-time.After(p.config.ConfirmTimeout):
-				return ErrPublishTimeout
-			}
-		} else {
-			select {
-			case confirm := <-confirms:
-				if !confirm.Ack {
-					return ErrNackReceived
-				}
-			case <-ctx.Done():
-				return fmt.Errorf("%w: %w", ErrPublishTimeout, ctx.Err())
-			case <-time.After(p.config.ConfirmTimeout):
-				return ErrPublishTimeout
-			}
-		}
-	} else {
-		if p.config.Mandatory {
-			returns := ch.NotifyReturn(make(chan amqp.Return, 1))
-
-			if err = ch.Publish(
-				exchange,
-				routingKey,
-				true,
-				false,
-				publishing,
-			); err != nil {
-				return fmt.Errorf("failed to publish message: %w", err)
-			}
-
-			select {
-			case ret := <-returns:
-				return fmt.Errorf("%w: exchange=%s, routing_key=%s, reply_code=%d, reply_text=%s",
-					ErrMandatoryFailed, ret.Exchange, ret.RoutingKey, ret.ReplyCode, ret.ReplyText)
-			case <-ctx.Done():
-				return ctx.Err()
-			case <-time.After(p.config.ConfirmTimeout):
-				return ErrPublishTimeout
-			}
-		} else {
-			if err = ch.Publish(
-				exchange,
-				routingKey,
-				false,
-				false,
-				publishing,
-			); err != nil {
-				return fmt.Errorf("failed to publish message: %w", err)
-			}
-		}
+	if err = p.waitForResult(ctx, confirms, returns); err != nil {
+		return err
 	}
 
 	p.log.Info().
@@ -165,6 +95,93 @@ func (p *Producer) Publish(ctx context.Context, exchange, routingKey string,
 		Msg("Message published successfully")
 
 	return nil
+}
+
+func (p *Producer) registerNotifyChannels(
+	ch *amqp.Channel,
+) (chan amqp.Confirmation, chan amqp.Return) {
+	var confirms chan amqp.Confirmation
+	var returns chan amqp.Return
+
+	if p.config.ConfirmMode {
+		confirms = ch.NotifyPublish(make(chan amqp.Confirmation, 1))
+	}
+
+	if p.config.Mandatory {
+		returns = ch.NotifyReturn(make(chan amqp.Return, 1))
+	}
+
+	return confirms, returns
+}
+
+func (p *Producer) waitForResult(
+	ctx context.Context,
+	confirms chan amqp.Confirmation,
+	returns chan amqp.Return,
+) error {
+	switch {
+	case p.config.ConfirmMode && p.config.Mandatory:
+		return p.waitForConfirmOrReturn(ctx, confirms, returns)
+	case p.config.ConfirmMode:
+		return p.waitForConfirm(ctx, confirms)
+	case p.config.Mandatory:
+		return p.waitForReturn(ctx, returns)
+	default:
+		return nil
+	}
+}
+
+func (p *Producer) waitForConfirmOrReturn(
+	ctx context.Context,
+	confirms chan amqp.Confirmation,
+	returns chan amqp.Return,
+) error {
+	select {
+	case ret := <-returns:
+		return fmt.Errorf(
+			"%w: exchange=%s, routing_key=%s, reply_code=%d, reply_text=%s",
+			ErrMandatoryFailed,
+			ret.Exchange,
+			ret.RoutingKey,
+			ret.ReplyCode,
+			ret.ReplyText,
+		)
+	case confirm := <-confirms:
+		if !confirm.Ack {
+			return ErrNackReceived
+		}
+		return nil
+	case <-ctx.Done():
+		return fmt.Errorf("%w: %w", ErrPublishTimeout, ctx.Err())
+	case <-time.After(p.config.ConfirmTimeout):
+		return ErrPublishTimeout
+	}
+}
+
+func (p *Producer) waitForConfirm(ctx context.Context, confirms chan amqp.Confirmation) error {
+	select {
+	case confirm := <-confirms:
+		if !confirm.Ack {
+			return ErrNackReceived
+		}
+		return nil
+	case <-ctx.Done():
+		return fmt.Errorf("%w: %w", ErrPublishTimeout, ctx.Err())
+	case <-time.After(p.config.ConfirmTimeout):
+		return ErrPublishTimeout
+	}
+}
+
+func (p *Producer) waitForReturn(ctx context.Context, returns chan amqp.Return) error {
+	select {
+	case ret := <-returns:
+		return fmt.Errorf("%w: exchange=%s, routing_key=%s, reply_code=%d, reply_text=%s",
+			ErrMandatoryFailed, ret.Exchange, ret.RoutingKey, ret.ReplyCode, ret.ReplyText)
+	case <-ctx.Done():
+		return ctx.Err()
+	case <-time.After(p.config.ConfirmTimeout):
+		return ErrPublishTimeout
+	}
 }
 
 func buildPublishing(msg messagebus.Message) (amqp.Publishing, error) {

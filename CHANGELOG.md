@@ -20,3 +20,14 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 - **rabbitmq**: `Topology.SetupDLQ()` - creates DLQ infrastructure (exchange + queue + binding) with naming convention `{queue}.dlx`/`{queue}.dlq`
 - **rabbitmq**: `Topology.SetupTopologyWithDLQ()` - convenience method for setting up topology with DLQ in one call
+- **rabbitmq**: `ProducerConfig` - configuration struct for Producer with `ConfirmMode`, `Mandatory`, `ConfirmTimeout`
+- **rabbitmq**: `DefaultProducerConfig()` - default producer configuration
+- **rabbitmq**: Auto-generated message ID using nanoid if not provided
+- **rabbitmq**: Auto-set message timestamp if zero
+- **rabbitmq**: Proper mandatory flag handling with `NotifyReturn` - returns error if message cannot be routed
+
+### Changed
+
+- **rabbitmq**: `NewProducer` now accepts `ProducerConfig` instead of individual parameters
+- **rabbitmq**: `NotifyPublish` is now registered before `Publish` to avoid race condition
+- **rabbitmq**: Refactored `Producer.Publish()` - extracted helper methods for cleaner code
