@@ -16,7 +16,7 @@ import (
 
 // Connection manages RabbitMQ connection with automatic reconnection.
 type Connection struct {
-	config       Config
+	config       ConnectionConfig
 	conn         *amqp.Connection
 	log          *zerolog.Logger
 	isConnected  atomic.Bool
@@ -27,7 +27,7 @@ type Connection struct {
 }
 
 // NewConnection creates a new RabbitMQ connection manager.
-func NewConnection(cfg Config, log *zerolog.Logger) (*Connection, error) {
+func NewConnection(cfg ConnectionConfig, log *zerolog.Logger) (*Connection, error) {
 	//nolint:exhaustruct // fields initialized after connection
 	c := &Connection{
 		config:    cfg,

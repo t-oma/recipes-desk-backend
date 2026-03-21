@@ -30,8 +30,8 @@ const (
 	QueueTypeQuorum QueueType = "quorum"
 )
 
-// Config holds RabbitMQ connection configuration.
-type Config struct {
+// ConnectionConfig holds RabbitMQ connection configuration.
+type ConnectionConfig struct {
 	Host              string
 	Port              int
 	User              string
@@ -94,9 +94,9 @@ type BindingConfig struct {
 }
 
 // DefaultConfig returns a default configuration.
-func DefaultConfig() Config {
+func DefaultConfig() ConnectionConfig {
 	//nolint:exhaustruct // intentionally using default values for optional fields
-	return Config{
+	return ConnectionConfig{
 		Host:              "localhost",
 		Port:              5672,
 		VHost:             "/",
@@ -171,7 +171,7 @@ func (qc QueueConfig) WithMaxPriority(priority int) QueueConfig {
 }
 
 // buildURI constructs the AMQP connection URI.
-func (c Config) buildURI() string {
+func (c ConnectionConfig) buildURI() string {
 	scheme := "amqp"
 	if c.TLS.Enabled {
 		scheme = "amqps"
