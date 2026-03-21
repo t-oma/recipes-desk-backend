@@ -81,7 +81,7 @@ type QueueConfig struct {
 	AutoDelete bool
 	Exclusive  bool
 	NoWait     bool
-	Args       map[string]interface{}
+	Args       map[string]any
 }
 
 // BindingConfig holds queue binding configuration.
@@ -90,7 +90,7 @@ type BindingConfig struct {
 	ExchangeName string
 	RoutingKey   string
 	NoWait       bool
-	Args         map[string]interface{}
+	Args         map[string]any
 }
 
 // DefaultConfig returns a default configuration.
@@ -140,32 +140,55 @@ func NewQueueConfig(name string, queueType QueueType) QueueConfig {
 		AutoDelete: false,
 		Exclusive:  false,
 		NoWait:     false,
-		Args: map[string]interface{}{
+		Args: map[string]any{
 			"x-queue-type": queueType,
 		},
 	}
 }
 
+// NewBindingConfig creates a new binding configuration with sensible defaults.
+func NewBindingConfig(queueName, exchangeName, routingKey string) BindingConfig {
+	return BindingConfig{
+		QueueName:    queueName,
+		ExchangeName: exchangeName,
+		RoutingKey:   routingKey,
+		NoWait:       false,
+		Args:         nil,
+	}
+}
+
 // WithDeadLetterExchange adds dead letter exchange configuration to queue args.
 func (qc QueueConfig) WithDeadLetterExchange(exchangeName string) QueueConfig {
+	if qc.Args == nil {
+		qc.Args = make(map[string]any)
+	}
 	qc.Args["x-dead-letter-exchange"] = exchangeName
 	return qc
 }
 
 // WithDeliveryLimit sets the maximum delivery attempts for quorum queues.
 func (qc QueueConfig) WithDeliveryLimit(limit int) QueueConfig {
+	if qc.Args == nil {
+		qc.Args = make(map[string]any)
+	}
 	qc.Args["x-delivery-limit"] = limit
 	return qc
 }
 
 // WithTTL sets the time-to-live for messages in the queue.
 func (qc QueueConfig) WithTTL(ttl time.Duration) QueueConfig {
+	if qc.Args == nil {
+		qc.Args = make(map[string]any)
+	}
 	qc.Args["x-message-ttl"] = int(ttl.Milliseconds())
 	return qc
 }
 
 // WithMaxPriority sets the maximum priority for the queue.
 func (qc QueueConfig) WithMaxPriority(priority int) QueueConfig {
+	if qc.Args == nil {
+		qc.Args = make(map[string]any)
+	}
 	qc.Args["x-max-priority"] = priority
 	return qc
 }
