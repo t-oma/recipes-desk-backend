@@ -3,6 +3,7 @@ package config
 import (
 	"time"
 
+	"recipes-desk/internal/infra/messagebus/rabbitmq"
 	"recipes-desk/pkg/config"
 )
 
@@ -13,10 +14,10 @@ const (
 
 type (
 	Config struct {
-		App      App      `yaml:"app"`
-		Server   Server   `yaml:"server"`
-		MongoDB  MongoDB  // loaded from .env or environment variables
-		RabbitMQ RabbitMQ // loaded from .env or environment variables
+		App      App                       `yaml:"app"`
+		Server   Server                    `yaml:"server"`
+		MongoDB  MongoDB                   // loaded from .env or environment variables
+		RabbitMQ rabbitmq.ConnectionConfig `yaml:"rabbitmq"`
 	}
 	App struct {
 		Environment string `yaml:"environment"`
@@ -32,13 +33,6 @@ type (
 	MongoDB struct {
 		URI      string
 		Database string
-	}
-	RabbitMQ struct {
-		Host     string
-		Port     int
-		User     string
-		Password string
-		VHost    string
 	}
 )
 

@@ -38,10 +38,10 @@ type ConnectionConfig struct {
 	Password          string
 	VHost             string
 	TLS               TLSConfig
-	Reconnect         ReconnectConfig
-	ChannelMax        uint16        // Maximum number of channels per connection
-	Heartbeat         time.Duration // Heartbeat interval
-	ConnectionTimeout time.Duration
+	Reconnect         ReconnectConfig `yaml:"reconnect"`
+	ChannelMax        uint16          `yaml:"channel-max"` // Maximum number of channels per connection
+	Heartbeat         time.Duration   `yaml:"heartbeat"`   // Heartbeat interval
+	ConnectionTimeout time.Duration   `yaml:"connection-timeout"`
 }
 
 // TLSConfig holds TLS configuration for RabbitMQ connection.
@@ -55,11 +55,11 @@ type TLSConfig struct {
 
 // ReconnectConfig holds reconnection configuration.
 type ReconnectConfig struct {
-	Enabled     bool
-	MaxAttempts int
-	InitialWait time.Duration
-	MaxWait     time.Duration
-	Multiplier  float64
+	Enabled     bool          `yaml:"enabled"`
+	MaxAttempts int           `yaml:"max-attempts"`
+	InitialWait time.Duration `yaml:"initial-wait"`
+	MaxWait     time.Duration `yaml:"max-wait"`
+	Multiplier  float64       `yaml:"multiplier"`
 }
 
 // ExchangeConfig holds exchange declaration configuration.
@@ -93,8 +93,8 @@ type BindingConfig struct {
 	Args         map[string]any
 }
 
-// DefaultConfig returns a default configuration.
-func DefaultConfig() ConnectionConfig {
+// DefaultConnectionConfig returns a default configuration.
+func DefaultConnectionConfig() ConnectionConfig {
 	//nolint:exhaustruct // intentionally using default values for optional fields
 	return ConnectionConfig{
 		Host:              "localhost",
