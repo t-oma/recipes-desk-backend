@@ -210,7 +210,7 @@ linters:
       case:
         rules:
           json: camel
-          yaml: camel
+          yaml: kebab
           xml: camel
           bson: camel
           avro: snake
