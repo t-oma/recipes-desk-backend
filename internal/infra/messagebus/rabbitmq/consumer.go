@@ -17,6 +17,8 @@ import (
 	"recipes-desk/internal/infra/messagebus"
 )
 
+const DefaultConsumerPrefetch = 10
+
 // Consumer handles message consumption from RabbitMQ.
 type Consumer struct {
 	conn           *Connection
@@ -28,13 +30,18 @@ type Consumer struct {
 }
 
 // NewConsumer creates a new message consumer.
-func NewConsumer(conn *Connection, log *zerolog.Logger, prefetch int) (*Consumer, error) {
+func NewConsumer(conn *Connection, log *zerolog.Logger) (*Consumer, error) {
 	//nolint:exhaustruct // wg initialized automatically
 	return &Consumer{
 		conn:     conn,
 		log:      log,
-		prefetch: prefetch,
+		prefetch: DefaultConsumerPrefetch,
 	}, nil
+}
+
+// SetPrefetch sets the prefetch count for the consumer.
+func (c *Consumer) SetPrefetch(prefetch int) {
+	c.prefetch = prefetch
 }
 
 // SetHandlerTimeout sets the timeout for message handler execution.
