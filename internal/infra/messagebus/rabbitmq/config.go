@@ -213,8 +213,8 @@ func DefaultProducerConfig() ProducerConfig {
 	}
 }
 
-// buildURI constructs the AMQP connection URI.
-func (c ConnectionConfig) buildURI() string {
+// BuildURI constructs the AMQP connection URI.
+func (c ConnectionConfig) BuildURI() string {
 	scheme := "amqp"
 	if c.TLS.Enabled {
 		scheme = "amqps"

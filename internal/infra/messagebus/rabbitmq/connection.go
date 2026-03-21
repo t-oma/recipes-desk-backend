@@ -117,7 +117,7 @@ func (c *Connection) connect() error {
 		return ErrConnectionClosed
 	}
 
-	uri := c.config.buildURI()
+	uri := c.config.BuildURI()
 	cfg := amqp.Config{
 		Heartbeat: c.config.Heartbeat,
 		Locale:    "en_US",
