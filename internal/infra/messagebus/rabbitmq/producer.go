@@ -10,6 +10,7 @@ import (
 
 	"github.com/rs/zerolog"
 
+	gonanoid "github.com/matoous/go-nanoid/v2"
 	amqp "github.com/rabbitmq/amqp091-go"
 
 	"recipes-desk/internal/infra/messagebus"
@@ -17,32 +18,23 @@ import (
 
 // Producer handles message publishing to RabbitMQ.
 type Producer struct {
-	conn           *Connection
-	log            *zerolog.Logger
-	isConfirmMode  bool
-	isClosed       atomic.Bool
-	confirmTimeout time.Duration
+	conn     *Connection
+	log      *zerolog.Logger
+	config   ProducerConfig
+	isClosed atomic.Bool
 }
 
 // NewProducer creates a new message producer.
-func NewProducer(
-	conn *Connection,
-	log *zerolog.Logger,
-	isConfirmMode bool,
-) (*Producer, error) {
+func NewProducer(conn *Connection, log *zerolog.Logger, config ProducerConfig) (*Producer, error) {
+	//nolint:exhaustruct // isClosed initialized automatically
 	return &Producer{
-		conn:           conn,
-		log:            log,
-		isConfirmMode:  isConfirmMode,
-		isClosed:       atomic.Bool{},
-		confirmTimeout: 10 * time.Second,
+		conn:   conn,
+		log:    log,
+		config: config,
 	}, nil
 }
 
-func (p *Producer) SetConfirmTimeout(timeout time.Duration) {
-	p.confirmTimeout = timeout
-}
-
+// Close closes the producer.
 func (p *Producer) Close() error {
 	if p.isClosed.Load() {
 		return nil
@@ -58,33 +50,27 @@ func (p *Producer) Close() error {
 func (p *Producer) Publish(ctx context.Context, exchange, routingKey string,
 	msg messagebus.Message,
 ) error {
-	// Create new channel for each publish (auto-recovery on reconnect)
+	if err := ensureMessage(&msg); err != nil {
+		return err
+	}
+
 	ch, err := p.conn.Channel()
 	if err != nil {
 		return fmt.Errorf("failed to create channel: %w", err)
 	}
 	defer ch.Close()
 
-	if p.isConfirmMode {
+	if p.config.ConfirmMode {
 		if err = ch.Confirm(false); err != nil {
 			return fmt.Errorf("failed to enable publisher confirms: %w", err)
 		}
 	}
 
-	// Marshal full message
-	body, err := json.Marshal(messagebus.Message{
-		ID:        msg.ID,
-		Type:      msg.Type,
-		Timestamp: msg.Timestamp,
-		Source:    msg.Source,
-		Payload:   msg.Payload,
-		Headers:   msg.Headers,
-	})
+	body, err := json.Marshal(msg)
 	if err != nil {
 		return fmt.Errorf("failed to marshal message: %w", err)
 	}
 
-	// Build AMQP headers
 	headers := amqp.Table{}
 	for k, v := range msg.Headers {
 		headers[k] = v
@@ -108,19 +94,19 @@ func (p *Producer) Publish(ctx context.Context, exchange, routingKey string,
 		Str("message_type", msg.Type).
 		Msg("Publishing message")
 
-	if err = ch.Publish(
-		exchange,
-		routingKey,
-		false, // mandatory
-		false, // immediate
-		publishing,
-	); err != nil {
-		return fmt.Errorf("failed to publish message: %w", err)
-	}
-
-	// Wait for confirmation if in confirm mode
-	if p.isConfirmMode {
+	if p.config.ConfirmMode {
 		confirms := ch.NotifyPublish(make(chan amqp.Confirmation, 1))
+
+		if err = ch.Publish(
+			exchange,
+			routingKey,
+			p.config.Mandatory,
+			false,
+			publishing,
+		); err != nil {
+			return fmt.Errorf("failed to publish message: %w", err)
+		}
+
 		select {
 		case confirm := <-confirms:
 			if !confirm.Ack {
@@ -128,8 +114,18 @@ func (p *Producer) Publish(ctx context.Context, exchange, routingKey string,
 			}
 		case <-ctx.Done():
 			return fmt.Errorf("%w: %w", ErrPublishTimeout, ctx.Err())
-		case <-time.After(p.confirmTimeout):
+		case <-time.After(p.config.ConfirmTimeout):
 			return ErrPublishTimeout
+		}
+	} else {
+		if err = ch.Publish(
+			exchange,
+			routingKey,
+			p.config.Mandatory,
+			false,
+			publishing,
+		); err != nil {
+			return fmt.Errorf("failed to publish message: %w", err)
 		}
 	}
 
@@ -138,6 +134,22 @@ func (p *Producer) Publish(ctx context.Context, exchange, routingKey string,
 		Str("routing_key", routingKey).
 		Str("message_id", msg.ID).
 		Msg("Message published successfully")
+
+	return nil
+}
+
+func ensureMessage(msg *messagebus.Message) error {
+	if msg.ID == "" {
+		id, err := gonanoid.New()
+		if err != nil {
+			return fmt.Errorf("failed to generate message ID: %w", err)
+		}
+		msg.ID = id
+	}
+
+	if msg.Timestamp.IsZero() {
+		msg.Timestamp = time.Now().UTC()
+	}
 
 	return nil
 }
