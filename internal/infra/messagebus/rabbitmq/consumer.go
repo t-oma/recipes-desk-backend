@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"sync"
 	"sync/atomic"
 	"time"
 
@@ -18,15 +19,17 @@ import (
 
 // Consumer handles message consumption from RabbitMQ.
 type Consumer struct {
-	conn     *Connection
-	log      *zerolog.Logger
-	isClosed atomic.Bool
-	prefetch int
+	conn           *Connection
+	log            *zerolog.Logger
+	isClosed       atomic.Bool
+	prefetch       int
+	handlerTimeout time.Duration
+	wg             sync.WaitGroup
 }
 
 // NewConsumer creates a new message consumer.
 func NewConsumer(conn *Connection, log *zerolog.Logger, prefetch int) (*Consumer, error) {
-	//nolint:exhaustruct // mu initialized automatically
+	//nolint:exhaustruct // wg initialized automatically
 	return &Consumer{
 		conn:     conn,
 		log:      log,
@@ -34,18 +37,24 @@ func NewConsumer(conn *Connection, log *zerolog.Logger, prefetch int) (*Consumer
 	}, nil
 }
 
+// SetHandlerTimeout sets the timeout for message handler execution.
+func (c *Consumer) SetHandlerTimeout(timeout time.Duration) {
+	c.handlerTimeout = timeout
+}
+
 // IsClosed returns true if the consumer is closed.
 func (c *Consumer) IsClosed() bool {
 	return c.isClosed.Load()
 }
 
-// Close closes the consumer.
+// Close closes the consumer and waits for in-flight messages to complete.
 func (c *Consumer) Close() error {
-	if c.isClosed.Load() {
+	if !c.isClosed.CompareAndSwap(false, true) {
 		return nil
 	}
 
-	c.isClosed.Store(true)
+	c.log.Info().Msg("Consumer closing, waiting for in-flight messages...")
+	c.wg.Wait()
 	c.log.Info().Msg("Consumer closed")
 
 	return nil
@@ -93,34 +102,18 @@ func (c *Consumer) Consume(ctx context.Context, queue string, handler messagebus
 
 // doConsume creates channel, sets QoS, and starts consuming.
 func (c *Consumer) doConsume(ctx context.Context, queue string, handler messagebus.Handler) error {
-	// Create new channel
 	ch, err := c.conn.Channel()
 	if err != nil {
 		return fmt.Errorf("failed to create channel: %w", err)
 	}
 	defer ch.Close()
 
-	// Set QoS
 	if c.prefetch > 0 {
 		if qosErr := ch.Qos(c.prefetch, 0, false); qosErr != nil {
 			return fmt.Errorf("failed to set prefetch: %w", qosErr)
 		}
 	}
 
-	// Declare queue if not exists
-	_, err = ch.QueueDeclare(
-		queue, // name
-		true,  // durable
-		false, // auto-delete
-		false, // exclusive
-		false, // no-wait
-		nil,   // args
-	)
-	if err != nil {
-		return fmt.Errorf("failed to declare queue: %w", err)
-	}
-
-	// Start consuming
 	msgs, err := ch.ConsumeWithContext(
 		ctx,
 		queue,
@@ -140,7 +133,6 @@ func (c *Consumer) doConsume(ctx context.Context, queue string, handler messageb
 		Int("prefetch", c.prefetch).
 		Msg("Started consuming messages")
 
-	// Process messages
 	for {
 		select {
 		case <-ctx.Done():
@@ -151,7 +143,8 @@ func (c *Consumer) doConsume(ctx context.Context, queue string, handler messageb
 				c.log.Info().Str("queue", queue).Msg("Message channel closed, will reconnect")
 				return errors.New("message channel closed")
 			}
-			c.handleMessage(ctx, msg, handler)
+			c.wg.Add(1)
+			go c.handleMessage(ctx, msg, handler)
 		}
 	}
 }
@@ -162,6 +155,7 @@ func (c *Consumer) handleMessage(
 	delivery amqp.Delivery,
 	handler messagebus.Handler,
 ) {
+	defer c.wg.Done()
 	defer func() {
 		if r := recover(); r != nil {
 			c.log.Error().
@@ -180,7 +174,6 @@ func (c *Consumer) handleMessage(
 			Err(err).
 			Str("message_id", delivery.MessageId).
 			Msg("Failed to unmarshal message")
-		// NACK without requeue - send to DLQ
 		if err = delivery.Nack(false, false); err != nil {
 			c.log.Error().Err(err).Msg("Failed to nack message")
 		}
@@ -193,20 +186,25 @@ func (c *Consumer) handleMessage(
 		Str("routing_key", delivery.RoutingKey).
 		Msg("Received message")
 
-	if err := handler(ctx, message); err != nil {
+	handlerCtx := ctx
+	if c.handlerTimeout > 0 {
+		var cancel context.CancelFunc
+		handlerCtx, cancel = context.WithTimeout(ctx, c.handlerTimeout)
+		defer cancel()
+	}
+
+	if err := handler(handlerCtx, message); err != nil {
 		c.log.Error().
 			Err(err).
 			Str("message_id", message.ID).
 			Str("message_type", message.Type).
-			Msg("Handler failed")
-		// NACK with requeue for retry
-		if err = delivery.Nack(false, true); err != nil {
+			Msg("Handler failed, sending to DLQ")
+		if err = delivery.Nack(false, false); err != nil {
 			c.log.Error().Err(err).Msg("Failed to nack message")
 		}
 		return
 	}
 
-	// ACK on success
 	if err := delivery.Ack(false); err != nil {
 		c.log.Error().
 			Err(err).
