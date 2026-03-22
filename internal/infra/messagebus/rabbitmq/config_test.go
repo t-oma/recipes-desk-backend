@@ -146,7 +146,7 @@ func TestNewQueueConfig(t *testing.T) {
 	assert.False(t, cfg.Exclusive)
 	assert.False(t, cfg.NoWait)
 	assert.NotNil(t, cfg.Args)
-	assert.Equal(t, rabbitmq.QueueTypeQuorum, cfg.Args["x-queue-type"])
+	assert.Equal(t, string(rabbitmq.QueueTypeQuorum), cfg.Args["x-queue-type"])
 }
 
 func TestNewBindingConfig(t *testing.T) {
