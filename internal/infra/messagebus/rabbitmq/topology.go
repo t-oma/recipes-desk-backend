@@ -261,3 +261,35 @@ func (t *Topology) PurgeQueue(name string) (int, error) {
 
 	return count, nil
 }
+
+// ExchangeExists checks if an exchange exists.
+func (t *Topology) ExchangeExists(name string) (bool, error) {
+	ch, err := t.conn.Channel()
+	if err != nil {
+		return false, err
+	}
+	defer ch.Close()
+
+	err = ch.ExchangeDeclarePassive(name, "", false, false, false, false, nil)
+	if err != nil {
+		return false, nil
+	}
+
+	return true, nil
+}
+
+// QueueExists checks if a queue exists.
+func (t *Topology) QueueExists(name string) (bool, error) {
+	ch, err := t.conn.Channel()
+	if err != nil {
+		return false, err
+	}
+	defer ch.Close()
+
+	_, err = ch.QueueDeclarePassive(name, false, false, false, false, nil)
+	if err != nil {
+		return false, nil
+	}
+
+	return true, nil
+}
