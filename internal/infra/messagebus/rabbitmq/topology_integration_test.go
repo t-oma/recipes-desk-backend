@@ -42,22 +42,22 @@ func TestIntegration_Topology_DeclareExchange(t *testing.T) {
 
 	tests := []struct {
 		name         string
-		exchaneName  string
+		exchangeName string
 		exchangeType rabbitmq.ExchangeType
 	}{
 		{
 			name:         "success - topic exchange",
-			exchaneName:  "test.topic",
+			exchangeName: "test.topic",
 			exchangeType: rabbitmq.ExchangeTypeTopic,
 		},
 		{
 			name:         "success - direct exchange",
-			exchaneName:  "test.direct",
+			exchangeName: "test.direct",
 			exchangeType: rabbitmq.ExchangeTypeDirect,
 		},
 		{
 			name:         "success - fanout exchange",
-			exchaneName:  "test.fanout",
+			exchangeName: "test.fanout",
 			exchangeType: rabbitmq.ExchangeTypeFanout,
 		},
 	}
@@ -67,9 +67,14 @@ func TestIntegration_Topology_DeclareExchange(t *testing.T) {
 			_, topology, cleanupTopology := setupTopology(t, container.Host, container.Port)
 			defer cleanupTopology()
 
-			cfg := rabbitmq.NewExchangeConfig(tt.exchaneName, tt.exchangeType)
+			cfg := rabbitmq.NewExchangeConfig(tt.exchangeName, tt.exchangeType)
 			err := topology.DeclareExchange(cfg)
 			require.NoError(t, err)
+
+			// Verify exchange exists
+			exists, err := topology.ExchangeExists(tt.exchangeName)
+			require.NoError(t, err)
+			assert.True(t, exists, "exchange should exist")
 		})
 	}
 }
@@ -104,6 +109,11 @@ func TestIntegration_Topology_DeclareQueue(t *testing.T) {
 			q, err := topology.DeclareQueue(cfg)
 			require.NoError(t, err)
 			assert.Equal(t, tt.queueName, q.Name)
+
+			// Verify queue exists
+			exists, err := topology.QueueExists(tt.queueName)
+			require.NoError(t, err)
+			assert.True(t, exists, "queue should exist")
 		})
 	}
 }
@@ -131,6 +141,15 @@ func TestIntegration_Topology_BindQueue(t *testing.T) {
 		)
 		err = topology.BindQueue(bindingCfg)
 		require.NoError(t, err)
+
+		// Verify exchange and queue still exist
+		exists, err := topology.ExchangeExists(exchangeCfg.Name)
+		require.NoError(t, err)
+		assert.True(t, exists)
+
+		exists, err = topology.QueueExists(queueCfg.Name)
+		require.NoError(t, err)
+		assert.True(t, exists)
 	})
 }
 
@@ -155,6 +174,15 @@ func TestIntegration_Topology_SetupTopology(t *testing.T) {
 
 		err := topology.SetupTopology(exchangeCfg, queueCfg, bindingCfg)
 		require.NoError(t, err)
+
+		// Verify exchange and queue exist
+		exists, err := topology.ExchangeExists(exchangeCfg.Name)
+		require.NoError(t, err)
+		assert.True(t, exists, "exchange should exist")
+
+		exists, err = topology.QueueExists(queueCfg.Name)
+		require.NoError(t, err)
+		assert.True(t, exists, "queue should exist")
 	})
 }
 
@@ -172,6 +200,15 @@ func TestIntegration_Topology_SetupDLQ(t *testing.T) {
 
 		assert.NotNil(t, result.Args)
 		assert.Equal(t, queueCfg.Name+".dlx", result.Args["x-dead-letter-exchange"])
+
+		// Verify DLX and DLQ exist
+		exists, err := topology.ExchangeExists(queueCfg.Name + ".dlx")
+		require.NoError(t, err)
+		assert.True(t, exists, "DLX should exist")
+
+		exists, err = topology.QueueExists(queueCfg.Name + ".dlq")
+		require.NoError(t, err)
+		assert.True(t, exists, "DLQ should exist")
 	})
 }
 
@@ -193,6 +230,24 @@ func TestIntegration_Topology_SetupTopologyWithDLQ(t *testing.T) {
 
 		err := topology.SetupTopologyWithDLQ(exchangeCfg, queueCfg, bindingCfg)
 		require.NoError(t, err)
+
+		// Verify main exchange and queue exist
+		exists, err := topology.ExchangeExists(exchangeCfg.Name)
+		require.NoError(t, err)
+		assert.True(t, exists, "main exchange should exist")
+
+		exists, err = topology.QueueExists(queueCfg.Name)
+		require.NoError(t, err)
+		assert.True(t, exists, "main queue should exist")
+
+		// Verify DLX and DLQ exist
+		exists, err = topology.ExchangeExists(queueCfg.Name + ".dlx")
+		require.NoError(t, err)
+		assert.True(t, exists, "DLX should exist")
+
+		exists, err = topology.QueueExists(queueCfg.Name + ".dlq")
+		require.NoError(t, err)
+		assert.True(t, exists, "DLQ should exist")
 	})
 }
 
@@ -213,6 +268,11 @@ func TestIntegration_Topology_DeleteExchange(t *testing.T) {
 
 		err = topology.DeleteExchange(exchangeCfg.Name, false)
 		require.NoError(t, err)
+
+		// Verify exchange no longer exists
+		exists, err := topology.ExchangeExists(exchangeCfg.Name)
+		require.NoError(t, err)
+		assert.False(t, exists, "exchange should not exist after deletion")
 	})
 }
 
@@ -230,6 +290,11 @@ func TestIntegration_Topology_DeleteQueue(t *testing.T) {
 
 		err = topology.DeleteQueue(queueCfg.Name, false, false)
 		require.NoError(t, err)
+
+		// Verify queue no longer exists
+		exists, err := topology.QueueExists(queueCfg.Name)
+		require.NoError(t, err)
+		assert.False(t, exists, "queue should not exist after deletion")
 	})
 }
 
@@ -248,5 +313,94 @@ func TestIntegration_Topology_PurgeQueue(t *testing.T) {
 		count, err := topology.PurgeQueue(queueCfg.Name)
 		require.NoError(t, err)
 		assert.Equal(t, 0, count)
+
+		// Verify queue still exists after purge
+		exists, err := topology.QueueExists(queueCfg.Name)
+		require.NoError(t, err)
+		assert.True(t, exists, "queue should still exist after purge")
 	})
+}
+
+func TestIntegration_Topology_ExchangeExists(t *testing.T) {
+	container, cleanup := testutils.SetupRabbitMQContainer(t)
+	defer cleanup()
+
+	tests := []struct {
+		name          string
+		setupExchange func(t *testing.T, topology *rabbitmq.Topology)
+		exchangeName  string
+		wantExists    bool
+	}{
+		{
+			name: "exists - after declaration",
+			setupExchange: func(t *testing.T, topology *rabbitmq.Topology) {
+				cfg := rabbitmq.NewExchangeConfig("test.exists.exchange", rabbitmq.ExchangeTypeTopic)
+				err := topology.DeclareExchange(cfg)
+				require.NoError(t, err)
+			},
+			exchangeName: "test.exists.exchange",
+			wantExists:   true,
+		},
+		{
+			name:          "not exists - never declared",
+			setupExchange: func(_ *testing.T, _ *rabbitmq.Topology) {},
+			exchangeName:  "test.nonexistent.exchange",
+			wantExists:    false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			_, topology, cleanupTopology := setupTopology(t, container.Host, container.Port)
+			defer cleanupTopology()
+
+			tt.setupExchange(t, topology)
+
+			exists, err := topology.ExchangeExists(tt.exchangeName)
+			require.NoError(t, err)
+			assert.Equal(t, tt.wantExists, exists)
+		})
+	}
+}
+
+func TestIntegration_Topology_QueueExists(t *testing.T) {
+	container, cleanup := testutils.SetupRabbitMQContainer(t)
+	defer cleanup()
+
+	tests := []struct {
+		name       string
+		setupQueue func(t *testing.T, topology *rabbitmq.Topology)
+		queueName  string
+		wantExists bool
+	}{
+		{
+			name: "exists - after declaration",
+			setupQueue: func(t *testing.T, topology *rabbitmq.Topology) {
+				cfg := rabbitmq.NewQueueConfig("test.exists.queue", rabbitmq.QueueTypeClassic)
+				_, err := topology.DeclareQueue(cfg)
+				require.NoError(t, err)
+			},
+			queueName:  "test.exists.queue",
+			wantExists: true,
+		},
+		{
+			name:       "not exists - never declared",
+			setupQueue: func(_ *testing.T, _ *rabbitmq.Topology) {},
+			queueName:  "test.nonexistent.queue",
+			wantExists: false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			_, topology, cleanupTopology := setupTopology(t, container.Host, container.Port)
+			defer cleanupTopology()
+
+			tt.setupQueue(t, topology)
+
+			exists, err := topology.QueueExists(tt.queueName)
+			require.NoError(t, err)
+			assert.Equal(t, tt.wantExists, exists)
+		})
+	}
 }
