@@ -12,33 +12,15 @@ import (
 	"recipes-desk/pkg/testutils"
 )
 
-func setupTopology(
-	t *testing.T,
-	host string,
-	port int,
-) (*rabbitmq.Connection, *rabbitmq.Topology, func()) {
-	t.Helper()
-
-	logger := testutils.NewTestLogger(t, 1)
-	config := testConnectionConfig(host, port)
-
-	conn, err := rabbitmq.NewConnection(config, logger)
-	require.NoError(t, err)
-
-	topology := rabbitmq.NewTopology(conn, logger)
-
-	cleanup := func() {
-		if err = conn.Close(); err != nil {
-			t.Logf("Failed to close RabbitMQ connection: %v", err)
-		}
-	}
-
-	return conn, topology, cleanup
-}
-
 func TestIntegration_Topology_DeclareExchange(t *testing.T) {
 	container, cleanup := testutils.SetupRabbitMQContainer(t)
 	defer cleanup()
+
+	log := testutils.NewTestLogger(t, 1)
+	conn, cleanupConn := setupConnection(t, log, container.Host, container.Port)
+	defer cleanupConn()
+
+	topology := rabbitmq.NewTopology(conn, log)
 
 	tests := []struct {
 		name         string
@@ -64,9 +46,6 @@ func TestIntegration_Topology_DeclareExchange(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			_, topology, cleanupTopology := setupTopology(t, container.Host, container.Port)
-			defer cleanupTopology()
-
 			cfg := rabbitmq.NewExchangeConfig(tt.exchangeName, tt.exchangeType)
 			err := topology.DeclareExchange(cfg)
 			require.NoError(t, err)
@@ -82,6 +61,12 @@ func TestIntegration_Topology_DeclareExchange(t *testing.T) {
 func TestIntegration_Topology_DeclareQueue(t *testing.T) {
 	container, cleanup := testutils.SetupRabbitMQContainer(t)
 	defer cleanup()
+
+	log := testutils.NewTestLogger(t, 1)
+	conn, cleanupConn := setupConnection(t, log, container.Host, container.Port)
+	defer cleanupConn()
+
+	topology := rabbitmq.NewTopology(conn, log)
 
 	tests := []struct {
 		name      string
@@ -102,9 +87,6 @@ func TestIntegration_Topology_DeclareQueue(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			_, topology, cleanupTopology := setupTopology(t, container.Host, container.Port)
-			defer cleanupTopology()
-
 			cfg := rabbitmq.NewQueueConfig(tt.queueName, tt.queueType)
 			q, err := topology.DeclareQueue(cfg)
 			require.NoError(t, err)
@@ -122,10 +104,13 @@ func TestIntegration_Topology_BindQueue(t *testing.T) {
 	container, cleanup := testutils.SetupRabbitMQContainer(t)
 	defer cleanup()
 
-	t.Run("success", func(t *testing.T) {
-		_, topology, cleanupTopology := setupTopology(t, container.Host, container.Port)
-		defer cleanupTopology()
+	log := testutils.NewTestLogger(t, 1)
+	conn, cleanupConn := setupConnection(t, log, container.Host, container.Port)
+	defer cleanupConn()
 
+	topology := rabbitmq.NewTopology(conn, log)
+
+	t.Run("success", func(t *testing.T) {
 		exchangeCfg := rabbitmq.NewExchangeConfig("test.bind.exchange", rabbitmq.ExchangeTypeTopic)
 		err := topology.DeclareExchange(exchangeCfg)
 		require.NoError(t, err)
@@ -157,10 +142,13 @@ func TestIntegration_Topology_SetupTopology(t *testing.T) {
 	container, cleanup := testutils.SetupRabbitMQContainer(t)
 	defer cleanup()
 
-	t.Run("success", func(t *testing.T) {
-		_, topology, cleanupTopology := setupTopology(t, container.Host, container.Port)
-		defer cleanupTopology()
+	log := testutils.NewTestLogger(t, 1)
+	conn, cleanupConn := setupConnection(t, log, container.Host, container.Port)
+	defer cleanupConn()
 
+	topology := rabbitmq.NewTopology(conn, log)
+
+	t.Run("success", func(t *testing.T) {
 		exchangeCfg := rabbitmq.NewExchangeConfig(
 			"test.topology.exchange",
 			rabbitmq.ExchangeTypeTopic,
@@ -190,10 +178,13 @@ func TestIntegration_Topology_SetupDLQ(t *testing.T) {
 	container, cleanup := testutils.SetupRabbitMQContainer(t)
 	defer cleanup()
 
-	t.Run("success", func(t *testing.T) {
-		_, topology, cleanupTopology := setupTopology(t, container.Host, container.Port)
-		defer cleanupTopology()
+	log := testutils.NewTestLogger(t, 1)
+	conn, cleanupConn := setupConnection(t, log, container.Host, container.Port)
+	defer cleanupConn()
 
+	topology := rabbitmq.NewTopology(conn, log)
+
+	t.Run("success", func(t *testing.T) {
 		queueCfg := rabbitmq.NewQueueConfig("test.dlq-queue", rabbitmq.QueueTypeClassic)
 		result, err := topology.SetupDLQ(queueCfg)
 		require.NoError(t, err)
@@ -216,10 +207,13 @@ func TestIntegration_Topology_SetupTopologyWithDLQ(t *testing.T) {
 	container, cleanup := testutils.SetupRabbitMQContainer(t)
 	defer cleanup()
 
-	t.Run("success", func(t *testing.T) {
-		_, topology, cleanupTopology := setupTopology(t, container.Host, container.Port)
-		defer cleanupTopology()
+	log := testutils.NewTestLogger(t, 1)
+	conn, cleanupConn := setupConnection(t, log, container.Host, container.Port)
+	defer cleanupConn()
 
+	topology := rabbitmq.NewTopology(conn, log)
+
+	t.Run("success", func(t *testing.T) {
 		exchangeCfg := rabbitmq.NewExchangeConfig("test.full.exchange", rabbitmq.ExchangeTypeTopic)
 		queueCfg := rabbitmq.NewQueueConfig("test.full-queue", rabbitmq.QueueTypeClassic)
 		bindingCfg := rabbitmq.NewBindingConfig(
@@ -255,10 +249,13 @@ func TestIntegration_Topology_DeleteExchange(t *testing.T) {
 	container, cleanup := testutils.SetupRabbitMQContainer(t)
 	defer cleanup()
 
-	t.Run("success", func(t *testing.T) {
-		_, topology, cleanupTopology := setupTopology(t, container.Host, container.Port)
-		defer cleanupTopology()
+	log := testutils.NewTestLogger(t, 1)
+	conn, cleanupConn := setupConnection(t, log, container.Host, container.Port)
+	defer cleanupConn()
 
+	topology := rabbitmq.NewTopology(conn, log)
+
+	t.Run("success", func(t *testing.T) {
 		exchangeCfg := rabbitmq.NewExchangeConfig(
 			"test.delete.exchange",
 			rabbitmq.ExchangeTypeTopic,
@@ -280,10 +277,13 @@ func TestIntegration_Topology_DeleteQueue(t *testing.T) {
 	container, cleanup := testutils.SetupRabbitMQContainer(t)
 	defer cleanup()
 
-	t.Run("success", func(t *testing.T) {
-		_, topology, cleanupTopology := setupTopology(t, container.Host, container.Port)
-		defer cleanupTopology()
+	log := testutils.NewTestLogger(t, 1)
+	conn, cleanupConn := setupConnection(t, log, container.Host, container.Port)
+	defer cleanupConn()
 
+	topology := rabbitmq.NewTopology(conn, log)
+
+	t.Run("success", func(t *testing.T) {
 		queueCfg := rabbitmq.NewQueueConfig("test.delete-queue", rabbitmq.QueueTypeClassic)
 		_, err := topology.DeclareQueue(queueCfg)
 		require.NoError(t, err)
@@ -302,10 +302,13 @@ func TestIntegration_Topology_PurgeQueue(t *testing.T) {
 	container, cleanup := testutils.SetupRabbitMQContainer(t)
 	defer cleanup()
 
-	t.Run("success - empty queue", func(t *testing.T) {
-		_, topology, cleanupTopology := setupTopology(t, container.Host, container.Port)
-		defer cleanupTopology()
+	log := testutils.NewTestLogger(t, 1)
+	conn, cleanupConn := setupConnection(t, log, container.Host, container.Port)
+	defer cleanupConn()
 
+	topology := rabbitmq.NewTopology(conn, log)
+
+	t.Run("success - empty queue", func(t *testing.T) {
 		queueCfg := rabbitmq.NewQueueConfig("test.purge-queue", rabbitmq.QueueTypeClassic)
 		_, err := topology.DeclareQueue(queueCfg)
 		require.NoError(t, err)
@@ -325,6 +328,12 @@ func TestIntegration_Topology_ExchangeExists(t *testing.T) {
 	container, cleanup := testutils.SetupRabbitMQContainer(t)
 	defer cleanup()
 
+	log := testutils.NewTestLogger(t, 1)
+	conn, cleanupConn := setupConnection(t, log, container.Host, container.Port)
+	defer cleanupConn()
+
+	topology := rabbitmq.NewTopology(conn, log)
+
 	tests := []struct {
 		name          string
 		setupExchange func(t *testing.T, topology *rabbitmq.Topology)
@@ -334,7 +343,10 @@ func TestIntegration_Topology_ExchangeExists(t *testing.T) {
 		{
 			name: "exists - after declaration",
 			setupExchange: func(t *testing.T, topology *rabbitmq.Topology) {
-				cfg := rabbitmq.NewExchangeConfig("test.exists.exchange", rabbitmq.ExchangeTypeTopic)
+				cfg := rabbitmq.NewExchangeConfig(
+					"test.exists.exchange",
+					rabbitmq.ExchangeTypeTopic,
+				)
 				err := topology.DeclareExchange(cfg)
 				require.NoError(t, err)
 			},
@@ -351,9 +363,6 @@ func TestIntegration_Topology_ExchangeExists(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			_, topology, cleanupTopology := setupTopology(t, container.Host, container.Port)
-			defer cleanupTopology()
-
 			tt.setupExchange(t, topology)
 
 			exists, err := topology.ExchangeExists(tt.exchangeName)
@@ -366,6 +375,12 @@ func TestIntegration_Topology_ExchangeExists(t *testing.T) {
 func TestIntegration_Topology_QueueExists(t *testing.T) {
 	container, cleanup := testutils.SetupRabbitMQContainer(t)
 	defer cleanup()
+
+	log := testutils.NewTestLogger(t, 1)
+	conn, cleanupConn := setupConnection(t, log, container.Host, container.Port)
+	defer cleanupConn()
+
+	topology := rabbitmq.NewTopology(conn, log)
 
 	tests := []struct {
 		name       string
@@ -393,9 +408,6 @@ func TestIntegration_Topology_QueueExists(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			_, topology, cleanupTopology := setupTopology(t, container.Host, container.Port)
-			defer cleanupTopology()
-
 			tt.setupQueue(t, topology)
 
 			exists, err := topology.QueueExists(tt.queueName)

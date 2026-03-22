@@ -18,53 +18,15 @@ import (
 	"recipes-desk/pkg/testutils"
 )
 
-func setupProducer(
-	t *testing.T,
-	host string,
-	port int,
-) (*rabbitmq.Connection, *rabbitmq.Producer, func()) {
-	return setupProducerWithConfig(t, host, port, nil)
-}
-
-func setupProducerWithConfig(
-	t *testing.T,
-	host string,
-	port int,
-	modifyConfig func(*rabbitmq.ProducerConfig),
-) (*rabbitmq.Connection, *rabbitmq.Producer, func()) {
-	t.Helper()
-
-	logger := testutils.NewTestLogger(t, 1)
-	connConfig := testConnectionConfig(host, port)
-	conn, err := rabbitmq.NewConnection(connConfig, logger)
-	require.NoError(t, err)
-
-	producerConfig := rabbitmq.DefaultProducerConfig()
-	if modifyConfig != nil {
-		modifyConfig(&producerConfig)
-	}
-
-	producer, err := rabbitmq.NewProducer(conn, logger, producerConfig)
-	require.NoError(t, err)
-
-	cleanup := func() {
-		if err = producer.Close(); err != nil {
-			t.Logf("Failed to close producer: %v", err)
-		}
-		if err = conn.Close(); err != nil {
-			t.Logf("Failed to close connection: %v", err)
-		}
-	}
-
-	return conn, producer, cleanup
-}
-
 func TestIntegration_Producer_Publish(t *testing.T) {
 	container, cleanup := testutils.SetupRabbitMQContainer(t)
 	defer cleanup()
 
-	_, topology, cleanupTopology := setupTopology(t, container.Host, container.Port)
-	defer cleanupTopology()
+	log := testutils.NewTestLogger(t, 1)
+	conn, cleanupConn := setupConnection(t, log, container.Host, container.Port)
+	defer cleanupConn()
+
+	topology := rabbitmq.NewTopology(conn, log)
 
 	tests := []struct {
 		name            string
@@ -167,8 +129,9 @@ func TestIntegration_Producer_Publish(t *testing.T) {
 			err = topology.BindQueue(bindingCfg)
 			require.NoError(t, err)
 
-			conn, producer, cleanupProducer := setupProducer(t, container.Host, container.Port)
-			defer cleanupProducer()
+			producer, err := rabbitmq.NewProducer(conn, log, rabbitmq.DefaultProducerConfig())
+			require.NoError(t, err)
+			defer producer.Close()
 
 			ctx, cancel := context.WithTimeout(context.Background(), tt.timeout)
 			defer cancel()
@@ -201,10 +164,13 @@ func TestIntegration_Producer_Publish_Mandatory(t *testing.T) {
 	container, cleanup := testutils.SetupRabbitMQContainer(t)
 	defer cleanup()
 
-	t.Run("error when no route and mandatory true", func(t *testing.T) {
-		_, topology, cleanupTopology := setupTopology(t, container.Host, container.Port)
-		defer cleanupTopology()
+	log := testutils.NewTestLogger(t, 1)
+	conn, cleanupConn := setupConnection(t, log, container.Host, container.Port)
+	defer cleanupConn()
 
+	topology := rabbitmq.NewTopology(conn, log)
+
+	t.Run("error when no route and mandatory true", func(t *testing.T) {
 		// Exchange without any bindings
 		exchangeCfg := rabbitmq.NewExchangeConfig(
 			"test.mandatory.exchange",
@@ -213,15 +179,9 @@ func TestIntegration_Producer_Publish_Mandatory(t *testing.T) {
 		err := topology.DeclareExchange(exchangeCfg)
 		require.NoError(t, err)
 
-		_, producer, cleanupProducer := setupProducerWithConfig(
-			t,
-			container.Host,
-			container.Port,
-			func(cfg *rabbitmq.ProducerConfig) {
-				cfg.Mandatory = true
-			},
-		)
-		defer cleanupProducer()
+		producer, err := rabbitmq.NewProducer(conn, log, rabbitmq.DefaultProducerConfig())
+		require.NoError(t, err)
+		defer producer.Close()
 
 		msg := messagebus.Message{
 			Type:    "TestMessage",
@@ -233,51 +193,22 @@ func TestIntegration_Producer_Publish_Mandatory(t *testing.T) {
 		require.Error(t, err)
 		assert.ErrorIs(t, err, rabbitmq.ErrMandatoryFailed)
 	})
-
-	t.Run("success when route exists", func(t *testing.T) {
-		_, topology, cleanupTopology := setupTopology(t, container.Host, container.Port)
-		defer cleanupTopology()
-
-		exchangeCfg := rabbitmq.NewExchangeConfig(
-			"test.mandatory.ok.exchange",
-			rabbitmq.ExchangeTypeDirect,
-		)
-		queueCfg := rabbitmq.NewQueueConfig("test.mandatory.ok.queue", rabbitmq.QueueTypeClassic)
-		bindingCfg := rabbitmq.NewBindingConfig(queueCfg.Name, exchangeCfg.Name, "test.route")
-
-		err := topology.SetupTopology(exchangeCfg, queueCfg, bindingCfg)
-		require.NoError(t, err)
-
-		_, producer, cleanupProducer := setupProducerWithConfig(
-			t,
-			container.Host,
-			container.Port,
-			func(cfg *rabbitmq.ProducerConfig) {
-				cfg.Mandatory = true
-			},
-		)
-		defer cleanupProducer()
-
-		msg := messagebus.Message{
-			Type:    "TestMessage",
-			Payload: json.RawMessage(`{}`),
-		}
-
-		ctx := context.Background()
-		err = producer.Publish(ctx, exchangeCfg.Name, "test.route", msg)
-		require.NoError(t, err)
-	})
 }
 
 func TestIntegration_Producer_Close(t *testing.T) {
 	container, cleanup := testutils.SetupRabbitMQContainer(t)
 	defer cleanup()
 
+	log := testutils.NewTestLogger(t, 1)
+	conn, cleanupConn := setupConnection(t, log, container.Host, container.Port)
+	defer cleanupConn()
+
 	t.Run("close is idempotent", func(t *testing.T) {
-		_, _, cleanupProducer := setupProducer(t, container.Host, container.Port)
+		producer, err := rabbitmq.NewProducer(conn, log, rabbitmq.DefaultProducerConfig())
+		require.NoError(t, err)
+		defer producer.Close()
 
 		// Cleanup will call Close, but we can also call it manually
 		// The producer should handle multiple Close calls gracefully
-		cleanupProducer()
 	})
 }

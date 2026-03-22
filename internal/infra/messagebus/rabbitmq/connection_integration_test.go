@@ -8,6 +8,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/rs/zerolog"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -31,13 +32,14 @@ func testConnectionConfig(host string, port int) rabbitmq.ConnectionConfig {
 
 func setupConnection(
 	t *testing.T,
+	log *zerolog.Logger,
 	host string,
 	port int,
 ) (*rabbitmq.Connection, func()) {
-	logger := testutils.NewTestLogger(t)
 	config := testConnectionConfig(host, port)
-	conn, err := rabbitmq.NewConnection(config, logger)
+	conn, err := rabbitmq.NewConnection(config, log)
 	require.NoError(t, err)
+
 	return conn, func() {
 		if err = conn.Close(); err != nil {
 			t.Logf("Failed to close RabbitMQ connection: %v", err)
@@ -50,7 +52,8 @@ func TestIntegration_Connection_NewConnection(t *testing.T) {
 	defer cleanup()
 
 	t.Run("success", func(t *testing.T) {
-		conn, cleanupConn := setupConnection(t, container.Host, container.Port)
+		log := testutils.NewTestLogger(t, 1)
+		conn, cleanupConn := setupConnection(t, log, container.Host, container.Port)
 		defer cleanupConn()
 
 		assert.True(t, conn.IsConnected())
@@ -62,7 +65,8 @@ func TestIntegration_Connection_Channel(t *testing.T) {
 	defer cleanup()
 
 	t.Run("success", func(t *testing.T) {
-		conn, cleanupConn := setupConnection(t, container.Host, container.Port)
+		log := testutils.NewTestLogger(t, 1)
+		conn, cleanupConn := setupConnection(t, log, container.Host, container.Port)
 		defer cleanupConn()
 
 		ch, err := conn.Channel()
@@ -89,7 +93,8 @@ func TestIntegration_Connection_Close(t *testing.T) {
 	defer cleanup()
 
 	t.Run("success", func(t *testing.T) {
-		conn, _ := setupConnection(t, container.Host, container.Port)
+		log := testutils.NewTestLogger(t, 1)
+		conn, _ := setupConnection(t, log, container.Host, container.Port)
 		require.True(t, conn.IsConnected())
 
 		err := conn.Close()
@@ -99,7 +104,8 @@ func TestIntegration_Connection_Close(t *testing.T) {
 	})
 
 	t.Run("success - close multiple times", func(t *testing.T) {
-		conn, cleanupConn := setupConnection(t, container.Host, container.Port)
+		log := testutils.NewTestLogger(t, 1)
+		conn, cleanupConn := setupConnection(t, log, container.Host, container.Port)
 		// Call cleanup (should be safe to call after Close)
 		defer cleanupConn()
 		require.True(t, conn.IsConnected())
@@ -138,7 +144,8 @@ func TestIntegration_Connection_Ping(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			conn, cleanup := setupConnection(t, container.Host, container.Port)
+			log := testutils.NewTestLogger(t, 1)
+			conn, cleanup := setupConnection(t, log, container.Host, container.Port)
 			defer cleanup()
 
 			tt.setup(t, conn)
