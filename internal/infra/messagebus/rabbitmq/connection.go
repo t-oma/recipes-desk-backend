@@ -68,6 +68,10 @@ func (c *Connection) Channel() (*amqp.Channel, error) {
 
 // Close gracefully closes the connection.
 func (c *Connection) Close() error {
+	if c.isClosed.Load() {
+		return nil
+	}
+
 	if c.isClosed.CompareAndSwap(false, true) {
 		close(c.closeChan)
 	}
