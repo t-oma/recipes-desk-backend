@@ -29,45 +29,53 @@ func testConnectionConfig(host string, port int) rabbitmq.ConnectionConfig {
 	}
 }
 
-func setupConnection(t *testing.T) (*rabbitmq.Connection, func()) {
-	container, cleanup := testutils.SetupRabbitMQContainer(t)
-
+func setupConnection(
+	t *testing.T,
+	host string,
+	port int,
+) (*rabbitmq.Connection, func()) {
 	logger := testutils.NewTestLogger(t)
-	config := testConnectionConfig(container.Host, container.Port)
+	config := testConnectionConfig(host, port)
 	conn, err := rabbitmq.NewConnection(config, logger)
 	require.NoError(t, err)
 	return conn, func() {
 		if err = conn.Close(); err != nil {
 			t.Logf("Failed to close RabbitMQ connection: %v", err)
 		}
-		cleanup()
 	}
 }
 
 func TestIntegration_Connection_NewConnection(t *testing.T) {
-	conn, cleanup := setupConnection(t)
+	container, cleanup := testutils.SetupRabbitMQContainer(t)
 	defer cleanup()
 
-	assert.True(t, conn.IsConnected())
+	t.Run("success", func(t *testing.T) {
+		conn, cleanupConn := setupConnection(t, container.Host, container.Port)
+		defer cleanupConn()
+
+		assert.True(t, conn.IsConnected())
+	})
 }
 
 func TestIntegration_Connection_Channel(t *testing.T) {
-	conn, cleanup := setupConnection(t)
+	container, cleanup := testutils.SetupRabbitMQContainer(t)
 	defer cleanup()
 
-	ch, err := conn.Channel()
-	require.NoError(t, err)
-	defer ch.Close()
+	t.Run("success", func(t *testing.T) {
+		conn, cleanupConn := setupConnection(t, container.Host, container.Port)
+		defer cleanupConn()
 
-	assert.NotNil(t, ch)
+		ch, err := conn.Channel()
+		require.NoError(t, err)
+		defer ch.Close()
+
+		assert.NotNil(t, ch)
+	})
 }
 
 func TestIntegration_Connection_Channel_NotConnected(t *testing.T) {
-	_, cleanup := testutils.SetupRabbitMQContainer(t)
-	defer cleanup()
-
 	// Don't create connection - test with nil connection scenario
-	cfg := testConnectionConfig("localhost", 5672)
+	cfg := testConnectionConfig("unexisting-host", 9999)
 	cfg.ConnectionTimeout = 1 * time.Second
 
 	// This should fail because host doesn't exist
@@ -77,34 +85,71 @@ func TestIntegration_Connection_Channel_NotConnected(t *testing.T) {
 }
 
 func TestIntegration_Connection_Close(t *testing.T) {
-	conn, cleanup := setupConnection(t)
+	container, cleanup := testutils.SetupRabbitMQContainer(t)
+	defer cleanup()
 
-	require.True(t, conn.IsConnected())
+	t.Run("success", func(t *testing.T) {
+		conn, _ := setupConnection(t, container.Host, container.Port)
+		require.True(t, conn.IsConnected())
 
-	err := conn.Close()
-	require.NoError(t, err)
+		err := conn.Close()
+		require.NoError(t, err)
 
-	assert.False(t, conn.IsConnected())
+		assert.False(t, conn.IsConnected())
+	})
 
-	// Call cleanup (should be safe to call after Close)
-	cleanup()
+	t.Run("success - close multiple times", func(t *testing.T) {
+		conn, cleanupConn := setupConnection(t, container.Host, container.Port)
+		// Call cleanup (should be safe to call after Close)
+		defer cleanupConn()
+		require.True(t, conn.IsConnected())
+
+		err := conn.Close()
+		require.NoError(t, err)
+
+		assert.False(t, conn.IsConnected())
+	})
 }
 
 func TestIntegration_Connection_Ping(t *testing.T) {
-	conn, cleanup := setupConnection(t)
+	container, cleanup := testutils.SetupRabbitMQContainer(t)
 	defer cleanup()
 
-	err := conn.Ping(context.Background())
-	assert.NoError(t, err)
-}
+	tests := []struct {
+		name  string
+		setup func(t *testing.T, conn *rabbitmq.Connection)
+		want  error
+	}{
+		{
+			name: "success",
+			setup: func(_ *testing.T, _ *rabbitmq.Connection) {
+			},
+			want: nil,
+		},
+		{
+			name: "connection closed",
+			setup: func(t *testing.T, conn *rabbitmq.Connection) {
+				err := conn.Close()
+				require.NoError(t, err)
+			},
+			want: rabbitmq.ErrConnectionClosed,
+		},
+	}
 
-func TestIntegration_Connection_Ping_AfterClose(t *testing.T) {
-	conn, cleanup := setupConnection(t)
-	defer cleanup()
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			conn, cleanup := setupConnection(t, container.Host, container.Port)
+			defer cleanup()
 
-	err := conn.Close()
-	require.NoError(t, err)
+			tt.setup(t, conn)
 
-	err = conn.Ping(context.Background())
-	assert.Error(t, err)
+			err := conn.Ping(context.Background())
+			if tt.want != nil {
+				require.Error(t, err)
+				assert.ErrorIs(t, tt.want, err)
+			} else {
+				require.NoError(t, err)
+			}
+		})
+	}
 }
