@@ -101,7 +101,7 @@ func SetupRabbitMQContainer(t *testing.T) (*RabbitMQTestContainer, func()) {
 func NewTestLogger(t *testing.T, log ...uint8) *zerolog.Logger {
 	t.Helper()
 	var logger zerolog.Logger
-	if len(log) > 0 && log[0] == 0 {
+	if len(log) > 0 && log[0] != 0 {
 		logger = zerolog.New(zerolog.NewConsoleWriter())
 	} else {
 		logger = zerolog.Nop()
