@@ -1,0 +1,3 @@
+pagination:
+  max-limit: 100
+  default-limit: 20
