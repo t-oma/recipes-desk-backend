@@ -29,7 +29,7 @@ type Message struct {
 }
 
 // Handler is a function that processes a message.
-type Handler func(ctx context.Context, msg Message) error
+type Handler func(msg Message) error
 
 // Publisher is the interface for publishing messages.
 type Publisher interface {

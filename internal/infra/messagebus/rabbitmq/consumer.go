@@ -21,12 +21,11 @@ const DefaultConsumerPrefetch = 10
 
 // Consumer handles message consumption from RabbitMQ.
 type Consumer struct {
-	conn           *Connection
-	log            *zerolog.Logger
-	isClosed       atomic.Bool
-	prefetch       int
-	handlerTimeout time.Duration
-	wg             sync.WaitGroup
+	conn     *Connection
+	log      *zerolog.Logger
+	isClosed atomic.Bool
+	prefetch int
+	wg       sync.WaitGroup
 }
 
 // NewConsumer creates a new message consumer.
@@ -42,11 +41,6 @@ func NewConsumer(conn *Connection, log *zerolog.Logger) (*Consumer, error) {
 // SetPrefetch sets the prefetch count for the consumer.
 func (c *Consumer) SetPrefetch(prefetch int) {
 	c.prefetch = prefetch
-}
-
-// SetHandlerTimeout sets the timeout for message handler execution.
-func (c *Consumer) SetHandlerTimeout(timeout time.Duration) {
-	c.handlerTimeout = timeout
 }
 
 // IsClosed returns true if the consumer is closed.
@@ -75,7 +69,6 @@ func (c *Consumer) Consume(ctx context.Context, queue string, handler messagebus
 	for {
 		select {
 		case <-ctx.Done():
-			c.log.Info().Str("queue", queue).Msg("Consumer stopped")
 			return ctx.Err()
 		default:
 		}
@@ -116,8 +109,8 @@ func (c *Consumer) doConsume(ctx context.Context, queue string, handler messageb
 	defer ch.Close()
 
 	if c.prefetch > 0 {
-		if qosErr := ch.Qos(c.prefetch, 0, false); qosErr != nil {
-			return fmt.Errorf("failed to set prefetch: %w", qosErr)
+		if err = ch.Qos(c.prefetch, 0, false); err != nil {
+			return fmt.Errorf("failed to set prefetch: %w", err)
 		}
 	}
 
@@ -151,14 +144,13 @@ func (c *Consumer) doConsume(ctx context.Context, queue string, handler messageb
 				return errors.New("message channel closed")
 			}
 			c.wg.Add(1)
-			go c.handleMessage(ctx, msg, handler)
+			go c.handleMessage(msg, handler)
 		}
 	}
 }
 
 // handleMessage processes a single message.
 func (c *Consumer) handleMessage(
-	ctx context.Context,
 	delivery amqp.Delivery,
 	handler messagebus.Handler,
 ) {
@@ -187,20 +179,7 @@ func (c *Consumer) handleMessage(
 		return
 	}
 
-	c.log.Debug().
-		Str("message_id", message.ID).
-		Str("message_type", message.Type).
-		Str("routing_key", delivery.RoutingKey).
-		Msg("Received message")
-
-	handlerCtx := ctx
-	if c.handlerTimeout > 0 {
-		var cancel context.CancelFunc
-		handlerCtx, cancel = context.WithTimeout(ctx, c.handlerTimeout)
-		defer cancel()
-	}
-
-	if err := handler(handlerCtx, message); err != nil {
+	if err := handler(message); err != nil {
 		c.log.Error().
 			Err(err).
 			Str("message_id", message.ID).
