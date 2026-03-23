@@ -42,14 +42,6 @@ func NewService(
 
 // CreateTag creates a new tag if it doesn't exist.
 func (s *Service) CreateTag(ctx context.Context, name string) (*dto.Tag, error) {
-	exists, err := s.repo.Exists(ctx, name)
-	if err != nil {
-		return nil, s.mapError(err, "create tag")
-	}
-	if exists {
-		return nil, s.mapError(domain.ErrConflict, "create tag")
-	}
-
 	tagName, err := vo.NewTagName(name)
 	if err != nil {
 		return nil, s.mapError(err, "create tag")
@@ -65,6 +57,9 @@ func (s *Service) CreateTag(ctx context.Context, name string) (*dto.Tag, error) 
 
 	tag, err = s.repo.Create(ctx, tag)
 	if err != nil {
+		if errors.Is(err, domain.ErrConflict) {
+			return nil, s.mapError(domain.ErrConflict, "create tag")
+		}
 		return nil, s.mapError(err, "create tag")
 	}
 
