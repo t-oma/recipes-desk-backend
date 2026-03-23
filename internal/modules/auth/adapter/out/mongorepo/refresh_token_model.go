@@ -1,0 +1,79 @@
+package mongorepo
+
+import (
+	"time"
+
+	"go.mongodb.org/mongo-driver/bson/primitive"
+
+	"recipes-desk/internal/modules/auth/domain/entity"
+	"recipes-desk/internal/modules/auth/domain/valueobject"
+)
+
+// refreshTokenModel represents a refresh token in MongoDB.
+type refreshTokenModel struct {
+	ID        primitive.ObjectID `bson:"_id,omitempty"` //nolint:tagliatelle // MongoDB _id field
+	UserID    primitive.ObjectID `bson:"userId"`
+	TokenHash string             `bson:"tokenHash"`
+	ExpiresAt time.Time          `bson:"expiresAt"`
+	CreatedAt time.Time          `bson:"createdAt"`
+}
+
+// SetTimestamps sets the creation and expiration timestamps.
+func (m *refreshTokenModel) setTimestamps(expiry time.Duration) {
+	now := time.Now()
+	if m.CreatedAt.IsZero() {
+		m.CreatedAt = now
+	}
+	m.ExpiresAt = now.Add(expiry)
+}
+
+func (m *refreshTokenModel) setID() {
+	m.ID = primitive.NewObjectID()
+}
+
+func (m *refreshTokenModel) prepareForInsert(expiry time.Duration) {
+	m.setTimestamps(expiry)
+	m.setID()
+}
+
+// toDomain converts a MongoDB refresh token model to a domain refresh token.
+func (m *refreshTokenModel) toDomain() (*entity.RefreshToken, error) {
+	idVO, err := valueobject.NewRefreshTokenID(m.ID.Hex())
+	if err != nil {
+		return nil, err
+	}
+	userIDVO, err := valueobject.NewUserID(m.UserID.Hex())
+	if err != nil {
+		return nil, err
+	}
+	tokenHashVO := valueobject.TokenHash(m.TokenHash)
+
+	token := entity.NewRefreshToken(
+		idVO,
+		userIDVO,
+		tokenHashVO,
+	)
+	token.RestoreFromPersistence(m.CreatedAt, m.ExpiresAt)
+	return token, nil
+}
+
+// refreshTokenModelFromDomain converts a domain refresh token to a MongoDB model.
+func refreshTokenModelFromDomain(token *entity.RefreshToken) (*refreshTokenModel, error) {
+	id, err := primitive.ObjectIDFromHex(token.ID().String())
+	if err != nil {
+		id = primitive.NilObjectID
+	}
+
+	userID, err := primitive.ObjectIDFromHex(token.UserID().String())
+	if err != nil {
+		return nil, err
+	}
+
+	return &refreshTokenModel{
+		ID:        id,
+		UserID:    userID,
+		TokenHash: string(token.TokenHash()),
+		ExpiresAt: token.ExpiresAt(),
+		CreatedAt: token.CreatedAt(),
+	}, nil
+}

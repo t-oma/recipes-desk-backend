@@ -9,7 +9,7 @@ import (
 
 func New(enviroment string) *zerolog.Logger {
 	zerolog.TimeFieldFormat = zerolog.TimeFormatUnix
-	zerolog.ErrorStackMarshaler = pkgerrors.MarshalStack
+	zerolog.ErrorStackMarshaler = pkgerrors.MarshalStack //nolint:reassign // formatted error stack
 
 	if enviroment == "production" {
 		zerolog.SetGlobalLevel(zerolog.InfoLevel)

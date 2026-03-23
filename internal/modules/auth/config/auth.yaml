@@ -1,0 +1,4 @@
+jwt:
+  expiry:
+    access: 15m
+    refresh: 168h

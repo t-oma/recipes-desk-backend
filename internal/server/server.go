@@ -3,6 +3,7 @@ package server
 import (
 	"context"
 	"errors"
+	"fmt"
 	"net/http"
 	"os"
 	"os/signal"
@@ -15,7 +16,7 @@ import (
 	"recipes-desk/internal/config"
 )
 
-type server struct {
+type Server struct {
 	log          *zerolog.Logger
 	srv          *http.Server
 	isProduction bool
@@ -23,7 +24,15 @@ type server struct {
 
 func NewRouter() *gin.Engine {
 	router := gin.Default()
-	router.Use(cors.Default())
+
+	// CORS configuration with credentials support
+	corsConfig := cors.Config{ //nolint:exhaustruct // using sensible defaults for other fields
+		AllowOrigins:     []string{"http://localhost:5173"}, // Frontend URL
+		AllowMethods:     []string{"GET", "POST", "PUT", "DELETE", "OPTIONS"},
+		AllowHeaders:     []string{"Origin", "Content-Type", "Accept", "Authorization"},
+		AllowCredentials: true,
+	}
+	router.Use(cors.New(corsConfig))
 
 	// Health check
 	router.GET("/health", func(c *gin.Context) {
@@ -33,20 +42,20 @@ func NewRouter() *gin.Engine {
 	return router
 }
 
-func New(handler http.Handler, cfg *config.Config, logger *zerolog.Logger) *server {
-	return &server{
+func New(handler http.Handler, cfg *config.Config, logger *zerolog.Logger) *Server {
+	return &Server{
 		log: logger,
 		srv: &http.Server{
-			Addr:         ":" + cfg.Server.Port,
+			Addr:         fmt.Sprintf(":%d", cfg.Server.Port),
 			Handler:      handler,
-			ReadTimeout:  cfg.Server.ReadTimeout,
-			WriteTimeout: cfg.Server.WriteTimeout,
+			ReadTimeout:  cfg.Server.Timeouts.Read,
+			WriteTimeout: cfg.Server.Timeouts.Write,
 		},
 		isProduction: cfg.IsProduction(),
 	}
 }
 
-func (s *server) Start(ctx context.Context) {
+func (s *Server) Start(ctx context.Context) {
 	// Set Gin mode
 	if s.isProduction {
 		gin.SetMode(gin.ReleaseMode)
@@ -54,7 +63,8 @@ func (s *server) Start(ctx context.Context) {
 
 	// Graceful shutdown
 	go func() {
-		if err := s.srv.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
+		err := s.srv.ListenAndServe()
+		if err != nil && !errors.Is(err, http.ErrServerClosed) {
 			s.log.Fatal().Err(err).Msg("Failed to start server")
 		}
 	}()
@@ -64,7 +74,7 @@ func (s *server) Start(ctx context.Context) {
 	s.waitSignal(ctx)
 }
 
-func (s *server) waitSignal(ctx context.Context) {
+func (s *Server) waitSignal(ctx context.Context) {
 	// Wait for interrupt signal
 	quit := make(chan os.Signal, 1)
 	signal.Notify(quit, syscall.SIGINT, syscall.SIGTERM)

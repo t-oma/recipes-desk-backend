@@ -136,6 +136,8 @@ linters:
     - cyclop
     - gosec
     - exhaustruct
+    # Checks if package imports are in a list of acceptable packages
+    - depguard
   settings:
     gosec:
       includes:
@@ -261,6 +263,58 @@ linters:
       # Default: false
       require-specific: true
 
+    cyclop:
+      max-complexity: 30
+      package-average: 10.0
+
+    depguard:
+      # Rules to apply.
+      #
+      # Variables:
+      # - File Variables
+      #   Use an exclamation mark `!` to negate a variable.
+      #   Example: `!$test` matches any file that is not a go test file.
+      #
+      #   `$all` - matches all go files
+      #   `$test` - matches all go test files
+      #
+      # - Package Variables
+      #
+      #   `$gostd` - matches all of go's standard library (Pulled from `GOROOT`)
+      #
+      # Default (applies if no custom rules are defined): Only allow $gostd in all files.
+      rules:
+        "deprecated":
+          # List of file globs that will match this list of settings to compare against.
+          # By default, if a path is relative, it is relative to the directory where the golangci-lint command is executed.
+          # The placeholder '${base-path}' is substituted with a path relative to the mode defined with `run.relative-path-mode`.
+          # The placeholder '${config-path}' is substituted with a path relative to the configuration file.
+          # Default: $all
+          files:
+            - "$all"
+          # List of packages that are not allowed.
+          # Entries can be a variable (starting with $), a string prefix, or an exact match (if ending with $).
+          # Default: []
+          deny:
+            - pkg: github.com/golang/protobuf
+              desc: Use google.golang.org/protobuf instead, see https://developers.google.com/protocol-buffers/docs/reference/go/faq#modules
+            - pkg: github.com/satori/go.uuid
+              desc: Use github.com/google/uuid instead, satori's package is not maintained
+            - pkg: github.com/gofrs/uuid$
+              desc: Use github.com/gofrs/uuid/v5 or later, it was not a go module before v5
+        "non-test files":
+          files:
+            - "!$test"
+          deny:
+            - pkg: math/rand$
+              desc: Use math/rand/v2 instead, see https://go.dev/blog/randv2
+        "non-main files":
+          files:
+            - "!**/main.go"
+          deny:
+            - pkg: log$
+              desc: Use log/slog instead, see https://go.dev/blog/slog
+
   exclusions:
     # Log a warning if an exclusion rule is unused.
     # Default: false
@@ -335,8 +389,8 @@ formatters:
       no-lex-order: true
 
     gofumpt:
-      module-path: modular-app
+      module-path: recipes-desk
 
     goimports:
       local-prefixes:
-        - modular-app
+        - recipes-desk
