@@ -141,7 +141,7 @@ func NewQueueConfig(name string, queueType QueueType) QueueConfig {
 		Exclusive:  false,
 		NoWait:     false,
 		Args: map[string]any{
-			"x-queue-type": queueType,
+			"x-queue-type": string(queueType),
 		},
 	}
 }

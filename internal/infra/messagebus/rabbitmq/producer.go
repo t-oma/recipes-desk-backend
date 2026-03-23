@@ -152,7 +152,7 @@ func (p *Producer) waitForConfirmOrReturn(
 		}
 		return nil
 	case <-ctx.Done():
-		return fmt.Errorf("%w: %w", ErrPublishTimeout, ctx.Err())
+		return ctx.Err()
 	case <-time.After(p.config.ConfirmTimeout):
 		return ErrPublishTimeout
 	}
@@ -166,7 +166,7 @@ func (p *Producer) waitForConfirm(ctx context.Context, confirms chan amqp.Confir
 		}
 		return nil
 	case <-ctx.Done():
-		return fmt.Errorf("%w: %w", ErrPublishTimeout, ctx.Err())
+		return ctx.Err()
 	case <-time.After(p.config.ConfirmTimeout):
 		return ErrPublishTimeout
 	}
