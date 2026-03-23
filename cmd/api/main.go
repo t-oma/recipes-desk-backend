@@ -60,13 +60,23 @@ func main() {
 		}
 	}()
 
-	rabbitmqConn, err := rabbitmq.NewConnection(cfg.RabbitMQ, log)
+	rmqConn, err := rabbitmq.NewConnection(cfg.RabbitMQ, log)
 	if err != nil {
 		panic(err)
 	}
 	defer func() {
-		if err = rabbitmqConn.Close(); err != nil {
+		if err = rmqConn.Close(); err != nil {
 			log.Fatal().Err(err).Msg("Failed to close RabbitMQ connection")
+		}
+	}()
+	topology := rabbitmq.NewTopology(rmqConn, log)
+	consumer, err := rabbitmq.NewConsumer(rmqConn, log)
+	if err != nil {
+		panic(err)
+	}
+	defer func() {
+		if err = consumer.Close(); err != nil {
+			log.Fatal().Err(err).Msg("Failed to close RabbitMQ consumer")
 		}
 	}()
 
@@ -91,7 +101,7 @@ func main() {
 	recipesModule.RegisterRoutes(public, protected)
 
 	// Initialize and register tags module
-	tagsModule := tags.NewModule(db.Database, log)
+	tagsModule := tags.NewModule(db.Database, topology, consumer, log)
 	tagsModule.RegisterRoutes(public, protected)
 
 	ctx, cancel := context.WithTimeout(ctx, 3*time.Second)
