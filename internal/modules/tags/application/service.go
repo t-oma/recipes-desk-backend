@@ -106,6 +106,9 @@ func (s *Service) SearchTags(
 func (s *Service) EnsureTagExists(ctx context.Context, tagName string) error {
 	_, err := s.CreateTag(ctx, tagName)
 	if err != nil {
+		if errors.Is(err, domain.ErrConflict) {
+			return nil
+		}
 		return s.mapError(err, "ensure tag exists")
 	}
 	return nil
