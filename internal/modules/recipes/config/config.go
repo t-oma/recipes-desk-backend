@@ -14,8 +14,8 @@ type Config struct {
 }
 
 type Pagination struct {
-	MaxLimit     int `yaml:"maxLimit"`
-	DefaultLimit int `yaml:"defaultLimit"`
+	MaxLimit     int `yaml:"max-limit"`
+	DefaultLimit int `yaml:"default-limit"`
 }
 
 func Load() (*Config, error) {
