@@ -6,6 +6,13 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Added
+
+- **rabbitmq**: E2E integration tests for publish→consume round-trip flow
+- **rabbitmq**: DLQ integration test verifying failed messages route to dead-letter queue
+
+## [v0.0.0] - 2026-03-21
+
 ### Fixed
 
 - **rabbitmq**: Race condition in `handleReconnect` - connection reference now captured under lock before use (#17)
