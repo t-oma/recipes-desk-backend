@@ -240,30 +240,6 @@ make coverage
               └─────────────┘
 ```
 
-### Module Structure
-
-```
-internal/modules/auth/
-├── domain/
-│   ├── user.go              # User entity & validation
-│   ├── refresh_token.go     # RefreshToken entity
-│   └── user_repository.go   # Repository interfaces
-├── service/
-│   ├── service.go           # Auth business logic
-│   ├── tokens.go            # JWT token service
-│   └── bcrypt_hasher.go     # Password hashing
-├── repository/
-│   ├── mongo.go             # User repository (MongoDB)
-│   └── mongo_refresh.go     # Refresh token repository
-├── handler/
-│   ├── handler.go           # HTTP handlers
-│   ├── middleware.go        # Auth middleware
-│   ├── request.go           # Request DTOs
-│   ├── response.go          # Response DTOs
-│   └── mapper.go            # DTO mappers
-└── module.go                # Module initialization
-```
-
 ### Code Style
 
 This project follows:
