@@ -8,7 +8,6 @@ import (
 	"go.mongodb.org/mongo-driver/mongo"
 
 	httphandler "recipes-desk/internal/modules/tags/adapter/in/http"
-	"recipes-desk/internal/modules/tags/adapter/out/messaging"
 	"recipes-desk/internal/modules/tags/adapter/out/mongorepo"
 	"recipes-desk/internal/modules/tags/application"
 	"recipes-desk/internal/modules/tags/config"
@@ -16,8 +15,7 @@ import (
 
 // Module represents the tags module.
 type Module struct {
-	handler       *httphandler.Handler
-	eventConsumer *messaging.RecipeEventConsumer
+	handler *httphandler.Handler
 }
 
 // NewModule creates a new tags module.
@@ -42,11 +40,10 @@ func NewModule(db *mongo.Database, log *zerolog.Logger) *Module {
 	)
 	tagHandler := httphandler.NewHandler(tagService, log)
 
-	eventConsumer := messaging.NewRecipeEventConsumer(tagService, log)
+	_ = application.NewEventHandler(tagService, log)
 
 	return &Module{
-		handler:       tagHandler,
-		eventConsumer: eventConsumer,
+		handler: tagHandler,
 	}
 }
 
@@ -58,9 +55,4 @@ func (m *Module) RegisterRoutes(public, protected *gin.RouterGroup) {
 
 	// Protected routes (admin only in future)
 	protected.POST("/tags", m.handler.Create)
-}
-
-// GetEventConsumer returns the event consumer for registration with message bus.
-func (m *Module) GetEventConsumer() *messaging.RecipeEventConsumer {
-	return m.eventConsumer
 }
