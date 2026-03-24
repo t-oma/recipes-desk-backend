@@ -52,6 +52,59 @@ func SetupMongoContainer(t *testing.T, dbName string) (*mongo.Database, func()) 
 	return db, cleanup
 }
 
+// MongoDBTestContainer holds the MongoDB container, client, and database.
+type MongoDBTestContainer struct {
+	Container testcontainers.Container
+	Client    *mongo.Client
+	URI       string
+	Host      string
+	Port      int
+}
+
+// SetupMongoDBContainer starts a MongoDB container and returns a connected database.
+func SetupMongoDBContainer(t *testing.T) (*MongoDBTestContainer, func()) {
+	t.Helper()
+
+	ctx := context.Background()
+
+	container, err := mongodb.Run(ctx, "mongo:8",
+		testcontainers.WithWaitStrategy(wait.ForListeningPort("27017/tcp")),
+	)
+	require.NoError(t, err)
+
+	uri, err := container.ConnectionString(ctx)
+	require.NoError(t, err)
+
+	host, err := container.Host(ctx)
+	require.NoError(t, err)
+
+	port, err := container.MappedPort(ctx, "27017")
+	require.NoError(t, err)
+
+	client, err := mongo.Connect(ctx, options.Client().ApplyURI(uri))
+	require.NoError(t, err)
+
+	err = client.Ping(ctx, nil)
+	require.NoError(t, err)
+
+	cleanup := func() {
+		if err = client.Disconnect(ctx); err != nil {
+			t.Logf("Failed to disconnect MongoDB client: %v", err)
+		}
+		if err = container.Terminate(ctx); err != nil {
+			t.Logf("Failed to terminate MongoDB container: %v", err)
+		}
+	}
+
+	return &MongoDBTestContainer{
+		Container: container,
+		Client:    client,
+		URI:       uri,
+		Host:      host,
+		Port:      port.Int(),
+	}, cleanup
+}
+
 // RabbitMQTestContainer holds the RabbitMQ container and connection info.
 type RabbitMQTestContainer struct {
 	Container *rabbitmqtc.RabbitMQContainer
