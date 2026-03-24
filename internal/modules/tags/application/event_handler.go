@@ -3,6 +3,7 @@ package application
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 
 	"github.com/rs/zerolog"
@@ -33,7 +34,7 @@ func (c *EventHandler) HandleRecipeCreated(msg messagebus.Message) error {
 	var event events.RecipeCreated
 	if err := json.Unmarshal(msg.Payload, &event); err != nil {
 		c.log.Error().Err(err).Msg("Failed to unmarshal recipe created event")
-		return fmt.Errorf("failed to unmarshal event: %w", err)
+		return fmt.Errorf("%w: %w", ErrUnmarshalEvent, err)
 	}
 
 	if err := c.service.EnsureTagsExist(context.Background(), event.Tags); err != nil {
@@ -57,7 +58,7 @@ func (c *EventHandler) HandleRecipeDeleted(msg messagebus.Message) error {
 	var event events.RecipeDeleted
 	if err := json.Unmarshal(msg.Payload, &event); err != nil {
 		c.log.Error().Err(err).Msg("Failed to unmarshal recipe deleted event")
-		return fmt.Errorf("failed to unmarshal event: %w", err)
+		return fmt.Errorf("%w: %w", ErrUnmarshalEvent, err)
 	}
 
 	// For now, we don't delete tags even if they have no recipes.
@@ -68,3 +69,5 @@ func (c *EventHandler) HandleRecipeDeleted(msg messagebus.Message) error {
 
 	return nil
 }
+
+var ErrUnmarshalEvent = errors.New("failed to unmarshal event")
