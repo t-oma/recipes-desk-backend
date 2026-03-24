@@ -26,15 +26,17 @@ type Consumer struct {
 	isClosed atomic.Bool
 	prefetch int
 	wg       sync.WaitGroup
+	stopChan chan struct{}
 }
 
 // NewConsumer creates a new message consumer.
 func NewConsumer(conn *Connection, log *zerolog.Logger) (*Consumer, error) {
-	//nolint:exhaustruct // wg initialized automatically
+	//nolint:exhaustruct // isClosed, wg initialized with zero values
 	return &Consumer{
 		conn:     conn,
 		log:      log,
 		prefetch: DefaultConsumerPrefetch,
+		stopChan: make(chan struct{}),
 	}, nil
 }
 
@@ -54,6 +56,7 @@ func (c *Consumer) Close() error {
 		return nil
 	}
 
+	close(c.stopChan)
 	c.log.Info().Msg("Consumer closing, waiting for in-flight messages...")
 	c.wg.Wait()
 	c.log.Info().Msg("Consumer closed")
@@ -62,24 +65,19 @@ func (c *Consumer) Close() error {
 }
 
 // Consume starts consuming messages from the specified queue with auto-recovery.
-func (c *Consumer) Consume(ctx context.Context, queue string, handler messagebus.Handler) error {
+// Stops when Close() is called.
+func (c *Consumer) Consume(queue string, handler messagebus.Handler) error {
 	backoff := 1 * time.Second
 	maxBackoff := 30 * time.Second
 
 	for {
 		select {
-		case <-ctx.Done():
-			return ctx.Err()
+		case <-c.stopChan:
+			return nil
 		default:
 		}
 
-		if c.isClosed.Load() {
-			c.log.Info().Str("queue", queue).Msg("Consumer closed")
-			return nil
-		}
-
-		// Try to consume
-		err := c.doConsume(ctx, queue, handler)
+		err := c.doConsume(queue, handler)
 		if err != nil {
 			c.log.Error().
 				Err(err).
@@ -87,10 +85,10 @@ func (c *Consumer) Consume(ctx context.Context, queue string, handler messagebus
 				Msg("Consume failed, will retry")
 		}
 
-		// Wait before retry
 		select {
-		case <-ctx.Done():
+		case <-c.stopChan:
 			c.log.Info().Str("queue", queue).Msg("Consumer stopped during backoff")
+			return nil
 		case <-time.After(backoff):
 			backoff = time.Duration(float64(backoff) * 1.5)
 			if backoff > maxBackoff {
@@ -101,7 +99,10 @@ func (c *Consumer) Consume(ctx context.Context, queue string, handler messagebus
 }
 
 // doConsume creates channel, sets QoS, and starts consuming.
-func (c *Consumer) doConsume(ctx context.Context, queue string, handler messagebus.Handler) error {
+func (c *Consumer) doConsume(queue string, handler messagebus.Handler) error {
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
 	ch, err := c.conn.Channel()
 	if err != nil {
 		return fmt.Errorf("failed to create channel: %w", err)
@@ -135,8 +136,8 @@ func (c *Consumer) doConsume(ctx context.Context, queue string, handler messageb
 
 	for {
 		select {
-		case <-ctx.Done():
-			c.log.Info().Str("queue", queue).Msg("Context cancelled, stopping consumer")
+		case <-c.stopChan:
+			cancel()
 			return nil
 		case msg, ok := <-msgs:
 			if !ok {
@@ -184,7 +185,7 @@ func (c *Consumer) handleMessage(
 			Err(err).
 			Str("message_id", message.ID).
 			Str("message_type", message.Type).
-			Msg("Handler failed, sending to DLQ")
+			Msg("Handler failed, sending to DLQ if configured")
 		if err = delivery.Nack(false, false); err != nil {
 			c.log.Error().Err(err).Msg("Failed to nack message")
 		}

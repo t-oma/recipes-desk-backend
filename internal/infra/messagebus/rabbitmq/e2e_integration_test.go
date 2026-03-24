@@ -39,10 +39,6 @@ func TestIntegration_E2E_RoundTrip(t *testing.T) {
 	require.NoError(t, err)
 	defer producer.Close()
 
-	consumer, err := rabbitmq.NewConsumer(conn, log)
-	require.NoError(t, err)
-	defer consumer.Close()
-
 	tests := []struct {
 		name        string
 		queueType   rabbitmq.QueueType
@@ -117,11 +113,11 @@ func TestIntegration_E2E_RoundTrip(t *testing.T) {
 				return tt.handler(msg)
 			}
 
-			// Start consumer
-			ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
-			defer cancel()
+			consumer, err := rabbitmq.NewConsumer(conn, log)
+			require.NoError(t, err)
+			defer consumer.Close()
 			go func() {
-				if err := consumer.Consume(ctx, queueCfg.Name, handler); err != nil {
+				if err := consumer.Consume(queueCfg.Name, handler); err != nil {
 					t.Logf("Consumer failed: %v", err)
 				}
 			}()
@@ -129,6 +125,8 @@ func TestIntegration_E2E_RoundTrip(t *testing.T) {
 			// Wait for consumer to start
 			time.Sleep(100 * time.Millisecond)
 
+			ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+			defer cancel()
 			for i := 0; i < tt.publishings; i++ {
 				msg := messagebus.Message{
 					ID:      "id" + fmt.Sprintf("%06d", i),
@@ -162,10 +160,6 @@ func TestIntegration_E2E_DeadLetterQueue(t *testing.T) {
 	require.NoError(t, err)
 	defer producer.Close()
 
-	consumer, err := rabbitmq.NewConsumer(conn, log)
-	require.NoError(t, err)
-	defer consumer.Close()
-
 	t.Run("success - empty queue", func(t *testing.T) {
 		exchangeCfg := rabbitmq.NewExchangeConfig("test.dlq.exchange", rabbitmq.ExchangeTypeTopic)
 		queueCfg := rabbitmq.NewQueueConfig("test.dlq-queue", rabbitmq.QueueTypeClassic)
@@ -189,13 +183,15 @@ func TestIntegration_E2E_DeadLetterQueue(t *testing.T) {
 			return errors.New("always fail")
 		}
 
-		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
-		defer cancel()
-
+		consumer, err := rabbitmq.NewConsumer(conn, log)
+		require.NoError(t, err)
+		defer consumer.Close()
 		go func() {
-			_ = consumer.Consume(ctx, queueCfg.Name, handler)
+			_ = consumer.Consume(queueCfg.Name, handler)
 		}()
 
+		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+		defer cancel()
 		msg := messagebus.Message{
 			Type:    "TestMessage",
 			Payload: json.RawMessage(`{"test": "data"}`),
