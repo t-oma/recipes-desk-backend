@@ -23,7 +23,7 @@ func TestNewTagSlug(t *testing.T) {
 		},
 		{
 			name:    "lowercases mixed case",
-			input:   "Gluten-Free",
+			input:   "Gluten Free",
 			want:    "gluten-free",
 			wantErr: nil,
 		},

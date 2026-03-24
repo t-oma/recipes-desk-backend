@@ -11,7 +11,7 @@ func NewTagSlug(slug string) (TagSlug, error) {
 	if err != nil {
 		return TagSlug{}, err
 	}
-	slug = strings.ToLower(name.String())
+	slug = Slugify(name.String())
 
 	return TagSlug{
 		value: slug,
@@ -20,4 +20,8 @@ func NewTagSlug(slug string) (TagSlug, error) {
 
 func (t TagSlug) String() string {
 	return t.value
+}
+
+func Slugify(name string) string {
+	return strings.ReplaceAll(strings.ToLower(name), " ", "-")
 }
