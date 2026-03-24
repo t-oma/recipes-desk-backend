@@ -8,12 +8,13 @@ import (
 	"github.com/rs/zerolog"
 
 	"recipes-desk/internal/modules/tags/application"
+	"recipes-desk/internal/modules/tags/application/ports/in"
 	"recipes-desk/pkg/pagination"
 )
 
 // Handler handles HTTP requests for tags.
 type Handler struct {
-	service *application.Service
+	service in.TagService
 	log     *zerolog.Logger
 }
 
