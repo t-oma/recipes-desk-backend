@@ -17,80 +17,86 @@ import (
 
 // Module represents the tags module.
 type Module struct {
-	handler *httphandler.Handler
+	handler  *httphandler.Handler
+	consumer *rabbitmq.Consumer
 }
 
 // NewModule creates a new tags module.
-func NewModule(
-	db *mongo.Database,
-	topology *rabbitmq.Topology,
-	consumer messagebus.Consumer,
-	log *zerolog.Logger,
-) *Module {
-	config, err := config.Load()
+func NewModule(db *mongo.Database, conn *rabbitmq.Connection, log *zerolog.Logger) *Module {
+	cfg, err := config.Load()
 	if err != nil {
 		log.Fatal().Err(err).Msg("Failed to load tags config")
 	}
 
 	tagRepo := mongorepo.NewTags(db)
-	err = tagRepo.InitIndexes(context.Background())
-	if err != nil {
+	if err = tagRepo.InitIndexes(context.Background()); err != nil {
 		log.Fatal().Err(err).Msg("Failed to initialize tag indexes")
 	}
+
 	tagService := application.NewService(
 		tagRepo,
 		mongorepo.ObjectIDGenerator{},
 		log,
-		config.Pagination.MaxLimit,
-		config.Pagination.DefaultLimit,
+		cfg.Pagination.MaxLimit,
+		cfg.Pagination.DefaultLimit,
 	)
 	tagHandler := httphandler.NewHandler(tagService, log)
 
-	eventHandler := application.NewEventHandler(tagService, log)
+	topology := rabbitmq.NewTopology(conn, log)
+	consumer, err := rabbitmq.NewConsumer(conn, log)
+	if err != nil {
+		log.Fatal().Err(err).Msg("Failed to create RabbitMQ consumer")
+	}
 
-	setupConsumers(topology, consumer, eventHandler)
+	eventHandler := application.NewEventHandler(tagService, log)
+	setupConsumers(topology, consumer, eventHandler, log)
 
 	return &Module{
-		handler: tagHandler,
+		handler:  tagHandler,
+		consumer: consumer,
 	}
+}
+
+// Shutdown gracefully stops the module's consumers.
+func (m *Module) Shutdown() error {
+	return m.consumer.Close()
 }
 
 // RegisterRoutes registers all tag routes.
 func (m *Module) RegisterRoutes(public, protected *gin.RouterGroup) {
-	// Public routes
 	public.GET("/tags", m.handler.Search)
 	public.GET("/tags/:id", m.handler.GetByID)
-
-	// Protected routes (admin only in future)
 	protected.POST("/tags", m.handler.Create)
 }
 
 func setupConsumers(
 	topology *rabbitmq.Topology,
 	consumer messagebus.Consumer,
-	handlers *application.EventHandler,
+	eventHandler *application.EventHandler,
+	log *zerolog.Logger,
 ) {
 	go func() {
-		if err := consumeRecipeCreated(
+		err := consumeRecipeCreated(
 			topology,
 			consumer,
-			handlers.HandleRecipeCreated,
-		); err != nil {
-			panic(err)
+			eventHandler.HandleRecipeCreated,
+		)
+		if err != nil {
+			log.Error().Err(err).Msg("Recipe created consumer failed")
 		}
 	}()
 	go func() {
-		if err := consumeRecipeDeleted(
+		err := consumeRecipeDeleted(
 			topology,
 			consumer,
-			handlers.HandleRecipeDeleted,
-		); err != nil {
-			panic(err)
+			eventHandler.HandleRecipeDeleted,
+		)
+		if err != nil {
+			log.Error().Err(err).Msg("Recipe deleted consumer failed")
 		}
 	}()
 }
 
-// consumeRecipeCreated sets up a topology and consumer for recipes.created events.
 func consumeRecipeCreated(
 	topology *rabbitmq.Topology,
 	consumer messagebus.Consumer,
@@ -99,21 +105,14 @@ func consumeRecipeCreated(
 	exchangeCfg := rabbitmq.NewExchangeConfig("recipes.topic", rabbitmq.ExchangeTypeTopic)
 	queueCfg := rabbitmq.NewQueueConfig("tags.recipes-created", rabbitmq.QueueTypeClassic)
 	bindingCfg := rabbitmq.NewBindingConfig(queueCfg.Name, exchangeCfg.Name, "recipes.created")
-	if err := topology.SetupTopologyWithDLQ(
-		exchangeCfg,
-		queueCfg,
-		bindingCfg,
-	); err != nil {
+
+	if err := topology.SetupTopologyWithDLQ(exchangeCfg, queueCfg, bindingCfg); err != nil {
 		return err
 	}
 
-	return consumer.Consume(
-		queueCfg.Name,
-		handler,
-	)
+	return consumer.Consume(queueCfg.Name, handler)
 }
 
-// consumeRecipeDeleted sets up a topology and consumer for recipes.deleted events.
 func consumeRecipeDeleted(
 	topology *rabbitmq.Topology,
 	consumer messagebus.Consumer,
@@ -122,16 +121,10 @@ func consumeRecipeDeleted(
 	exchangeCfg := rabbitmq.NewExchangeConfig("recipes.topic", rabbitmq.ExchangeTypeTopic)
 	queueCfg := rabbitmq.NewQueueConfig("tags.recipes-deleted", rabbitmq.QueueTypeClassic)
 	bindingCfg := rabbitmq.NewBindingConfig(queueCfg.Name, exchangeCfg.Name, "recipes.deleted")
-	if err := topology.SetupTopologyWithDLQ(
-		exchangeCfg,
-		queueCfg,
-		bindingCfg,
-	); err != nil {
+
+	if err := topology.SetupTopologyWithDLQ(exchangeCfg, queueCfg, bindingCfg); err != nil {
 		return err
 	}
 
-	return consumer.Consume(
-		queueCfg.Name,
-		handler,
-	)
+	return consumer.Consume(queueCfg.Name, handler)
 }
