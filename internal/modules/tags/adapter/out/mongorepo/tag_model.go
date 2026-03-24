@@ -10,7 +10,7 @@ import (
 )
 
 type tagModel struct {
-	ID        primitive.ObjectID `bson:"_id,omitempty"`
+	ID        primitive.ObjectID `bson:"_id,omitempty"` //nolint:tagliatelle // mongo _id field
 	Name      string             `bson:"name"`
 	Slug      string             `bson:"slug"`
 	CreatedAt time.Time          `bson:"createdAt"`

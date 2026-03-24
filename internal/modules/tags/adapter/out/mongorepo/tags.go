@@ -100,7 +100,8 @@ func (r *TagRepository) Search(
 
 	tags := make([]entity.Tag, len(tagModels))
 	for i, model := range tagModels {
-		tag, err := model.toDomain()
+		var tag *entity.Tag
+		tag, err = model.toDomain()
 		if err != nil {
 			return nil, 0, err
 		}

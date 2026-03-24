@@ -9,8 +9,9 @@ func (g ObjectIDGenerator) Generate() string {
 }
 
 func (g ObjectIDGenerator) Validate(id string) error {
-	if !primitive.IsValidObjectID(id) {
-		return primitive.ErrInvalidHex
+	_, err := primitive.ObjectIDFromHex(id)
+	if err != nil {
+		return err
 	}
 	return nil
 }
