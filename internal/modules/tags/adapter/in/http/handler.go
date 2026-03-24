@@ -19,7 +19,7 @@ type Handler struct {
 }
 
 // NewHandler creates a new tag handler.
-func NewHandler(service *application.Service, log *zerolog.Logger) *Handler {
+func NewHandler(service in.TagService, log *zerolog.Logger) *Handler {
 	return &Handler{
 		service: service,
 		log:     log,
