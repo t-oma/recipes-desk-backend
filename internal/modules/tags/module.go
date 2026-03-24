@@ -108,7 +108,6 @@ func consumeRecipeCreated(
 	}
 
 	return consumer.Consume(
-		context.Background(),
 		queueCfg.Name,
 		handler,
 	)
@@ -132,7 +131,6 @@ func consumeRecipeDeleted(
 	}
 
 	return consumer.Consume(
-		context.Background(),
 		queueCfg.Name,
 		handler,
 	)
