@@ -6,6 +6,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Fixed
+
+- **rabbitmq**: Consumer graceful shutdown hangs when `Consume()` receives `context.Background()` - replaced context parameter with internal `stopChan` (#28)
+
 ### Added
 
 - **rabbitmq**: E2E integration tests for publish→consume round-trip flow

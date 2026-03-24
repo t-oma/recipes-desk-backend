@@ -24,25 +24,6 @@ func TestIntegration_E2E_RoundTrip(t *testing.T) {
 	container, cleanup := testutils.SetupRabbitMQContainer(t)
 	defer cleanup()
 
-	log := testutils.NewTestLogger(t, 1)
-	conn, cleanupConn := setupConnection(t, log, container.Host, container.Port)
-	defer cleanupConn()
-
-	// Disable logging for topology
-	topology := rabbitmq.NewTopology(conn, testutils.NewTestLogger(t))
-
-	producer, err := rabbitmq.NewProducer(
-		conn,
-		testutils.NewTestLogger(t),
-		rabbitmq.DefaultProducerConfig(),
-	)
-	require.NoError(t, err)
-	defer producer.Close()
-
-	consumer, err := rabbitmq.NewConsumer(conn, log)
-	require.NoError(t, err)
-	defer consumer.Close()
-
 	tests := []struct {
 		name        string
 		queueType   rabbitmq.QueueType
@@ -99,6 +80,17 @@ func TestIntegration_E2E_RoundTrip(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			log := testutils.NewTestLogger(t)
+			conn, cleanupConn := setupConnection(
+				t,
+				log,
+				container.Host,
+				container.Port,
+			)
+			defer cleanupConn()
+
+			topology := rabbitmq.NewTopology(conn, log)
+
 			exchangeCfg := rabbitmq.NewExchangeConfig(
 				"test.e2e.exchange",
 				rabbitmq.ExchangeTypeTopic,
@@ -117,17 +109,27 @@ func TestIntegration_E2E_RoundTrip(t *testing.T) {
 				return tt.handler(msg)
 			}
 
-			// Start consumer
-			ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
-			defer cancel()
+			consumer, err := rabbitmq.NewConsumer(conn, log)
+			require.NoError(t, err)
+			defer consumer.Close()
 			go func() {
-				if err := consumer.Consume(ctx, queueCfg.Name, handler); err != nil {
+				if err := consumer.Consume(queueCfg.Name, handler); err != nil {
 					t.Logf("Consumer failed: %v", err)
 				}
 			}()
 
 			// Wait for consumer to start
 			time.Sleep(100 * time.Millisecond)
+
+			ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+			defer cancel()
+			producer, err := rabbitmq.NewProducer(
+				conn,
+				log,
+				rabbitmq.DefaultProducerConfig(),
+			)
+			require.NoError(t, err)
+			defer producer.Close()
 
 			for i := 0; i < tt.publishings; i++ {
 				msg := messagebus.Message{
@@ -148,23 +150,19 @@ func TestIntegration_E2E_RoundTrip(t *testing.T) {
 func TestIntegration_E2E_DeadLetterQueue(t *testing.T) {
 	container, cleanup := testutils.SetupRabbitMQContainer(t)
 	defer cleanup()
-	log := testutils.NewTestLogger(t, 1)
+	log := testutils.NewTestLogger(t)
 	conn, cleanupConn := setupConnection(t, log, container.Host, container.Port)
 	defer cleanupConn()
 
-	topology := rabbitmq.NewTopology(conn, testutils.NewTestLogger(t))
+	topology := rabbitmq.NewTopology(conn, log)
 
 	producer, err := rabbitmq.NewProducer(
 		conn,
-		testutils.NewTestLogger(t),
+		log,
 		rabbitmq.DefaultProducerConfig(),
 	)
 	require.NoError(t, err)
 	defer producer.Close()
-
-	consumer, err := rabbitmq.NewConsumer(conn, log)
-	require.NoError(t, err)
-	defer consumer.Close()
 
 	t.Run("success - empty queue", func(t *testing.T) {
 		exchangeCfg := rabbitmq.NewExchangeConfig("test.dlq.exchange", rabbitmq.ExchangeTypeTopic)
@@ -189,13 +187,15 @@ func TestIntegration_E2E_DeadLetterQueue(t *testing.T) {
 			return errors.New("always fail")
 		}
 
-		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
-		defer cancel()
-
+		consumer, err := rabbitmq.NewConsumer(conn, log)
+		require.NoError(t, err)
+		defer consumer.Close()
 		go func() {
-			_ = consumer.Consume(ctx, queueCfg.Name, handler)
+			_ = consumer.Consume(queueCfg.Name, handler)
 		}()
 
+		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+		defer cancel()
 		msg := messagebus.Message{
 			Type:    "TestMessage",
 			Payload: json.RawMessage(`{"test": "data"}`),

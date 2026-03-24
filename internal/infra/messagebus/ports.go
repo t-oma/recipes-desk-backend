@@ -41,7 +41,8 @@ type Publisher interface {
 type Consumer interface {
 	// Consume starts consuming messages from the specified queue.
 	// The handler is called for each message received.
-	Consume(ctx context.Context, queue string, handler Handler) error
+	// Stops when Close() is called.
+	Consume(queue string, handler Handler) error
 }
 
 // MessageBus is the main interface for message broker operations.
