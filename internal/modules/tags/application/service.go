@@ -58,7 +58,7 @@ func (s *Service) CreateTag(ctx context.Context, name string) (*dto.Tag, error) 
 	tag, err = s.repo.Create(ctx, tag)
 	if err != nil {
 		if errors.Is(err, domain.ErrConflict) {
-			return nil, s.mapError(domain.ErrConflict, "create tag")
+			return nil, s.mapError(ErrTagAlreadyExists, "create tag")
 		}
 		return nil, s.mapError(err, "create tag")
 	}

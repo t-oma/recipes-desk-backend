@@ -116,14 +116,6 @@ func (r *TagRepository) Search(
 	return tags, total, nil
 }
 
-func (r *TagRepository) Exists(ctx context.Context, slug string) (bool, error) {
-	count, err := r.collection.CountDocuments(ctx, bson.M{"slug": slug})
-	if err != nil {
-		return false, r.wrapError(err, "check tag exists")
-	}
-	return count > 0, nil
-}
-
 // wrapError converts MongoDB errors to domain errors.
 func (r *TagRepository) wrapError(err error, operation string) error {
 	if err == nil {

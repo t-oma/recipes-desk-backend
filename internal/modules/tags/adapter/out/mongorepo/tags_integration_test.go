@@ -157,30 +157,3 @@ func TestIntegration_TagRepository_Search(t *testing.T) {
 		assert.Len(t, results, 0)
 	})
 }
-
-func TestIntegration_TagRepository_Exists(t *testing.T) {
-	container, cleanup := testutils.SetupMongoDBContainer(t)
-	defer cleanup()
-
-	database := container.Client.Database(_testDBName)
-	repo := mongorepo.NewTags(database)
-	ctx := context.Background()
-
-	require.NoError(t, repo.InitIndexes(ctx))
-
-	tag := fixtures.NewTag(t, primitive.NewObjectID().Hex(), "Italian")
-	_, err := repo.Create(ctx, tag)
-	require.NoError(t, err)
-
-	t.Run("exists returns true for existing slug", func(t *testing.T) {
-		exists, err := repo.Exists(ctx, "italian")
-		require.NoError(t, err)
-		assert.True(t, exists)
-	})
-
-	t.Run("exists returns false for non-existing slug", func(t *testing.T) {
-		exists, err := repo.Exists(ctx, "nonexistent")
-		require.NoError(t, err)
-		assert.False(t, exists)
-	})
-}

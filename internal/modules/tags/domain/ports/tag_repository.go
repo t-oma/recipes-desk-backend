@@ -17,7 +17,4 @@ type TagRepository interface {
 
 	// Search finds tags by name (case-insensitive, partial match).
 	Search(ctx context.Context, query string, skip, limit int64) ([]entity.Tag, int64, error)
-
-	// Exists checks if a tag with given slug exists.
-	Exists(ctx context.Context, slug string) (bool, error)
 }
