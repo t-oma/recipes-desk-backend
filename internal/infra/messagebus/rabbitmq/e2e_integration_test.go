@@ -24,21 +24,6 @@ func TestIntegration_E2E_RoundTrip(t *testing.T) {
 	container, cleanup := testutils.SetupRabbitMQContainer(t)
 	defer cleanup()
 
-	log := testutils.NewTestLogger(t, 1)
-	conn, cleanupConn := setupConnection(t, log, container.Host, container.Port)
-	defer cleanupConn()
-
-	// Disable logging for topology
-	topology := rabbitmq.NewTopology(conn, testutils.NewTestLogger(t))
-
-	producer, err := rabbitmq.NewProducer(
-		conn,
-		testutils.NewTestLogger(t),
-		rabbitmq.DefaultProducerConfig(),
-	)
-	require.NoError(t, err)
-	defer producer.Close()
-
 	tests := []struct {
 		name        string
 		queueType   rabbitmq.QueueType
@@ -95,6 +80,17 @@ func TestIntegration_E2E_RoundTrip(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			log := testutils.NewTestLogger(t)
+			conn, cleanupConn := setupConnection(
+				t,
+				log,
+				container.Host,
+				container.Port,
+			)
+			defer cleanupConn()
+
+			topology := rabbitmq.NewTopology(conn, log)
+
 			exchangeCfg := rabbitmq.NewExchangeConfig(
 				"test.e2e.exchange",
 				rabbitmq.ExchangeTypeTopic,
@@ -127,6 +123,14 @@ func TestIntegration_E2E_RoundTrip(t *testing.T) {
 
 			ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 			defer cancel()
+			producer, err := rabbitmq.NewProducer(
+				conn,
+				log,
+				rabbitmq.DefaultProducerConfig(),
+			)
+			require.NoError(t, err)
+			defer producer.Close()
+
 			for i := 0; i < tt.publishings; i++ {
 				msg := messagebus.Message{
 					ID:      "id" + fmt.Sprintf("%06d", i),
@@ -146,15 +150,15 @@ func TestIntegration_E2E_RoundTrip(t *testing.T) {
 func TestIntegration_E2E_DeadLetterQueue(t *testing.T) {
 	container, cleanup := testutils.SetupRabbitMQContainer(t)
 	defer cleanup()
-	log := testutils.NewTestLogger(t, 1)
+	log := testutils.NewTestLogger(t)
 	conn, cleanupConn := setupConnection(t, log, container.Host, container.Port)
 	defer cleanupConn()
 
-	topology := rabbitmq.NewTopology(conn, testutils.NewTestLogger(t))
+	topology := rabbitmq.NewTopology(conn, log)
 
 	producer, err := rabbitmq.NewProducer(
 		conn,
-		testutils.NewTestLogger(t),
+		log,
 		rabbitmq.DefaultProducerConfig(),
 	)
 	require.NoError(t, err)
