@@ -34,11 +34,12 @@ func NewModule(db *mongo.Database, conn *rabbitmq.Connection, log *zerolog.Logge
 		log.Fatal().Err(err).Msg("Failed to create RabbitMQ producer")
 	}
 
-	_ = rmqpublisher.NewPublisher(producer) // TODO: pass to service
+	publisher := rmqpublisher.NewPublisher(producer)
 
 	recipeService := application.NewService(
 		recipeRepo,
 		idGenerator,
+		publisher,
 		log,
 		cfg.Pagination.MaxLimit,
 		cfg.Pagination.DefaultLimit,

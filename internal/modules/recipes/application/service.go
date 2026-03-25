@@ -9,8 +9,10 @@ import (
 	"recipes-desk/internal/modules/recipes/application/dto"
 	"recipes-desk/internal/modules/recipes/application/mapper"
 	"recipes-desk/internal/modules/recipes/application/ports/in"
+	"recipes-desk/internal/modules/recipes/application/ports/out"
 	"recipes-desk/internal/modules/recipes/domain"
 	"recipes-desk/internal/modules/recipes/domain/entity"
+	"recipes-desk/internal/modules/recipes/domain/events"
 	"recipes-desk/internal/modules/recipes/domain/ports"
 	"recipes-desk/internal/modules/recipes/domain/valueobject"
 	"recipes-desk/pkg/pagination"
@@ -21,6 +23,7 @@ import (
 type Service struct {
 	repo         ports.RecipeRepository
 	idGen        ports.IDGenerator
+	publisher    out.EventPublisher
 	log          *zerolog.Logger
 	maxLimit     int
 	defaultLimit int
@@ -31,6 +34,7 @@ var _ in.RecipeService = (*Service)(nil)
 func NewService(
 	repo ports.RecipeRepository,
 	idGen ports.IDGenerator,
+	publisher out.EventPublisher,
 	log *zerolog.Logger,
 	maxLimit int,
 	defaultLimit int,
@@ -38,6 +42,7 @@ func NewService(
 	return &Service{
 		repo:         repo,
 		idGen:        idGen,
+		publisher:    publisher,
 		log:          log,
 		maxLimit:     maxLimit,
 		defaultLimit: defaultLimit,
@@ -117,6 +122,14 @@ func (s *Service) Create(ctx context.Context, input dto.CreateRecipeInput) (*dto
 	recipe, err = s.repo.Create(ctx, recipe)
 	if err != nil {
 		return nil, s.mapError(err, "Create")
+	}
+
+	if err = s.publisher.PublishRecipeCreated(ctx, events.RecipeCreated{
+		RecipeID: recipe.ID().String(),
+		Title:    recipe.Title().String(),
+		Tags:     tagNames(recipe.Tags()),
+	}); err != nil {
+		s.log.Error().Err(err).Msg("Failed to publish recipes.created event")
 	}
 
 	return mapper.ToRecipeDTO(recipe), nil
@@ -248,6 +261,13 @@ func (s *Service) Delete(ctx context.Context, userID, id string) error {
 		return s.mapError(err, "Delete")
 	}
 
+	if err = s.publisher.PublishRecipeDeleted(ctx, events.RecipeDeleted{
+		RecipeID: id,
+		Tags:     tagNames(recipeToDelete.Tags()),
+	}); err != nil {
+		s.log.Error().Err(err).Msg("Failed to publish recipes.deleted event")
+	}
+
 	return nil
 }
 
@@ -293,4 +313,12 @@ func (s *Service) mapError(err error, operation string) error {
 		s.log.Error().Err(err).Str("operation", operation).Msg("Unexpected error")
 		return ErrInternal
 	}
+}
+
+func tagNames(tags []valueobject.TagName) []string {
+	names := make([]string, len(tags))
+	for i, tag := range tags {
+		names[i] = tag.String()
+	}
+	return names
 }
