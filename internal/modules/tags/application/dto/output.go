@@ -2,6 +2,7 @@ package dto
 
 import "time"
 
+// Tag represents a tag output DTO.
 type Tag struct {
 	ID        string
 	Name      string

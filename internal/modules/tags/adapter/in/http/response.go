@@ -16,6 +16,7 @@ type TagResponse struct {
 	UpdatedAt string `json:"updatedAt"`
 }
 
+// PaginationMeta contains pagination metadata for paginated responses.
 type PaginationMeta struct {
 	Page       int   `json:"page"`
 	Limit      int   `json:"limit"`
