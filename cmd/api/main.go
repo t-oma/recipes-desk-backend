@@ -9,8 +9,10 @@ import (
 	"recipes-desk/internal/config"
 	"recipes-desk/internal/infra/database"
 	"recipes-desk/internal/infra/logger"
+	"recipes-desk/internal/infra/messagebus/rabbitmq"
 	"recipes-desk/internal/modules/auth"
 	"recipes-desk/internal/modules/recipes"
+	"recipes-desk/internal/modules/tags"
 	"recipes-desk/internal/server"
 )
 
@@ -54,7 +56,17 @@ func main() {
 	}
 	defer func() {
 		if err = db.Disconnect(ctx); err != nil {
-			log.Fatal().Err(err).Msg("Failed to disconnect from MongoDB")
+			panic(err)
+		}
+	}()
+
+	rmqConn, err := rabbitmq.NewConnection(cfg.RabbitMQ, log)
+	if err != nil {
+		panic(err)
+	}
+	defer func() {
+		if err = rmqConn.Close(); err != nil {
+			log.Error().Err(err).Msg("Failed to close RabbitMQ connection")
 		}
 	}()
 
@@ -77,6 +89,15 @@ func main() {
 	// Initialize and register recipes module
 	recipesModule := recipes.NewModule(db.Database, log)
 	recipesModule.RegisterRoutes(public, protected)
+
+	// Initialize and register tags module
+	tagsModule := tags.NewModule(db.Database, rmqConn, log)
+	tagsModule.RegisterRoutes(public, protected)
+	defer func() {
+		if err = tagsModule.Shutdown(); err != nil {
+			log.Error().Err(err).Msg("Failed to shutdown tags module")
+		}
+	}()
 
 	ctx, cancel := context.WithTimeout(ctx, 3*time.Second)
 	defer cancel()

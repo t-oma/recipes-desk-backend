@@ -1,6 +1,6 @@
 .PHONY: build run \ 
 		test test-unit \ 
-		test-integration test-integration-recipes test-integration-auth test-integration-all test-all \ 
+		test-integration test-integration-recipes test-integration-tags test-integration-auth test-integration-all test-all \ 
 		coverage coverage-integration coverage-recipes coverage-auth coverage-all \
         clean \ 
 		docker-up docker-down docker-logs \ 
@@ -43,6 +43,11 @@ test-integration:
 test-integration-recipes:
 	go test -v -tags=integration -run '^TestIntegration_' ./internal/modules/recipes/...
 
+# Run integration tests for tags module only
+test-integration-tags:
+	go test -v -tags=integration -run '^TestIntegration_' ./internal/modules/tags/...
+
+# Run integration tests for auth module only
 test-integration-auth:
 	go test -v -tags=integration -run '^TestIntegration_' ./internal/modules/auth/...
 
