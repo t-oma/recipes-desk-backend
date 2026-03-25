@@ -6,6 +6,20 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Added
+
+- **tags**: Tags module with hexagonal architecture (domain, application, adapters)
+- **tags**: `GET /api/v1/tags` - search tags with pagination and case-insensitive query
+- **tags**: `GET /api/v1/tags/:id` - get tag by ID
+- **tags**: `POST /api/v1/tags` - create new tag with slug auto-generation
+- **tags**: RabbitMQ consumer for `recipes.created` and `recipes.deleted` events
+- **tags**: MongoDB repository with unique slug index
+- **tags**: Unit tests for domain, application, and HTTP handler (47 tests)
+- **tags**: Integration tests for MongoDB repository (12 tests)
+- **testutils**: `SetupMongoDBContainer` utility for integration tests, similar to `SetupRabbitMQContainer`
+
+## [v0.1.0] - 2026-03-23
+
 ### Fixed
 
 - **rabbitmq**: Consumer graceful shutdown hangs when `Consume()` receives `context.Background()` - replaced context parameter with internal `stopChan` (#28)
