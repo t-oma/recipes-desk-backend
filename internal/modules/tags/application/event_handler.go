@@ -9,8 +9,8 @@ import (
 	"github.com/rs/zerolog"
 
 	"recipes-desk/internal/infra/messagebus"
+	"recipes-desk/internal/modules/recipes/domain/events"
 	"recipes-desk/internal/modules/tags/application/ports/in"
-	"recipes-desk/internal/modules/tags/domain/events"
 )
 
 type EventHandler struct {

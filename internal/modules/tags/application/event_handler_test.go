@@ -10,10 +10,10 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"recipes-desk/internal/infra/messagebus"
+	"recipes-desk/internal/modules/recipes/domain/events"
 	"recipes-desk/internal/modules/tags/application"
 	"recipes-desk/internal/modules/tags/application/dto"
 	"recipes-desk/internal/modules/tags/application/ports/in"
-	"recipes-desk/internal/modules/tags/domain/events"
 	"recipes-desk/pkg/pagination"
 )
 
