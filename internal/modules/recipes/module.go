@@ -5,47 +5,61 @@ import (
 	"github.com/rs/zerolog"
 	"go.mongodb.org/mongo-driver/mongo"
 
+	"recipes-desk/internal/infra/messagebus/rabbitmq"
 	httphandler "recipes-desk/internal/modules/recipes/adapter/in/http"
 	"recipes-desk/internal/modules/recipes/adapter/out/mongorepo"
+	rmqpublisher "recipes-desk/internal/modules/recipes/adapter/out/rabbitmq"
 	"recipes-desk/internal/modules/recipes/application"
 	"recipes-desk/internal/modules/recipes/config"
 )
 
 // Module represents the recipes module.
 type Module struct {
-	handler *httphandler.Handler
+	handler  *httphandler.Handler
+	producer *rabbitmq.Producer
 }
 
 // NewModule creates a new recipes module.
-func NewModule(db *mongo.Database, log *zerolog.Logger) *Module {
-	config, err := config.Load()
+func NewModule(db *mongo.Database, conn *rabbitmq.Connection, log *zerolog.Logger) *Module {
+	cfg, err := config.Load()
 	if err != nil {
 		log.Fatal().Err(err).Msg("Failed to load recipes config")
 	}
 
 	recipeRepo := mongorepo.NewRecipes(db)
 	idGenerator := mongorepo.ObjectIDGenerator{}
+
+	producer, err := rabbitmq.NewProducer(conn, log, rabbitmq.DefaultProducerConfig())
+	if err != nil {
+		log.Fatal().Err(err).Msg("Failed to create RabbitMQ producer")
+	}
+
+	_ = rmqpublisher.NewPublisher(producer) // TODO: pass to service
+
 	recipeService := application.NewService(
 		recipeRepo,
 		idGenerator,
 		log,
-		config.Pagination.MaxLimit,
-		config.Pagination.DefaultLimit,
+		cfg.Pagination.MaxLimit,
+		cfg.Pagination.DefaultLimit,
 	)
 	recipeHandler := httphandler.NewHandler(recipeService, log)
 
 	return &Module{
-		handler: recipeHandler,
+		handler:  recipeHandler,
+		producer: producer,
 	}
+}
+
+// Shutdown gracefully stops the module's producer.
+func (m *Module) Shutdown() error {
+	return m.producer.Close()
 }
 
 // RegisterRoutes registers all recipe routes.
 func (m *Module) RegisterRoutes(public, protected *gin.RouterGroup) {
-	// Public routes
 	public.GET("/recipes", m.handler.Search)
 	public.GET("/recipes/:id", m.handler.GetByID)
-
-	// Protected routes (will require auth middleware later)
 	protected.POST("/recipes", m.handler.Create)
 	protected.PUT("/recipes/:id", m.handler.Update)
 	protected.DELETE("/recipes/:id", m.handler.Delete)

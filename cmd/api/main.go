@@ -87,13 +87,17 @@ func main() {
 	authModule.RegisterRoutes(public, protected)
 
 	// Initialize and register recipes module
-	recipesModule := recipes.NewModule(db.Database, log)
+	recipesModule := recipes.NewModule(db.Database, rmqConn, log)
 	recipesModule.RegisterRoutes(public, protected)
 
 	// Initialize and register tags module
 	tagsModule := tags.NewModule(db.Database, rmqConn, log)
 	tagsModule.RegisterRoutes(public, protected)
+
 	defer func() {
+		if err = recipesModule.Shutdown(); err != nil {
+			log.Error().Err(err).Msg("Failed to shutdown recipes module")
+		}
 		if err = tagsModule.Shutdown(); err != nil {
 			log.Error().Err(err).Msg("Failed to shutdown tags module")
 		}
