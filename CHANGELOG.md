@@ -8,6 +8,15 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Added
 
+- **recipes**: Event publishing for `recipes.created` and `recipes.deleted` via RabbitMQ
+- **recipes**: `EventPublisher` outbound port in application layer
+- **recipes**: RabbitMQ adapter for event publishing (`adapter/out/rabbitmq/publisher.go`)
+- **recipes**: Module now accepts `*rabbitmq.Connection` and self-manages producer lifecycle
+
+## [v0.1.0] - 2026-03-25
+
+### Added
+
 - **tags**: Tags module with hexagonal architecture (domain, application, adapters)
 - **tags**: `GET /api/v1/tags` - search tags with pagination and case-insensitive query
 - **tags**: `GET /api/v1/tags/:id` - get tag by ID
