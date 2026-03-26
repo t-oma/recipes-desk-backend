@@ -178,7 +178,7 @@ func TestIntegration_Topology_SetupDLQ(t *testing.T) {
 	container, cleanup := testutils.SetupRabbitMQContainer(t)
 	defer cleanup()
 
-	log := testutils.NewTestLogger(t, 1)
+	log := testutils.NewTestLogger(t)
 	conn, cleanupConn := setupConnection(t, log, container.Host, container.Port)
 	defer cleanupConn()
 
@@ -207,7 +207,7 @@ func TestIntegration_Topology_SetupTopologyWithDLQ(t *testing.T) {
 	container, cleanup := testutils.SetupRabbitMQContainer(t)
 	defer cleanup()
 
-	log := testutils.NewTestLogger(t, 1)
+	log := testutils.NewTestLogger(t)
 	conn, cleanupConn := setupConnection(t, log, container.Host, container.Port)
 	defer cleanupConn()
 
@@ -249,7 +249,7 @@ func TestIntegration_Topology_DeleteExchange(t *testing.T) {
 	container, cleanup := testutils.SetupRabbitMQContainer(t)
 	defer cleanup()
 
-	log := testutils.NewTestLogger(t, 1)
+	log := testutils.NewTestLogger(t)
 	conn, cleanupConn := setupConnection(t, log, container.Host, container.Port)
 	defer cleanupConn()
 
@@ -277,7 +277,7 @@ func TestIntegration_Topology_DeleteQueue(t *testing.T) {
 	container, cleanup := testutils.SetupRabbitMQContainer(t)
 	defer cleanup()
 
-	log := testutils.NewTestLogger(t, 1)
+	log := testutils.NewTestLogger(t)
 	conn, cleanupConn := setupConnection(t, log, container.Host, container.Port)
 	defer cleanupConn()
 
@@ -302,7 +302,7 @@ func TestIntegration_Topology_PurgeQueue(t *testing.T) {
 	container, cleanup := testutils.SetupRabbitMQContainer(t)
 	defer cleanup()
 
-	log := testutils.NewTestLogger(t, 1)
+	log := testutils.NewTestLogger(t)
 	conn, cleanupConn := setupConnection(t, log, container.Host, container.Port)
 	defer cleanupConn()
 
@@ -328,7 +328,7 @@ func TestIntegration_Topology_ExchangeExists(t *testing.T) {
 	container, cleanup := testutils.SetupRabbitMQContainer(t)
 	defer cleanup()
 
-	log := testutils.NewTestLogger(t, 1)
+	log := testutils.NewTestLogger(t)
 	conn, cleanupConn := setupConnection(t, log, container.Host, container.Port)
 	defer cleanupConn()
 
@@ -376,7 +376,7 @@ func TestIntegration_Topology_QueueExists(t *testing.T) {
 	container, cleanup := testutils.SetupRabbitMQContainer(t)
 	defer cleanup()
 
-	log := testutils.NewTestLogger(t, 1)
+	log := testutils.NewTestLogger(t)
 	conn, cleanupConn := setupConnection(t, log, container.Host, container.Port)
 	defer cleanupConn()
 

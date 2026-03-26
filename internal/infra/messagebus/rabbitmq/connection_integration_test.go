@@ -27,6 +27,7 @@ func testConnectionConfig(host string, port int) rabbitmq.ConnectionConfig {
 		Reconnect: rabbitmq.ReconnectConfig{
 			Enabled: false,
 		},
+		Heartbeat: 10 * time.Second,
 	}
 }
 
