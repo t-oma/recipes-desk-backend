@@ -6,3 +6,14 @@ server:
   timeouts:
     write: 10s
     read: 10s
+
+rabbitmq:
+  reconnect:
+    enabled: true
+    max-attempts: 10
+    initial-wait: 1s
+    max-wait: 30s
+    multiplier: 2
+  channel-max: 2048
+  heartbeat: 10s
+  connection-timeout: 30s

@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"io/fs"
 	"os"
+	"strconv"
 	"strings"
 	"unicode/utf8"
 
@@ -146,6 +147,21 @@ func (e *Env) Get(key string) string {
 		return envKey.value
 	}
 	return ""
+}
+
+// GetInt returns the integer value of an environment variable.
+func (e *Env) GetInt(key string) int {
+	value := e.Get(key)
+	if value == "" {
+		return 0
+	}
+
+	intValue, err := strconv.Atoi(value)
+	if err != nil {
+		return 0
+	}
+
+	return intValue
 }
 
 // GetOrDefault returns the value of an environment variable or a default value if the variable is not set.

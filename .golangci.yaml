@@ -201,6 +201,7 @@ linters:
         - ^golang.org/x/tools/go/analysis.Analyzer$
         - ^google.golang.org/protobuf/.+Options$
         - ^gopkg.in/yaml.v3.Node$
+        - ^github.com/rabbitmq/amqp091-go.Config$
       # Allows empty structures in return statements.
       # Default: false
       allow-empty-returns: true
@@ -209,7 +210,7 @@ linters:
       case:
         rules:
           json: camel
-          yaml: camel
+          yaml: kebab
           xml: camel
           bson: camel
           avro: snake
