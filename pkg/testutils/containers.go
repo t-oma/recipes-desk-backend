@@ -131,8 +131,10 @@ func SetupRabbitMQContainer(t *testing.T) (*RabbitMQTestContainer, func()) {
 	require.NoError(t, err)
 
 	// Get connection info
-	host, err := rmqContainer.Host(ctx)
-	require.NoError(t, err)
+	// host, err := rmqContainer.Host(ctx)
+	// require.NoError(t, err)
+	// Force IPv4 to avoid IPv6 issues in CI
+	host := "127.0.0.1"
 
 	port, err := rmqContainer.MappedPort(ctx, "5672")
 	require.NoError(t, err)
