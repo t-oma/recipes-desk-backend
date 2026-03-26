@@ -11,8 +11,10 @@ import (
 
 	"recipes-desk/internal/modules/recipes/application"
 	"recipes-desk/internal/modules/recipes/application/dto"
+	"recipes-desk/internal/modules/recipes/application/ports/out"
 	"recipes-desk/internal/modules/recipes/domain"
 	"recipes-desk/internal/modules/recipes/domain/entity"
+	"recipes-desk/internal/modules/recipes/domain/events"
 	"recipes-desk/internal/modules/recipes/domain/fixtures"
 	"recipes-desk/internal/modules/recipes/domain/ports"
 	"recipes-desk/internal/modules/recipes/domain/valueobject"
@@ -91,13 +93,35 @@ func (m *mockRepository) Delete(ctx context.Context, id string) error {
 	return args.Error(0)
 }
 
+type mockPublisher struct {
+	mock.Mock
+}
+
+var _ out.EventPublisher = (*mockPublisher)(nil)
+
+func (m *mockPublisher) PublishRecipeCreated(
+	ctx context.Context,
+	event events.RecipeCreated,
+) error {
+	args := m.Called(ctx, event)
+	return args.Error(0)
+}
+
+func (m *mockPublisher) PublishRecipeDeleted(
+	ctx context.Context,
+	event events.RecipeDeleted,
+) error {
+	args := m.Called(ctx, event)
+	return args.Error(0)
+}
+
 func TestService_Create(t *testing.T) {
 	logger := zerolog.New(nil)
 
 	tests := []struct {
 		name      string
 		input     dto.CreateRecipeInput
-		mockSetup func(*mockRepository, *mockIDGenerator)
+		mockSetup func(*mockRepository, *mockIDGenerator, *mockPublisher)
 		wantErr   error
 		wantID    bool
 	}{
@@ -113,11 +137,14 @@ func TestService_Create(t *testing.T) {
 				Tags:        []string{"test"},
 				UserID:      "user-id",
 			},
-			mockSetup: func(m *mockRepository, mID *mockIDGenerator) {
+			mockSetup: func(m *mockRepository, mID *mockIDGenerator, p *mockPublisher) {
 				mID.On("Generate").Return("id123")
 
 				m.On("Create", mock.Anything, mock.AnythingOfType(_recipeTypeString)).
 					Return(fixtures.NewRecipe(t, "id123", "author123", "Test Recipe"), nil)
+
+				p.On("PublishRecipeCreated", mock.Anything, mock.AnythingOfType("events.RecipeCreated")).
+					Return(nil)
 			},
 			wantErr: nil,
 			wantID:  true,
@@ -134,7 +161,7 @@ func TestService_Create(t *testing.T) {
 				Tags:        []string{"test"},
 				UserID:      "user-id",
 			},
-			mockSetup: func(_ *mockRepository, _ *mockIDGenerator) {
+			mockSetup: func(_ *mockRepository, _ *mockIDGenerator, _ *mockPublisher) {
 				// Repository should not be called
 			},
 			wantErr: valueobject.ErrTitleEmpty,
@@ -152,7 +179,7 @@ func TestService_Create(t *testing.T) {
 				Tags:        []string{"test"},
 				UserID:      "user-id",
 			},
-			mockSetup: func(_ *mockRepository, _ *mockIDGenerator) {
+			mockSetup: func(_ *mockRepository, _ *mockIDGenerator, _ *mockPublisher) {
 				// Repository should not be called
 			},
 			wantErr: valueobject.ErrIngredientEmptyName,
@@ -170,7 +197,7 @@ func TestService_Create(t *testing.T) {
 				Tags:        []string{"test"},
 				UserID:      "user-id",
 			},
-			mockSetup: func(_ *mockRepository, _ *mockIDGenerator) {
+			mockSetup: func(_ *mockRepository, _ *mockIDGenerator, _ *mockPublisher) {
 				// Repository should not be called
 			},
 			wantErr: valueobject.ErrStepNegativeDuration,
@@ -188,7 +215,7 @@ func TestService_Create(t *testing.T) {
 				Tags:        []string{""},
 				UserID:      "user-id",
 			},
-			mockSetup: func(_ *mockRepository, _ *mockIDGenerator) {
+			mockSetup: func(_ *mockRepository, _ *mockIDGenerator, _ *mockPublisher) {
 				// Repository should not be called
 			},
 			wantErr: valueobject.ErrTagEmptyName,
@@ -206,7 +233,7 @@ func TestService_Create(t *testing.T) {
 				Tags:        []string{"test"},
 				UserID:      "user-id",
 			},
-			mockSetup: func(m *mockRepository, mID *mockIDGenerator) {
+			mockSetup: func(m *mockRepository, mID *mockIDGenerator, _ *mockPublisher) {
 				mID.On("Generate").Return("id123")
 
 				m.On("Create", mock.Anything, mock.AnythingOfType(_recipeTypeString)).
@@ -221,11 +248,12 @@ func TestService_Create(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			mockRepo := new(mockRepository)
 			mockIDGen := new(mockIDGenerator)
+			mockPub := new(mockPublisher)
 			if tt.mockSetup != nil {
-				tt.mockSetup(mockRepo, mockIDGen)
+				tt.mockSetup(mockRepo, mockIDGen, mockPub)
 			}
 
-			svc := application.NewService(mockRepo, mockIDGen, &logger, 10, 10)
+			svc := application.NewService(mockRepo, mockIDGen, mockPub, &logger, 10, 10)
 			created, err := svc.Create(context.Background(), tt.input)
 
 			if tt.wantErr != nil {
@@ -292,7 +320,7 @@ func TestService_GetByID(t *testing.T) {
 			tt.mockSetup(mockRepo)
 
 			idGen := new(mockIDGenerator)
-			svc := application.NewService(mockRepo, idGen, &logger, 10, 10)
+			svc := application.NewService(mockRepo, idGen, new(mockPublisher), &logger, 10, 10)
 			recipe, err := svc.GetByID(context.Background(), tt.id)
 
 			if tt.wantErr != nil {
@@ -379,7 +407,7 @@ func TestService_Search(t *testing.T) {
 			tt.mockSetup(mockRepo)
 
 			idGen := new(mockIDGenerator)
-			svc := application.NewService(mockRepo, idGen, &logger, 10, 10)
+			svc := application.NewService(mockRepo, idGen, new(mockPublisher), &logger, 10, 10)
 			result, err := svc.Search(
 				context.Background(),
 				tt.query,
@@ -555,7 +583,7 @@ func TestService_Update(t *testing.T) {
 			tt.mockSetup(mockRepo)
 
 			idGen := new(mockIDGenerator)
-			svc := application.NewService(mockRepo, idGen, &logger, 10, 10)
+			svc := application.NewService(mockRepo, idGen, new(mockPublisher), &logger, 10, 10)
 			updated, err := svc.Update(context.Background(), tt.userID, tt.id, tt.input)
 
 			if tt.wantErr != nil {
@@ -583,17 +611,19 @@ func TestService_Delete(t *testing.T) {
 		name      string
 		userID    string
 		id        string
-		mockSetup func(*mockRepository)
+		mockSetup func(*mockRepository, *mockPublisher)
 		wantErr   error
 	}{
 		{
 			name:   "success",
 			id:     recipeID,
 			userID: authorID,
-			mockSetup: func(m *mockRepository) {
+			mockSetup: func(m *mockRepository, p *mockPublisher) {
 				m.On("FindByID", mock.Anything, recipeID).
 					Return(recipe, nil)
 				m.On("Delete", mock.Anything, recipeID).
+					Return(nil)
+				p.On("PublishRecipeDeleted", mock.Anything, mock.AnythingOfType("events.RecipeDeleted")).
 					Return(nil)
 			},
 			wantErr: nil,
@@ -602,7 +632,7 @@ func TestService_Delete(t *testing.T) {
 			name:   "not found",
 			id:     recipeID,
 			userID: authorID,
-			mockSetup: func(m *mockRepository) {
+			mockSetup: func(m *mockRepository, _ *mockPublisher) {
 				m.On("FindByID", mock.Anything, recipeID).
 					Return(nil, domain.ErrNotFound)
 			},
@@ -612,7 +642,7 @@ func TestService_Delete(t *testing.T) {
 			name:   "delete error",
 			id:     recipeID,
 			userID: authorID,
-			mockSetup: func(m *mockRepository) {
+			mockSetup: func(m *mockRepository, _ *mockPublisher) {
 				m.On("FindByID", mock.Anything, recipeID).
 					Return(recipe, nil)
 				m.On("Delete", mock.Anything, recipeID).
@@ -624,7 +654,7 @@ func TestService_Delete(t *testing.T) {
 			name:   "forbidden",
 			id:     recipeID,
 			userID: "not-author",
-			mockSetup: func(m *mockRepository) {
+			mockSetup: func(m *mockRepository, _ *mockPublisher) {
 				m.On("FindByID", mock.Anything, recipeID).
 					Return(recipe, nil)
 				// Delete should not be called because recipe is not owned by user
@@ -636,10 +666,11 @@ func TestService_Delete(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			mockRepo := new(mockRepository)
-			tt.mockSetup(mockRepo)
+			mockPub := new(mockPublisher)
+			tt.mockSetup(mockRepo, mockPub)
 
 			idGen := new(mockIDGenerator)
-			svc := application.NewService(mockRepo, idGen, &logger, 10, 10)
+			svc := application.NewService(mockRepo, idGen, mockPub, &logger, 10, 10)
 			err := svc.Delete(context.Background(), tt.userID, tt.id)
 
 			if tt.wantErr != nil {
