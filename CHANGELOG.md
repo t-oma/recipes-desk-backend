@@ -6,14 +6,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
-### Added
-
-- **recipes**: Event publishing for `recipes.created` and `recipes.deleted` via RabbitMQ
-- **recipes**: `EventPublisher` outbound port in application layer
-- **recipes**: RabbitMQ adapter for event publishing (`adapter/out/rabbitmq/publisher.go`)
-- **recipes**: Module now accepts `*rabbitmq.Connection` and self-manages producer lifecycle
-
-## [v0.1.0] - 2026-03-25
+## [v0.2.0] - 2026-03-26
 
 ### Added
 
@@ -25,9 +18,12 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 - **tags**: MongoDB repository with unique slug index
 - **tags**: Unit tests for domain, application, and HTTP handler (47 tests)
 - **tags**: Integration tests for MongoDB repository (12 tests)
-- **testutils**: `SetupMongoDBContainer` utility for integration tests, similar to `SetupRabbitMQContainer`
+- **recipes**: Event publishing for `recipes.created` and `recipes.deleted` via RabbitMQ
+- **recipes**: `EventPublisher` outbound port and RabbitMQ adapter
+- **recipes**: Module now accepts `*rabbitmq.Connection` and self-manages producer lifecycle
+- **testutils**: `SetupMongoDBContainer` utility for integration tests
 
-## [v0.1.0] - 2026-03-23
+## [v0.1.0] - 2026-03-25
 
 ### Fixed
 
